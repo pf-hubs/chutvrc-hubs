@@ -43,7 +43,7 @@ function createHTTPSConfig() {
               },
               {
                 type: 2,
-                value: "hubs.local"
+                value: "localhost"
               }
             ]
           }
@@ -188,9 +188,9 @@ async function fetchAppConfigAndEnvironmentVars() {
 
   process.env.RETICULUM_SERVER = host;
   process.env.SHORTLINK_DOMAIN = shortlink_domain;
-  process.env.CORS_PROXY_SERVER = `hubs.local:8080/cors-proxy`;
+  process.env.CORS_PROXY_SERVER = `localhost:8080/cors-proxy`;
   process.env.THUMBNAIL_SERVER = thumbnail_server;
-  process.env.NON_CORS_PROXY_DOMAINS = `${localIp},hubs.local,localhost`;
+  process.env.NON_CORS_PROXY_DOMAINS = `${localIp},localhost,localhost`;
 
   return appConfig;
 }
@@ -250,7 +250,7 @@ module.exports = async (env, argv) => {
     }
 
     if (env.localDev) {
-      const localDevHost = "hubs.local";
+      const localDevHost = "localhost";
       // Local Dev Environment (npm run local)
       Object.assign(process.env, {
         HOST: localDevHost,
@@ -269,7 +269,7 @@ module.exports = async (env, argv) => {
   // In production, the environment variables are defined in CI or loaded from ita and
   // the app config is injected into the head of the page by Reticulum.
 
-  const host = process.env.HOST_IP || env.localDev || env.remoteDev ? "hubs.local" : "localhost";
+  const host = process.env.HOST_IP || env.localDev || env.remoteDev ? "localhost" : "localhost";
 
   const liveReload = !!process.env.LIVE_RELOAD || false;
 
@@ -285,7 +285,7 @@ module.exports = async (env, argv) => {
     // .replaceAll("connect-src", "connect-src https://example.com");
   }
 
-  const internalHostname = process.env.INTERNAL_HOSTNAME || "hubs.local";
+  const internalHostname = process.env.INTERNAL_HOSTNAME || "localhost";
   return {
     cache: {
       type: "filesystem"
