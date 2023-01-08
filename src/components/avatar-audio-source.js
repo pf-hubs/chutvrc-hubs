@@ -157,9 +157,12 @@ AFRAME.registerComponent("avatar-audio-source", {
     getOwnerId(this.el).then(async ownerId => {
       if (ownerId === peerId && kind === "audio") {
         // The audio stream for this peer has been updated
+        /*
         const newStream = await APP.dialog.getMediaStream(peerId, "audio").catch(e => {
           console.error(INFO_INIT_FAILED, `Error getting media stream for ${peerId}`, e);
         });
+        */
+        const newStream = await getMediaStream(this.el);
 
         if (newStream) {
           this.mediaStreamSource.disconnect();

@@ -1,9 +1,12 @@
 import Sora from "sora-js-sdk";
+import { debug as newDebug } from "debug";
 import EventEmitter from "eventemitter3";
 // import { MediaDevices } from "./utils/media-devices-utils";
 
 export const SORA_CONNECTION_CONNECTED = "sora-connection-connected";
 export const SORA_CONNECTION_ERROR_FATAL = "sora-connection-error-fatal";
+
+const debug = newDebug("naf-dialog-adapter:debug");
 
 export class SoraAdapter extends EventEmitter {
   constructor() {
@@ -50,6 +53,9 @@ export class SoraAdapter extends EventEmitter {
       await this._sendrecv.disconnect();
       this._sendrecv = null;
     }
+    debug("disconnect()");
+    // ...
+    this.emitRTCEvent("info", "Signaling", () => `[close]`);
   }
 
   getMediaStream() {
@@ -58,5 +64,61 @@ export class SoraAdapter extends EventEmitter {
     } else if (this._sendrecv) {
       return this._sendrecv.stream;
     }
+  }
+
+  toggleMicrophone() {
+    if (this.isMicEnabled) {
+      this.enableMicrophone(false);
+    } else {
+      this.enableMicrophone(true);
+    }
+  }
+
+  enableMicrophone(enabled) {
+    if (enabled && !this.isMicEnabled) {
+      console.log("Enable mic");
+    } else if (!enabled && this.isMicEnabled) {
+      console.log("Disable mic");
+    }
+    this._micShouldBeEnabled = enabled;
+    this.emit("mic-state-changed", { enabled: this.isMicEnabled });
+  }
+
+  get isMicEnabled() {
+    return true;
+  }
+
+  async enableCamera() {}
+
+  async disableCamera() {}
+
+  async enableShare() {}
+
+  async disableShare() {}
+
+  kick(clientId) {
+    // ...
+    document.body.dispatchEvent(new CustomEvent("kicked", { detail: { clientId: clientId } }));
+  }
+
+  block(clientId) {
+    // ...
+    document.body.dispatchEvent(new CustomEvent("blocked", { detail: { clientId: clientId } }));
+  }
+
+  unblock(clientId) {
+    // ...
+    document.body.dispatchEvent(new CustomEvent("unblocked", { detail: { clientId: clientId } }));
+  }
+
+  emitRTCEvent(level, tag, msgFunc) {
+    if (!window.APP.store.state.preferences.showRtcDebugPanel) return;
+    const time = new Date().toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric"
+    });
+    this.scene.emit("rtc_event", { level, tag, time, msg: msgFunc() });
   }
 }
