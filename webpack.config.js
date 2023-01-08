@@ -638,7 +638,7 @@ module.exports = async (env, argv) => {
         }
       }),
       new webpack.ProvidePlugin({
-        process: "process/browser",
+        process: "process/browser.js",
         // TODO we should bee direclty importing THREE stuff when we need it
         THREE: "three"
       }),

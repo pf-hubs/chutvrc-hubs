@@ -28,6 +28,7 @@ import { mainTick } from "./systems/hubs-systems";
 import { waitForPreloads } from "./utils/preload";
 import SceneEntryManager from "./scene-entry-manager";
 import { store } from "./utils/store-instance";
+import { SoraAdapter } from "./sora-adapter";
 
 declare global {
   interface Window {
@@ -92,6 +93,7 @@ export class App {
   audioListener: AudioListener;
 
   dialog = new DialogAdapter();
+  sora = new SoraAdapter();
 
   RENDER_ORDER = {
     HUD_BACKGROUND: 1,

@@ -29,6 +29,7 @@ async function getOwnerId(el) {
 }
 
 async function getMediaStream(el) {
+  /*
   const peerId = await getOwnerId(el);
   if (!peerId) {
     console.error(INFO_INIT_FAILED, INFO_NO_OWNER);
@@ -37,6 +38,8 @@ async function getMediaStream(el) {
   const stream = await APP.dialog.getMediaStream(peerId).catch(e => {
     console.error(INFO_INIT_FAILED, `Error getting media stream for ${peerId}`, e);
   });
+  */
+  const stream = APP.sora.getMediaStream();
   if (!stream) {
     return null;
   }
