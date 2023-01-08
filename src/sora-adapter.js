@@ -9,6 +9,7 @@ export class SoraAdapter extends EventEmitter {
   constructor() {
     super();
     this._sendrecv = null;
+    this._recvStream = null;
   }
 
   async connect() {
@@ -33,8 +34,8 @@ export class SoraAdapter extends EventEmitter {
     this._sendrecv = sora.sendrecv(channelId, metadata, options);
     this._sendrecv.on("track", event => {
       const stream = event.streams[0];
-      console.log("Track added: " + stream);
       if (!stream) return;
+      this._recvStream = stream;
     });
     this._sendrecv.on("removetrack", event => {
       console.log("Track removed: " + event.target.id);
@@ -52,6 +53,10 @@ export class SoraAdapter extends EventEmitter {
   }
 
   getMediaStream() {
-    if (this._sendrecv) return this._sendrecv.stream;
+    if (this._recvStream) {
+      return this._recvStream;
+    } else if (this._sendrecv) {
+      return this._sendrecv.stream;
+    }
   }
 }
