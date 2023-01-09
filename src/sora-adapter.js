@@ -12,25 +12,23 @@ export class SoraAdapter extends EventEmitter {
   constructor() {
     super();
     this._sendrecv = null;
+    this._sendStream = null;
     this._recvStream = null;
+    this._micShouldBeEnabled = false;
   }
 
   async connect() {
     const channelId = "hao-sora-test@YHhaoareyou#43674499";
     const debug = false;
-    let connection = [
-      "wss://0006.canary.sora-labo.shiguredo.app/signaling",
-      "wss://0004.canary.sora-labo.shiguredo.app/signaling",
-      "wss://0003.canary.sora-labo.shiguredo.app/signaling"
-    ];
-    connection = "wss://0001.stable.sora-labo.shiguredo.app/signaling";
+    const connection = "wss://0001.stable.sora-labo.shiguredo.app/signaling";
     const sora = Sora.connection(connection, debug);
     const metadata = {
       access_token:
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaGFubmVsX2lkIjoiaGFvLXNvcmEtdGVzdEBZSGhhb2FyZXlvdSM0MzY3NDQ5OSJ9.TVjTnSvOOk6e7zcRZDHtf-E9FLFAhWqvhRzjECfVh84"
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaGFubmVsX2lkIjoiaGFvLXNvcmEtdGVzdEBZSGhhb2FyZXlvdSM0MzY3NDQ5OSIsImV4cCI6MTY3MzMzMTY0NX0.E-PnwsbfGpd_oeqnd7DCEJ887lwselj2PpRBqqSe01w"
     };
     const options = {
       audio: true,
+      multistream: true,
       video: false
     };
 
@@ -44,8 +42,18 @@ export class SoraAdapter extends EventEmitter {
       console.log("Track removed: " + event.target.id);
     });
     const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    await this._sendrecv.connect(mediaStream);
-    this.emit(SORA_CONNECTION_CONNECTED);
+    this._sendrecv
+      .connect(mediaStream)
+      .then(stream => {
+        this._sendStream = stream;
+        this.emit(this._sendStream ? SORA_CONNECTION_CONNECTED : SORA_CONNECTION_ERROR_FATAL);
+      })
+      .catch(e => {
+        console.error(e);
+        this.emit(SORA_CONNECTION_ERROR_FATAL);
+        this.enableMicrophone(false);
+      })
+      .finally(() => this.enableMicrophone(false));
   }
 
   async disconnect() {
@@ -67,7 +75,7 @@ export class SoraAdapter extends EventEmitter {
   }
 
   toggleMicrophone() {
-    if (this.isMicEnabled) {
+    if (this._micShouldBeEnabled) {
       this.enableMicrophone(false);
     } else {
       this.enableMicrophone(true);
@@ -75,17 +83,13 @@ export class SoraAdapter extends EventEmitter {
   }
 
   enableMicrophone(enabled) {
-    if (enabled && !this.isMicEnabled) {
-      console.log("Enable mic");
-    } else if (!enabled && this.isMicEnabled) {
-      console.log("Disable mic");
-    }
+    this._sendStream.getAudioTracks()[0].enabled = enabled;
     this._micShouldBeEnabled = enabled;
-    this.emit("mic-state-changed", { enabled: this.isMicEnabled });
+    this.emit("mic-state-changed", { enabled: this._micShouldBeEnabled });
   }
 
   get isMicEnabled() {
-    return true;
+    return this._sendStream != null && this._micShouldBeEnabled;
   }
 
   async enableCamera() {}

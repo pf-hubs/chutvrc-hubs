@@ -146,15 +146,18 @@ export default class MediaDevicesManager extends EventEmitter {
   }
 
   set micEnabled(enabled) {
-    APP.dialog.enableMicrophone(enabled);
+    // APP.dialog.enableMicrophone(enabled);
+    APP.sora.enableMicrophone(enabled);
   }
 
   get isMicEnabled() {
-    return APP.dialog.isMicEnabled;
+    // return APP.dialog.isMicEnabled;
+    return APP.sora.isMicEnabled;
   }
 
   toggleMic() {
-    APP.dialog.toggleMicrophone();
+    // APP.dialog.toggleMicrophone();
+    APP.sora.toggleMicrophone();
   }
 
   getPermissionsStatus(type) {
@@ -256,10 +259,10 @@ export default class MediaDevicesManager extends EventEmitter {
       console.log("No available audio tracks");
     }
 
-    await APP.dialog.setLocalMediaStream(this._mediaStream);
+    // await APP.dialog.setLocalMediaStream(this._mediaStream);
 
     if (unmute) {
-      APP.dialog.enableMicrophone(true);
+      APP.sora.enableMicrophone(true);
     }
 
     if (result) {
