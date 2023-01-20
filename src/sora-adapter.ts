@@ -1,4 +1,4 @@
-import Sora from "sora-js-sdk";
+import Sora, * as SoraType from "sora-js-sdk";
 import { debug as newDebug } from "debug";
 import EventEmitter from "eventemitter3";
 // import { MediaDevices } from "./utils/media-devices-utils";
@@ -8,7 +8,21 @@ export const SORA_CONNECTION_ERROR_FATAL = "sora-connection-error-fatal";
 
 const debug = newDebug("naf-dialog-adapter:debug");
 
+type ConnectProps = {
+  channelId: string;
+  signalingUrl: string;
+  accessToken: string;
+  debug: boolean;
+  options?: SoraType.ConnectionOptions;
+}
+
 export class SoraAdapter extends EventEmitter {
+  _sendrecv: SoraType.ConnectionPublisher | null;
+  _sendStream: MediaStream | null;
+  _recvStream: MediaStream | null;
+  _micShouldBeEnabled: boolean;
+  _scene: Element | null;
+
   constructor() {
     super();
     this._sendrecv = null;
@@ -17,15 +31,9 @@ export class SoraAdapter extends EventEmitter {
     this._micShouldBeEnabled = false;
   }
 
-  async connect() {
-    const channelId = "hao-sora-test@YHhaoareyou#43674499";
-    const debug = false;
-    const connection = "wss://0001.stable.sora-labo.shiguredo.app/signaling";
-    const sora = Sora.connection(connection, debug);
-    const metadata = {
-      access_token:
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaGFubmVsX2lkIjoiaGFvLXNvcmEtdGVzdEBZSGhhb2FyZXlvdSM0MzY3NDQ5OSIsImV4cCI6MTY3MzMzMTY0NX0.E-PnwsbfGpd_oeqnd7DCEJ887lwselj2PpRBqqSe01w"
-    };
+  async connect({ channelId, signalingUrl, accessToken, debug }: ConnectProps) {
+    const sora = Sora.connection(signalingUrl, debug);
+    const metadata = { access_Token: accessToken };
     const options = {
       audio: true,
       multistream: true,
@@ -39,7 +47,8 @@ export class SoraAdapter extends EventEmitter {
       this._recvStream = stream;
     });
     this._sendrecv.on("removetrack", event => {
-      console.log("Track removed: " + event.target.id);
+      // console.log("Track removed: " + event.target?.id);
+      console.log("Track removed: " + event.target);
     });
     const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     this._sendrecv
@@ -82,10 +91,12 @@ export class SoraAdapter extends EventEmitter {
     }
   }
 
-  enableMicrophone(enabled) {
-    this._sendStream.getAudioTracks()[0].enabled = enabled;
-    this._micShouldBeEnabled = enabled;
-    this.emit("mic-state-changed", { enabled: this._micShouldBeEnabled });
+  enableMicrophone(enabled: boolean) {
+    if (this._sendStream){
+      this._sendStream.getAudioTracks()[0].enabled = enabled;
+      this._micShouldBeEnabled = enabled;
+      this.emit("mic-state-changed", { enabled: this._micShouldBeEnabled });
+    }
   }
 
   get isMicEnabled() {
@@ -100,22 +111,22 @@ export class SoraAdapter extends EventEmitter {
 
   async disableShare() {}
 
-  kick(clientId) {
+  kick(clientId: string) {
     // ...
     document.body.dispatchEvent(new CustomEvent("kicked", { detail: { clientId: clientId } }));
   }
 
-  block(clientId) {
+  block(clientId: string) {
     // ...
     document.body.dispatchEvent(new CustomEvent("blocked", { detail: { clientId: clientId } }));
   }
 
-  unblock(clientId) {
+  unblock(clientId: string) {
     // ...
     document.body.dispatchEvent(new CustomEvent("unblocked", { detail: { clientId: clientId } }));
   }
 
-  emitRTCEvent(level, tag, msgFunc) {
+  emitRTCEvent(level: string, tag: string, msgFunc: () => void) {
     if (!window.APP.store.state.preferences.showRtcDebugPanel) return;
     const time = new Date().toLocaleTimeString("en-US", {
       hour12: false,
@@ -123,6 +134,7 @@ export class SoraAdapter extends EventEmitter {
       minute: "numeric",
       second: "numeric"
     });
-    this.scene.emit("rtc_event", { level, tag, time, msg: msgFunc() });
+    // @ts-ignore
+    this._scene?.emit("rtc_event", { level, tag, time, msg: msgFunc() });
   }
 }

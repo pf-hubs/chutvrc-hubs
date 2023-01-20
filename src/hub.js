@@ -624,7 +624,12 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
 
       // Disconnect in case this is a re-entry
       APP.sora.disconnect();
-      APP.sora.connect();
+      APP.sora.connect({
+        channelId: data.sora_channel_id,
+        signalingUrl: data.sora_signaling_url,
+        accessToken: data.sora_access_token,
+        debug: data.sora_is_debug
+      });
 
       /*
       APP.dialog.connect({
@@ -1273,6 +1278,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   hubPhxChannel
     .join()
     .receive("ok", async data => {
+      console.log(data);
       setLocalClientID(data.session_id);
       APP.hideHubPresenceEvents = true;
       presenceSync.promise = new Promise(resolve => {
