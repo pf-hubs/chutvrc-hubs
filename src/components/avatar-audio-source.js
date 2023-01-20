@@ -1,6 +1,7 @@
 import { SourceType, AudioType } from "./audio-params";
 import { getCurrentAudioSettings, updateAudioSettings } from "../update-audio-settings";
 import { isRoomOwner } from "../utils/hub-utils";
+import { SFU } from "../available-sfu";
 const INFO_INIT_FAILED = "Failed to initialize avatar-audio-source.";
 const INFO_NO_NETWORKED_EL = "Could not find networked el.";
 const INFO_NO_OWNER = "Networked component has no owner.";
@@ -29,17 +30,25 @@ async function getOwnerId(el) {
 }
 
 async function getMediaStream(el) {
-  /*
-  const peerId = await getOwnerId(el);
-  if (!peerId) {
-    console.error(INFO_INIT_FAILED, INFO_NO_OWNER);
-    return null;
+  let stream;
+  switch (APP.usingSfu) {
+    case SFU.SORA:
+      stream = APP.sora.getMediaStream();
+      break;
+    case SFU.DIALOG: {
+      const peerId = await getOwnerId(el);
+      if (!peerId) {
+        console.error(INFO_INIT_FAILED, INFO_NO_OWNER);
+        return null;
+      }
+      stream = await APP.dialog.getMediaStream(peerId).catch(e => {
+        console.error(INFO_INIT_FAILED, `Error getting media stream for ${peerId}`, e);
+      });
+      break;
+    }
+    default:
+      break;
   }
-  const stream = await APP.dialog.getMediaStream(peerId).catch(e => {
-    console.error(INFO_INIT_FAILED, `Error getting media stream for ${peerId}`, e);
-  });
-  */
-  const stream = APP.sora.getMediaStream();
   if (!stream) {
     return null;
   }
@@ -157,12 +166,20 @@ AFRAME.registerComponent("avatar-audio-source", {
     getOwnerId(this.el).then(async ownerId => {
       if (ownerId === peerId && kind === "audio") {
         // The audio stream for this peer has been updated
-        /*
-        const newStream = await APP.dialog.getMediaStream(peerId, "audio").catch(e => {
-          console.error(INFO_INIT_FAILED, `Error getting media stream for ${peerId}`, e);
-        });
-        */
-        const newStream = await getMediaStream(this.el);
+        let newStream;
+        switch (APP.usingSfu) {
+          case SFU.SORA:
+            newStream = await getMediaStream(this.el);
+            break;
+          case SFU.DIALOG: {
+            newStream = await APP.dialog.getMediaStream(peerId, "audio").catch(e => {
+              console.error(INFO_INIT_FAILED, `Error getting media stream for ${peerId}`, e);
+            });
+            break;
+          }
+          default:
+            break;
+        }
 
         if (newStream) {
           this.mediaStreamSource.disconnect();

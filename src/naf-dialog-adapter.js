@@ -1,8 +1,8 @@
 import * as mediasoupClient from "mediasoup-client";
 import protooClient from "protoo-client";
 import { debug as newDebug } from "debug";
-import EventEmitter from "eventemitter3";
 import { MediaDevices } from "./utils/media-devices-utils";
+import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 
 // Used for VP9 webcam video.
 //const VIDEO_KSVC_ENCODINGS = [{ scalabilityMode: "S3T3_KEY" }];
@@ -40,10 +40,7 @@ const SCREEN_SHARING_SIMULCAST_ENCODINGS = [
   { dtx: true, maxBitrate: 6000000 }
 ];
 
-export const DIALOG_CONNECTION_CONNECTED = "dialog-connection-connected";
-export const DIALOG_CONNECTION_ERROR_FATAL = "dialog-connection-error-fatal";
-
-export class DialogAdapter extends EventEmitter {
+export class DialogAdapter extends SfuAdapter {
   constructor() {
     super();
 
@@ -428,11 +425,11 @@ export class DialogAdapter extends EventEmitter {
         try {
           await this._joinRoom();
           resolve();
-          this.emit(DIALOG_CONNECTION_CONNECTED);
+          this.emit(SFU_CONNECTION_CONNECTED);
         } catch (err) {
           this.emitRTCEvent("warn", "Adapter", () => `Error during connect: ${error}`);
           reject(err);
-          this.emit(DIALOG_CONNECTION_ERROR_FATAL);
+          this.emit(SFU_CONNECTION_ERROR_FATAL);
         }
       });
     });
@@ -446,7 +443,7 @@ export class DialogAdapter extends EventEmitter {
     const newServerUrl = `wss://${host}:${port}`;
     if (this._serverUrl === newServerUrl) {
       console.error("Reconnect to dialog failed.");
-      this.emit(DIALOG_CONNECTION_ERROR_FATAL);
+      this.emit(SFU_CONNECTION_ERROR_FATAL);
       return;
     }
     console.log(`The Dialog server has changed to ${newServerUrl}, reconnecting with the new server...`);

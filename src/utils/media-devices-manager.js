@@ -2,6 +2,7 @@ import { EventEmitter } from "eventemitter3";
 import { MediaDevicesEvents, PermissionStatus, MediaDevices, NO_DEVICE_ID } from "./media-devices-utils";
 import { detectOS, detect } from "detect-browser";
 import { isIOS as detectIOS } from "./is-mobile";
+import { SFU } from "../available-sfu";
 
 const isMobile = AFRAME.utils.device.isMobile();
 const isIOS = detectIOS();
@@ -146,18 +147,15 @@ export default class MediaDevicesManager extends EventEmitter {
   }
 
   set micEnabled(enabled) {
-    // APP.dialog.enableMicrophone(enabled);
-    APP.sora.enableMicrophone(enabled);
+    APP.sfu.enableMicrophone(enabled);
   }
 
   get isMicEnabled() {
-    // return APP.dialog.isMicEnabled;
-    return APP.sora.isMicEnabled;
+    return APP.sfu.isMicEnabled;
   }
 
   toggleMic() {
-    // APP.dialog.toggleMicrophone();
-    APP.sora.toggleMicrophone();
+    APP.sfu.toggleMicrophone();
   }
 
   getPermissionsStatus(type) {
@@ -259,10 +257,10 @@ export default class MediaDevicesManager extends EventEmitter {
       console.log("No available audio tracks");
     }
 
-    // await APP.dialog.setLocalMediaStream(this._mediaStream);
+    if (APP.usingSfu === SFU.DIALOG) await APP.sfu.setLocalMediaStream(this._mediaStream);
 
     if (unmute) {
-      APP.sora.enableMicrophone(true);
+      APP.sfu.enableMicrophone(true);
     }
 
     if (result) {

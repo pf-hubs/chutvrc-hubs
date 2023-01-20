@@ -23,12 +23,13 @@ import {
 } from "three";
 import { AudioSettings, SourceType } from "./components/audio-params";
 import { createEffectsComposer } from "./effects";
-import { DialogAdapter } from "./naf-dialog-adapter";
 import { mainTick } from "./systems/hubs-systems";
 import { waitForPreloads } from "./utils/preload";
 import SceneEntryManager from "./scene-entry-manager";
 import { store } from "./utils/store-instance";
 import { SoraAdapter } from "./sora-adapter";
+import { SFU } from "./available-sfu";
+import { SfuAdapter } from "./sfu-adapter";
 
 declare global {
   interface Window {
@@ -92,8 +93,8 @@ export class App {
 
   audioListener: AudioListener;
 
-  dialog = new DialogAdapter();
-  sora = new SoraAdapter();
+  usingSfu = SFU.SORA;
+  sfu: SfuAdapter = new SoraAdapter(); // or new DialogAdapter();
 
   RENDER_ORDER = {
     HUD_BACKGROUND: 1,

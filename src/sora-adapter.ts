@@ -1,10 +1,7 @@
 import Sora, * as SoraType from "sora-js-sdk";
 import { debug as newDebug } from "debug";
-import EventEmitter from "eventemitter3";
+import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 // import { MediaDevices } from "./utils/media-devices-utils";
-
-export const SORA_CONNECTION_CONNECTED = "sora-connection-connected";
-export const SORA_CONNECTION_ERROR_FATAL = "sora-connection-error-fatal";
 
 const debug = newDebug("naf-dialog-adapter:debug");
 
@@ -16,7 +13,7 @@ type ConnectProps = {
   options?: SoraType.ConnectionOptions;
 }
 
-export class SoraAdapter extends EventEmitter {
+export class SoraAdapter extends SfuAdapter {
   _sendrecv: SoraType.ConnectionPublisher | null;
   _sendStream: MediaStream | null;
   _recvStream: MediaStream | null;
@@ -55,11 +52,11 @@ export class SoraAdapter extends EventEmitter {
       .connect(mediaStream)
       .then(stream => {
         this._sendStream = stream;
-        this.emit(this._sendStream ? SORA_CONNECTION_CONNECTED : SORA_CONNECTION_ERROR_FATAL);
+        this.emit(this._sendStream ? SFU_CONNECTION_CONNECTED : SFU_CONNECTION_ERROR_FATAL);
       })
       .catch(e => {
         console.error(e);
-        this.emit(SORA_CONNECTION_ERROR_FATAL);
+        this.emit(SFU_CONNECTION_ERROR_FATAL);
         this.enableMicrophone(false);
       })
       .finally(() => this.enableMicrophone(false));

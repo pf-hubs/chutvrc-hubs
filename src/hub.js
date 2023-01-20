@@ -58,7 +58,6 @@ import "./phoenix-adapter";
 import nextTick from "./utils/next-tick";
 import { addAnimationComponents } from "./utils/animation";
 import Cookies from "js-cookie";
-// import { DIALOG_CONNECTION_ERROR_FATAL, DIALOG_CONNECTION_CONNECTED } from "./naf-dialog-adapter";
 import "./change-hub";
 
 import "./components/scene-components";
@@ -141,7 +140,6 @@ import "./components/mirror";
 import ReactDOM from "react-dom";
 import React from "react";
 import { Router, Route } from "react-router-dom";
-import Sora from "sora-js-sdk";
 import { createBrowserHistory, createMemoryHistory } from "history";
 import { pushHistoryState } from "./utils/history";
 import UIRoot from "./react-components/ui-root";
@@ -257,7 +255,8 @@ import { swapActiveScene } from "./bit-systems/scene-loading";
 import { setLocalClientID } from "./bit-systems/networking";
 import { listenForNetworkMessages } from "./utils/listen-for-network-messages";
 import { exposeBitECSDebugHelpers } from "./bitecs-debug-helpers";
-import { SORA_CONNECTION_CONNECTED, SORA_CONNECTION_ERROR_FATAL } from "./sora-adapter";
+import { SFU } from "./available-sfu";
+import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL } from "./sfu-adapter";
 
 const PHOENIX_RELIABLE_NAF = "phx-reliable";
 NAF.options.firstSyncSource = PHOENIX_RELIABLE_NAF;
@@ -623,26 +622,32 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
       updateEnvironmentForHub(hub, entryManager);
 
       // Disconnect in case this is a re-entry
-      APP.sora.disconnect();
-      APP.sora.connect({
-        channelId: data.sora_channel_id,
-        signalingUrl: data.sora_signaling_url,
-        accessToken: data.sora_access_token,
-        debug: data.sora_is_debug
-      });
+      APP.sfu.disconnect();
 
-      /*
-      APP.dialog.connect({
-        serverUrl: `wss://${hub.host}:${hub.port}`,
-        roomId: hub.hub_id,
-        serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
-        scene,
-        clientId: data.session_id,
-        forceTcp: qs.get("force_tcp"),
-        forceTurn: qs.get("force_turn"),
-        iceTransportPolicy: qs.get("force_tcp") || qs.get("force_turn") ? "relay" : "all"
-      });
-      */
+      switch (APP.usingSfu) {
+        case SFU.SORA:
+          APP.sfu.connect({
+            channelId: data.sora_channel_id,
+            signalingUrl: data.sora_signaling_url,
+            accessToken: data.sora_access_token,
+            debug: data.sora_is_debug
+          });
+          break;
+        case SFU.DIALOG:
+          APP.sfu.connect({
+            serverUrl: `wss://${hub.host}:${hub.port}`,
+            roomId: hub.hub_id,
+            serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
+            scene,
+            clientId: data.session_id,
+            forceTcp: qs.get("force_tcp"),
+            forceTurn: qs.get("force_turn"),
+            iceTransportPolicy: qs.get("force_tcp") || qs.get("force_turn") ? "relay" : "all"
+          });
+          break;
+        default:
+          break;
+      }
 
       scene.addEventListener(
         "adapter-ready",
@@ -770,24 +775,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   const entryManager = new SceneEntryManager(hubChannel, authChannel, history);
   window.APP.entryManager = entryManager;
 
-  APP.sora.on(SORA_CONNECTION_CONNECTED, () => {
+  APP.sfu.on(SFU_CONNECTION_CONNECTED, () => {
     scene.emit("didConnectToDialog");
   });
-  APP.sora.on(SORA_CONNECTION_ERROR_FATAL, () => {
-    remountUI({ roomUnavailableReason: ExitReason.connectError });
-    APP.entryManager.exitScene();
-  });
-  /*
-  APP.dialog.on(DIALOG_CONNECTION_CONNECTED, () => {
-    scene.emit("didConnectToDialog");
-  });
-  APP.dialog.on(DIALOG_CONNECTION_ERROR_FATAL, () => {
+  APP.sfu.on(SFU_CONNECTION_ERROR_FATAL, () => {
     // TODO: Change the wording of the connect error to match dialog connection error
     // TODO: Tell the user that dialog is broken, but don't completely end the experience
     remountUI({ roomUnavailableReason: ExitReason.connectError });
     APP.entryManager.exitScene();
   });
-  */
 
   const audioSystem = scene.systems["hubs-systems"].audioSystem;
   APP.mediaDevicesManager = new MediaDevicesManager(scene, store, audioSystem);
@@ -951,7 +947,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   scene.addEventListener("hub_closed", () => {
-    App.sora.disconnect();
+    App.sfu.disconnect();
     scene.exitVR();
     entryManager.exitScene();
     remountUI({ roomUnavailableReason: ExitReason.closed });

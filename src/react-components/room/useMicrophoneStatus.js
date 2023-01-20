@@ -13,7 +13,7 @@ export function useMicrophoneStatus(scene) {
     const onMicMutedStateChanged = ({ enabled }) => {
       setIsMicMuted(!enabled);
     };
-    APP.sora.on("mic-state-changed", onMicMutedStateChanged);
+    APP.sfu.on("mic-state-changed", onMicMutedStateChanged);
 
     const onMicEnabled = () => {
       setIsMicEnabled(true);
@@ -32,7 +32,7 @@ export function useMicrophoneStatus(scene) {
     mediaDevicesManager.on(MediaDevicesEvents.PERMISSIONS_STATUS_CHANGED, onPermissionsChanged);
 
     return () => {
-      APP.sora.off("mic-state-changed", onMicMutedStateChanged);
+      APP.sfu.off("mic-state-changed", onMicMutedStateChanged);
       scene.removeEventListener(MediaDevicesEvents.MIC_SHARE_ENDED, onMicDisabled);
       scene.removeEventListener(MediaDevicesEvents.MIC_SHARE_STARTED, onMicEnabled);
       mediaDevicesManager.off(MediaDevicesEvents.PERMISSIONS_STATUS_CHANGED, onPermissionsChanged);
