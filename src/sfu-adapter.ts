@@ -9,7 +9,7 @@ export abstract class SfuAdapter extends EventEmitter {
   getMediaStream() { }
   toggleMicrophone() { }
   enableMicrophone(enabled: boolean) { }
-  get isMicEnabled() { return false; }
+  get isMicEnabled(): boolean | null { return false; }
   async enableCamera() {}
   async disableCamera() {}
   async enableShare() {}

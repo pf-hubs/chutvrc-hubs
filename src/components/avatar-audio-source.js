@@ -33,7 +33,7 @@ async function getMediaStream(el) {
   let stream;
   switch (APP.usingSfu) {
     case SFU.SORA:
-      stream = APP.sora.getMediaStream();
+      stream = APP.sfu.getMediaStream();
       break;
     case SFU.DIALOG: {
       const peerId = await getOwnerId(el);
@@ -41,7 +41,7 @@ async function getMediaStream(el) {
         console.error(INFO_INIT_FAILED, INFO_NO_OWNER);
         return null;
       }
-      stream = await APP.dialog.getMediaStream(peerId).catch(e => {
+      stream = await APP.sfu.getMediaStream(peerId).catch(e => {
         console.error(INFO_INIT_FAILED, `Error getting media stream for ${peerId}`, e);
       });
       break;
@@ -172,7 +172,7 @@ AFRAME.registerComponent("avatar-audio-source", {
             newStream = await getMediaStream(this.el);
             break;
           case SFU.DIALOG: {
-            newStream = await APP.dialog.getMediaStream(peerId, "audio").catch(e => {
+            newStream = await APP.sfu.getMediaStream(peerId, "audio").catch(e => {
               console.error(INFO_INIT_FAILED, `Error getting media stream for ${peerId}`, e);
             });
             break;

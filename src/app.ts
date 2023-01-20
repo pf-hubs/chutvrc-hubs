@@ -30,6 +30,7 @@ import { store } from "./utils/store-instance";
 import { SoraAdapter } from "./sora-adapter";
 import { SFU } from "./available-sfu";
 import { SfuAdapter } from "./sfu-adapter";
+import { DialogAdapter } from "./naf-dialog-adapter";
 
 declare global {
   interface Window {
@@ -95,6 +96,8 @@ export class App {
 
   usingSfu = SFU.SORA;
   sfu: SfuAdapter = new SoraAdapter(); // or new DialogAdapter();
+  dialog = new DialogAdapter();
+  sora = new SoraAdapter();
 
   RENDER_ORDER = {
     HUD_BACKGROUND: 1,
