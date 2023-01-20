@@ -164,7 +164,7 @@ export default class MediaDevicesManager extends EventEmitter {
 
   onPermissionsUpdated = () => {
     if (!APP.hubChannel.can("voice_chat")) {
-      APP.dialog.enableMicrophone(false);
+      APP.sfu.enableMicrophone(false);
     }
   };
 
@@ -338,7 +338,7 @@ export default class MediaDevicesManager extends EventEmitter {
     this.audioTrack = null;
 
     await APP.dialog.setLocalMediaStream(this._mediaStream);
-    APP.dialog.enableMicrophone(false);
+    APP.sfu.enableMicrophone(false);
   }
 
   async startVideoShare({ isDisplayMedia, target, success, error }) {

@@ -108,7 +108,7 @@ AFRAME.registerComponent("player-info", {
     this.el.sceneEl.addEventListener("stateremoved", this.update);
 
     if (this.isLocalPlayerInfo) {
-      APP.dialog.on("mic-state-changed", this.onMicStateChanged);
+      APP.sfu.on("mic-state-changed", this.onMicStateChanged);
     }
   },
 
@@ -125,7 +125,7 @@ AFRAME.registerComponent("player-info", {
     window.APP.store.removeEventListener("statechanged", this.update);
 
     if (this.isLocalPlayerInfo) {
-      APP.dialog.off("mic-state-changed", this.onMicStateChanged);
+      APP.sfu.off("mic-state-changed", this.onMicStateChanged);
     }
   },
 

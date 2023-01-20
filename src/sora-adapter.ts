@@ -6,6 +6,7 @@ import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from
 const debug = newDebug("naf-dialog-adapter:debug");
 
 type ConnectProps = {
+  clientId: string;
   channelId: string;
   signalingUrl: string;
   accessToken: string;
@@ -14,6 +15,7 @@ type ConnectProps = {
 }
 
 export class SoraAdapter extends SfuAdapter {
+  _clientId: string;
   _sendrecv: SoraType.ConnectionPublisher | null;
   _sendStream: MediaStream | null;
   _recvStream: MediaStream | null;
@@ -22,21 +24,24 @@ export class SoraAdapter extends SfuAdapter {
 
   constructor() {
     super();
+    this._clientId = "";
     this._sendrecv = null;
     this._sendStream = null;
     this._recvStream = null;
     this._micShouldBeEnabled = false;
   }
 
-  async connect({ channelId, signalingUrl, accessToken, debug }: ConnectProps) {
+  async connect({ clientId, channelId, signalingUrl, accessToken, debug }: ConnectProps) {
     const sora = Sora.connection(signalingUrl, debug);
     const metadata = { access_Token: accessToken };
     const options = {
+      clientId: clientId,
       audio: true,
       multistream: true,
       video: false
     };
 
+    this._clientId = clientId;
     this._sendrecv = sora.sendrecv(channelId, metadata, options);
     this._sendrecv.on("track", event => {
       const stream = event.streams[0];
@@ -72,11 +77,15 @@ export class SoraAdapter extends SfuAdapter {
     this.emitRTCEvent("info", "Signaling", () => `[close]`);
   }
 
-  getMediaStream() {
-    if (this._recvStream) {
-      return this._recvStream;
-    } else if (this._sendrecv) {
-      return this._sendrecv.stream;
+  getMediaStream(clientId: string, kind = "audio") {
+    if (this._clientId === clientId) {
+      if (kind === "audio") {
+        return this._sendStream;
+      }
+    } else {
+      if (kind === "audio") {
+        return this._recvStream;
+      }
     }
   }
 

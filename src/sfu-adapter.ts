@@ -6,7 +6,7 @@ export const SFU_CONNECTION_ERROR_FATAL = "sfu-connection-error-fatal";
 export abstract class SfuAdapter extends EventEmitter {
   connect(props: any) { }
   disconnect() { }
-  getMediaStream() { }
+  getMediaStream(clientId: string, kind: string) { }
   toggleMicrophone() { }
   enableMicrophone(enabled: boolean) { }
   get isMicEnabled(): boolean | null { return false; }

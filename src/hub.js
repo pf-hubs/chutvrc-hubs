@@ -627,6 +627,7 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
       switch (APP.usingSfu) {
         case SFU.SORA:
           APP.sfu.connect({
+            clientId: data.session_id,
             channelId: data.sora_channel_id,
             signalingUrl: data.sora_signaling_url,
             accessToken: data.sora_access_token,

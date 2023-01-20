@@ -28,11 +28,11 @@ AFRAME.registerComponent("bone-mute-state-indicator", {
   },
 
   play() {
-    APP.dialog.on("mic-state-changed", this.onMicStateChanged);
+    APP.sfu.on("mic-state-changed", this.onMicStateChanged);
   },
 
   pause() {
-    APP.dialog.off("mic-state-changed", this.onMicStateChanged);
+    APP.sfu.off("mic-state-changed", this.onMicStateChanged);
   },
 
   updateMuteState() {

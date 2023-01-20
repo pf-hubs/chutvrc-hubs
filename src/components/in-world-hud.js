@@ -14,12 +14,12 @@ AFRAME.registerComponent("in-world-hud", {
     this.background = this.el.querySelector(".bg");
 
     this.onMicStateChanged = () => {
-      this.mic.setAttribute("mic-button", "active", APP.dialog.isMicEnabled);
+      this.mic.setAttribute("mic-button", "active", APP.sfu.isMicEnabled);
     };
-    APP.dialog.on("mic-state-changed", this.onMicStateChanged);
+    APP.sfu.on("mic-state-changed", this.onMicStateChanged);
 
     this.updateButtonStates = () => {
-      this.mic.setAttribute("mic-button", "active", APP.dialog.isMicEnabled);
+      this.mic.setAttribute("mic-button", "active", APP.sfu.isMicEnabled);
       this.pen.setAttribute("icon-button", "active", this.el.sceneEl.is("pen"));
       this.cameraBtn.setAttribute("icon-button", "active", this.el.sceneEl.is("camera"));
       if (window.APP.hubChannel) {
