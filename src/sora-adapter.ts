@@ -18,7 +18,8 @@ export class SoraAdapter extends SfuAdapter {
   _clientId: string;
   _sendrecv: SoraType.ConnectionPublisher | null;
   _sendStream: MediaStream | null;
-  _recvStream: MediaStream | null;
+  _recvStreams: Map<string, MediaStream | null>;
+  _clientStreamIdPair: Map<string, string>;
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
 
@@ -27,7 +28,8 @@ export class SoraAdapter extends SfuAdapter {
     this._clientId = "";
     this._sendrecv = null;
     this._sendStream = null;
-    this._recvStream = null;
+    this._recvStreams = new Map<string, MediaStream | null>();
+    this._clientStreamIdPair = new Map<string, string>();
     this._micShouldBeEnabled = false;
   }
 
@@ -38,19 +40,28 @@ export class SoraAdapter extends SfuAdapter {
       clientId: clientId,
       audio: true,
       multistream: true,
-      video: false
+      video: true
     };
 
     this._clientId = clientId;
     this._sendrecv = sora.sendrecv(channelId, metadata, options);
+    this._sendrecv.on("notify", event => {
+      if (event.event_type === "connection.created") {
+        if (event.client_id && event.connection_id && !this._recvStreams.has(event.client_id)){
+          this._clientStreamIdPair.set(event.client_id, event.connection_id);
+        }
+      }
+    })
     this._sendrecv.on("track", event => {
       const stream = event.streams[0];
       if (!stream) return;
-      this._recvStream = stream;
+      if (!this._recvStreams.has(stream.id)) {
+        this._recvStreams.set(stream.id, stream);
+      }
     });
     this._sendrecv.on("removetrack", event => {
-      // console.log("Track removed: " + event.target?.id);
-      console.log("Track removed: " + event.target);
+      // @ts-ignore
+      console.log("Track removed: " + event.target?.id);
     });
     const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     this._sendrecv
@@ -78,15 +89,24 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   getMediaStream(clientId: string, kind = "audio") {
+    let stream: MediaStream | null | undefined = null;
+    let tracks: MediaStreamTrack[] | null | undefined = null;
+
     if (this._clientId === clientId) {
-      if (kind === "audio") {
-        return this._sendStream;
-      }
+      stream = this._sendStream;
     } else {
-      if (kind === "audio") {
-        return this._recvStream;
+      const streamId = this._clientStreamIdPair.get(clientId);
+      if (streamId) {
+        stream = this._recvStreams.get(streamId);
       }
     }
+
+    if (stream) {
+      tracks = kind === "audio" ? stream.getAudioTracks() : stream.getVideoTracks();
+      if (tracks) return new MediaStream(tracks);
+    }
+
+    return null;
   }
 
   toggleMicrophone() {
