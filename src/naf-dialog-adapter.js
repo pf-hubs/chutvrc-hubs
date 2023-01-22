@@ -744,7 +744,7 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  async setLocalMediaStream(stream) {
+  async setLocalMediaStream(stream, videoContentHintByTrackId = new Map()) {
     if (!this._sendTransport) {
       console.error("Tried to setLocalMediaStream before a _sendTransport existed");
       return;
@@ -785,10 +785,10 @@ export class DialogAdapter extends SfuAdapter {
         } else {
           sawVideo = true;
 
-          if (track._hubs_contentHint === MediaDevices.SCREEN) {
+          if (videoContentHintByTrackId.get(track.id) === MediaDevices.SCREEN) {
             await this.disableCamera();
             await this.enableShare(track);
-          } else if (track._hubs_contentHint === MediaDevices.CAMERA) {
+          } else if (videoContentHintByTrackId.get(track.id) === MediaDevices.CAMERA) {
             await this.disableShare();
             await this.enableCamera(track);
           }

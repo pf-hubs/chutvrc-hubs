@@ -1,7 +1,7 @@
 import Sora, * as SoraType from "sora-js-sdk";
 import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
-// import { MediaDevices } from "./utils/media-devices-utils";
+import { MediaDevices } from "./utils/media-devices-utils";
 
 const debug = newDebug("naf-dialog-adapter:debug");
 
@@ -17,8 +17,8 @@ type ConnectProps = {
 export class SoraAdapter extends SfuAdapter {
   _clientId: string;
   _sendrecv: SoraType.ConnectionPublisher | null;
-  _sendStream: MediaStream | null;
-  _recvStreams: Map<string, MediaStream | null>;
+  _localStream: MediaStream | null;
+  _remoteStreams: Map<string, MediaStream | null>;
   _clientStreamIdPair: Map<string, string>;
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
@@ -27,8 +27,8 @@ export class SoraAdapter extends SfuAdapter {
     super();
     this._clientId = "";
     this._sendrecv = null;
-    this._sendStream = null;
-    this._recvStreams = new Map<string, MediaStream | null>();
+    this._localStream = null;
+    this._remoteStreams = new Map<string, MediaStream | null>();
     this._clientStreamIdPair = new Map<string, string>();
     this._micShouldBeEnabled = false;
   }
@@ -47,7 +47,7 @@ export class SoraAdapter extends SfuAdapter {
     this._sendrecv = sora.sendrecv(channelId, metadata, options);
     this._sendrecv.on("notify", event => {
       if (event.event_type === "connection.created") {
-        if (event.client_id && event.connection_id && !this._recvStreams.has(event.client_id)){
+        if (event.client_id && event.connection_id && !this._remoteStreams.has(event.client_id)){
           this._clientStreamIdPair.set(event.client_id, event.connection_id);
         }
       }
@@ -55,8 +55,8 @@ export class SoraAdapter extends SfuAdapter {
     this._sendrecv.on("track", event => {
       const stream = event.streams[0];
       if (!stream) return;
-      if (!this._recvStreams.has(stream.id)) {
-        this._recvStreams.set(stream.id, stream);
+      if (!this._remoteStreams.has(stream.id)) {
+        this._remoteStreams.set(stream.id, stream);
       }
     });
     this._sendrecv.on("removetrack", event => {
@@ -67,8 +67,8 @@ export class SoraAdapter extends SfuAdapter {
     this._sendrecv
       .connect(mediaStream)
       .then(stream => {
-        this._sendStream = stream;
-        this.emit(this._sendStream ? SFU_CONNECTION_CONNECTED : SFU_CONNECTION_ERROR_FATAL);
+        this._localStream = stream;
+        this.emit(this._localStream ? SFU_CONNECTION_CONNECTED : SFU_CONNECTION_ERROR_FATAL);
       })
       .catch(e => {
         console.error(e);
@@ -93,11 +93,11 @@ export class SoraAdapter extends SfuAdapter {
     let tracks: MediaStreamTrack[] | null | undefined = null;
 
     if (this._clientId === clientId) {
-      stream = this._sendStream;
+      stream = this._localStream;
     } else {
       const streamId = this._clientStreamIdPair.get(clientId);
       if (streamId) {
-        stream = this._recvStreams.get(streamId);
+        stream = this._remoteStreams.get(streamId);
       }
     }
 
@@ -109,6 +109,44 @@ export class SoraAdapter extends SfuAdapter {
     return null;
   }
 
+  async setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null = null) {
+    let sawAudio = false;
+    let sawVideo = false;
+    await Promise.all(
+      stream.getTracks().map(async track => {
+        if (track.kind === "audio") {
+          sawAudio = true;
+          if (this._sendrecv) {
+            if (this._sendrecv.stream) {
+              this._sendrecv.replaceAudioTrack(this._sendrecv.stream, track);
+            } else {
+              this._sendrecv.stream = new MediaStream([track]);
+            }
+          }
+        } else {
+          sawVideo = true;
+          const contentHint = videoContentHintByTrackId?.get(track.id);
+          if (contentHint === MediaDevices.SCREEN) {
+            await this.disableCamera();
+            await this.enableShare(track);
+          } else if (contentHint === MediaDevices.CAMERA) {
+            await this.disableShare();
+            await this.enableCamera(track);
+          }
+        }
+      })
+    );
+
+    if (!sawAudio) {
+      
+    }
+    if (!sawVideo) {
+      this.disableCamera();
+      this.disableShare();
+    }
+    this._localStream = stream;
+  }
+
   toggleMicrophone() {
     if (this._micShouldBeEnabled) {
       this.enableMicrophone(false);
@@ -118,22 +156,22 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   enableMicrophone(enabled: boolean) {
-    if (this._sendStream){
-      this._sendStream.getAudioTracks()[0].enabled = enabled;
+    if (this._localStream){
+      this._localStream.getAudioTracks().forEach(track => track.kind === "audio" && (track.enabled = enabled));
       this._micShouldBeEnabled = enabled;
       this.emit("mic-state-changed", { enabled: this._micShouldBeEnabled });
     }
   }
 
   get isMicEnabled() {
-    return this._sendStream != null && this._micShouldBeEnabled;
+    return this._localStream != null && this._micShouldBeEnabled;
   }
 
-  async enableCamera() {}
+  async enableCamera(track: MediaStreamTrack) {}
 
   async disableCamera() {}
 
-  async enableShare() {}
+  async enableShare(track: MediaStreamTrack) {}
 
   async disableShare() {}
 

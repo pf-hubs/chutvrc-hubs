@@ -44,6 +44,7 @@ export default class MediaDevicesManager extends EventEmitter {
       [MediaDevices.CAMERA]: PermissionStatus.PROMPT,
       [MediaDevices.SCREEN]: PermissionStatus.PROMPT
     };
+    this._videoContentHintByTrack = new Map();
 
     this.onDeviceChange = this.onDeviceChange.bind(this);
     navigator.mediaDevices.addEventListener("devicechange", this.onDeviceChange);
@@ -136,13 +137,13 @@ export default class MediaDevicesManager extends EventEmitter {
 
   get isWebcamShared() {
     return this._mediaStream.getVideoTracks().some(track => {
-      track["_hubs_contentHint"] === MediaDevices.CAMERA;
+      this._videoContentHintByTrack.get(track.id) === MediaDevices.CAMERA;
     });
   }
 
   get isScreenShared() {
     return this._mediaStream.getVideoTracks().some(track => {
-      track["_hubs_contentHint"] === MediaDevices.SCREEN;
+      this._videoContentHintByTrack.get(track.id) === MediaDevices.SCREEN;
     });
   }
 
@@ -337,7 +338,7 @@ export default class MediaDevicesManager extends EventEmitter {
     this.audioTrack?.stop();
     this.audioTrack = null;
 
-    await APP.dialog.setLocalMediaStream(this._mediaStream);
+    await APP.sfu.setLocalMediaStream(this._mediaStream);
     APP.sfu.enableMicrophone(false);
   }
 
@@ -376,8 +377,8 @@ export default class MediaDevicesManager extends EventEmitter {
         videoTrackAdded = true;
 
         newStream.getVideoTracks().forEach(track => {
-          // Ideally we would use track.contentHint but it seems to be read-only in Chrome so we just add a custom property
-          track["_hubs_contentHint"] = isDisplayMedia ? MediaDevices.SCREEN : MediaDevices.CAMERA;
+          // Ideally we would use track.contentHint but it seems to be read-only in Chrome so we use an additional map
+          this._videoContentHintByTrack.set(track.id, isDisplayMedia ? MediaDevices.SCREEN : MediaDevices.CAMERA);
           track.addEventListener("ended", async () => {
             this._scene.emit(MediaDevicesEvents.VIDEO_SHARE_ENDED);
           });
@@ -388,7 +389,7 @@ export default class MediaDevicesManager extends EventEmitter {
           this.audioSystem.addStreamToOutboundAudio("screenshare", newStream);
         }
 
-        await APP.dialog.setLocalMediaStream(this._mediaStream);
+        await APP.sfu.setLocalMediaStream(this._mediaStream, this._videoContentHintByTrack);
 
         const mediaDevice = isDisplayMedia ? MediaDevices.SCREEN : MediaDevices.CAMERA;
         this._permissionsStatus[mediaDevice] = PermissionStatus.GRANTED;
@@ -417,7 +418,7 @@ export default class MediaDevicesManager extends EventEmitter {
 
     this.audioSystem.removeStreamFromOutboundAudio("screenshare");
 
-    await APP.dialog.setLocalMediaStream(this._mediaStream);
+    await APP.sfu.setLocalMediaStream(this._mediaStream);
   }
 
   async shouldShowHmdMicWarning() {

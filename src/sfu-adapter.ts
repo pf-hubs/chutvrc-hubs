@@ -7,12 +7,13 @@ export abstract class SfuAdapter extends EventEmitter {
   connect(props: any) { }
   disconnect() { }
   getMediaStream(clientId: string, kind: string) { }
+  setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null) { }
   toggleMicrophone() { }
   enableMicrophone(enabled: boolean) { }
   get isMicEnabled(): boolean | null { return false; }
-  async enableCamera() {}
+  async enableCamera(track: MediaStreamTrack) {}
   async disableCamera() {}
-  async enableShare() {}
+  async enableShare(track: MediaStreamTrack) {}
   async disableShare() {}
   kick(clientId: string) { }
   block(clientId: string) { }
