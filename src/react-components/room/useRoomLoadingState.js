@@ -157,7 +157,7 @@ export function useRoomLoadingState(sceneEl) {
       }
       sceneEl.addEventListener("environment-scene-loaded", onEnvironmentLoaded);
       sceneEl.addEventListener("didConnectToNetworkedScene", onNetworkConnected);
-      sceneEl.addEventListener("didConnectToDialog", onDialogConnected);
+      sceneEl.addEventListener("didConnectToSfu", onDialogConnected);
     }
 
     return () => {
@@ -174,7 +174,7 @@ export function useRoomLoadingState(sceneEl) {
       }
       sceneEl.removeEventListener("environment-scene-loaded", onEnvironmentLoaded);
       sceneEl.removeEventListener("didConnectToNetworkedScene", onNetworkConnected);
-      sceneEl.removeEventListener("didConnectToDialog", onDialogConnected);
+      sceneEl.removeEventListener("didConnectToSfu", onDialogConnected);
     };
   }, [
     sceneEl,

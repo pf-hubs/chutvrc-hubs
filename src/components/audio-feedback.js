@@ -150,7 +150,7 @@ AFRAME.registerSystem("local-audio-analyser", {
     if (!this.analyser) return;
 
     // TODO Ideally, when muted no audio should ever even make it into the analyser to begin with
-    if (APP.dialog.isMicEnabled) {
+    if (APP.sfu.isMicEnabled) {
       updateVolume(this);
     } else {
       this.prevVolume = this.volume;

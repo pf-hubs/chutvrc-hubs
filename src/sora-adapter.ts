@@ -17,8 +17,8 @@ type ConnectProps = {
 export class SoraAdapter extends SfuAdapter {
   _clientId: string;
   _sendrecv: SoraType.ConnectionPublisher | null;
-  _localStream: MediaStream | null;
-  _remoteStreams: Map<string, MediaStream | null>;
+  _localMediaStream: MediaStream | null;
+  _remoteMediaStreams: Map<string, MediaStream | null>;
   _clientStreamIdPair: Map<string, string>;
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
@@ -27,8 +27,8 @@ export class SoraAdapter extends SfuAdapter {
     super();
     this._clientId = "";
     this._sendrecv = null;
-    this._localStream = null;
-    this._remoteStreams = new Map<string, MediaStream | null>();
+    this._localMediaStream = null;
+    this._remoteMediaStreams = new Map<string, MediaStream | null>();
     this._clientStreamIdPair = new Map<string, string>();
     this._micShouldBeEnabled = false;
   }
@@ -47,7 +47,7 @@ export class SoraAdapter extends SfuAdapter {
     this._sendrecv = sora.sendrecv(channelId, metadata, options);
     this._sendrecv.on("notify", event => {
       if (event.event_type === "connection.created") {
-        if (event.client_id && event.connection_id && !this._remoteStreams.has(event.client_id)){
+        if (event.client_id && event.connection_id && !this._remoteMediaStreams.has(event.client_id)){
           this._clientStreamIdPair.set(event.client_id, event.connection_id);
         }
       }
@@ -55,8 +55,8 @@ export class SoraAdapter extends SfuAdapter {
     this._sendrecv.on("track", event => {
       const stream = event.streams[0];
       if (!stream) return;
-      if (!this._remoteStreams.has(stream.id)) {
-        this._remoteStreams.set(stream.id, stream);
+      if (!this._remoteMediaStreams.has(stream.id)) {
+        this._remoteMediaStreams.set(stream.id, stream);
       }
     });
     this._sendrecv.on("removetrack", event => {
@@ -67,8 +67,8 @@ export class SoraAdapter extends SfuAdapter {
     this._sendrecv
       .connect(mediaStream)
       .then(stream => {
-        this._localStream = stream;
-        this.emit(this._localStream ? SFU_CONNECTION_CONNECTED : SFU_CONNECTION_ERROR_FATAL);
+        this._localMediaStream = stream;
+        this.emit(this._localMediaStream ? SFU_CONNECTION_CONNECTED : SFU_CONNECTION_ERROR_FATAL);
       })
       .catch(e => {
         console.error(e);
@@ -93,11 +93,11 @@ export class SoraAdapter extends SfuAdapter {
     let tracks: MediaStreamTrack[] | null | undefined = null;
 
     if (this._clientId === clientId) {
-      stream = this._localStream;
+      stream = this._localMediaStream;
     } else {
       const streamId = this._clientStreamIdPair.get(clientId);
       if (streamId) {
-        stream = this._remoteStreams.get(streamId);
+        stream = this._remoteMediaStreams.get(streamId);
       }
     }
 
@@ -144,7 +144,7 @@ export class SoraAdapter extends SfuAdapter {
       this.disableCamera();
       this.disableShare();
     }
-    this._localStream = stream;
+    this._localMediaStream = stream;
   }
 
   toggleMicrophone() {
@@ -156,15 +156,15 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   enableMicrophone(enabled: boolean) {
-    if (this._localStream){
-      this._localStream.getAudioTracks().forEach(track => track.kind === "audio" && (track.enabled = enabled));
+    if (this._localMediaStream){
+      this._localMediaStream.getAudioTracks().forEach(track => track.kind === "audio" && (track.enabled = enabled));
       this._micShouldBeEnabled = enabled;
       this.emit("mic-state-changed", { enabled: this._micShouldBeEnabled });
     }
   }
 
   get isMicEnabled() {
-    return this._localStream != null && this._micShouldBeEnabled;
+    return this._localMediaStream != null && this._micShouldBeEnabled;
   }
 
   async enableCamera(track: MediaStreamTrack) {}

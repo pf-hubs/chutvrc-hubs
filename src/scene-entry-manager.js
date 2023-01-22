@@ -142,8 +142,8 @@ export default class SceneEntryManager {
 
   exitScene = () => {
     this.scene.exitVR();
-    if (APP.dialog && APP.dialog.localMediaStream) {
-      APP.dialog.localMediaStream.getTracks().forEach(t => t.stop());
+    if (APP.sfu && APP.sfu._localMediaStream) {
+      APP.sfu._localMediaStream.getTracks().forEach(t => t.stop());
     }
     if (this.hubChannel) {
       this.hubChannel.disconnect();
@@ -529,13 +529,13 @@ export default class SceneEntryManager {
     }
 
     const connect = async () => {
-      await APP.dialog.setLocalMediaStream(this.mediaDevicesManager.mediaStream);
+      await APP.sfu.setLocalMediaStream(this.mediaDevicesManager.mediaStream);
       audioEl.play();
     };
-    if (APP.dialog._sendTransport) {
+    if (APP.sfu._sendTransport || APP.sfu._sendrecv) {
       connect();
     } else {
-      this.scene.addEventListener("didConnectToDialog", connect);
+      this.scene.addEventListener("didConnectToSfu", connect);
     }
   };
 }

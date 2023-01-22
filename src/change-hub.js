@@ -1,5 +1,6 @@
 import { getReticulumFetchUrl, hubUrl } from "./utils/phoenix-utils";
 import { updateEnvironmentForHub, getSceneUrlForHub, updateUIForHub, remountUI } from "./hub";
+import { SFU } from "./available-sfu";
 
 function unloadRoomObjects() {
   document.querySelectorAll("[pinnable]").forEach(el => {
@@ -61,7 +62,7 @@ export async function changeHub(hubId, addToHistory = true, waypoint = null) {
 
   NAF.entities.removeRemoteEntities();
   await NAF.connection.adapter.disconnect();
-  await APP.dialog.disconnect();
+  await APP.sfu.disconnect();
   unloadRoomObjects();
   NAF.connection.connectedClients = {};
   NAF.connection.activeDataChannels = {};
@@ -81,20 +82,27 @@ export async function changeHub(hubId, addToHistory = true, waypoint = null) {
 
   APP.retChannel.push("change_hub", { hub_id: hub.hub_id });
 
-  await Promise.all([
-    APP.dialog.connect({
-      serverUrl: `wss://${hub.host}:${hub.port}`,
-      roomId: hub.hub_id,
-      serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
-      scene,
-      clientId: APP.dialog._clientId,
-      forceTcp: APP.dialog._forceTcp,
-      forceTurn: APP.dialog._forceTurn,
-      iceTransportPolicy: APP.dialog._iceTransportPolicy
-    }),
+  const connectOption =
+    APP.usingSfu === SFU.SORA
+      ? {
+          clientId: data.session_id,
+          channelId: data.sora_channel_id,
+          signalingUrl: data.sora_signaling_url,
+          accessToken: data.sora_access_token,
+          debug: data.sora_is_debug
+        }
+      : {
+          serverUrl: `wss://${hub.host}:${hub.port}`,
+          roomId: hub.hub_id,
+          serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
+          scene,
+          clientId: APP.sfu._clientId,
+          forceTcp: APP.sfu._forceTcp,
+          forceTurn: APP.sfu._forceTurn,
+          iceTransportPolicy: APP.sfu._iceTransportPolicy
+        };
 
-    NAF.connection.adapter.connect()
-  ]);
+  await Promise.all([APP.sfu.connect(connectOption), NAF.connection.adapter.connect()]);
 
   loadRoomObjects(hubId);
 

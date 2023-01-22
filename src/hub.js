@@ -624,31 +624,26 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
       // Disconnect in case this is a re-entry
       APP.sfu.disconnect();
 
-      switch (APP.usingSfu) {
-        case SFU.SORA:
-          APP.sfu.connect({
-            clientId: data.session_id,
-            channelId: data.sora_channel_id,
-            signalingUrl: data.sora_signaling_url,
-            accessToken: data.sora_access_token,
-            debug: data.sora_is_debug
-          });
-          break;
-        case SFU.DIALOG:
-          APP.sfu.connect({
-            serverUrl: `wss://${hub.host}:${hub.port}`,
-            roomId: hub.hub_id,
-            serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
-            scene,
-            clientId: data.session_id,
-            forceTcp: qs.get("force_tcp"),
-            forceTurn: qs.get("force_turn"),
-            iceTransportPolicy: qs.get("force_tcp") || qs.get("force_turn") ? "relay" : "all"
-          });
-          break;
-        default:
-          break;
-      }
+      const connectOption =
+        APP.usingSfu === SFU.SORA
+          ? {
+              clientId: data.session_id,
+              channelId: data.sora_channel_id,
+              signalingUrl: data.sora_signaling_url,
+              accessToken: data.sora_access_token,
+              debug: data.sora_is_debug
+            }
+          : {
+              serverUrl: `wss://${hub.host}:${hub.port}`,
+              roomId: hub.hub_id,
+              serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
+              scene,
+              clientId: data.session_id,
+              forceTcp: qs.get("force_tcp"),
+              forceTurn: qs.get("force_turn"),
+              iceTransportPolicy: qs.get("force_tcp") || qs.get("force_turn") ? "relay" : "all"
+            };
+      APP.sfu.connect(connectOption);
 
       scene.addEventListener(
         "adapter-ready",
@@ -777,7 +772,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.APP.entryManager = entryManager;
 
   APP.sfu.on(SFU_CONNECTION_CONNECTED, () => {
-    scene.emit("didConnectToDialog");
+    scene.emit("didConnectToSfu");
   });
   APP.sfu.on(SFU_CONNECTION_ERROR_FATAL, () => {
     // TODO: Change the wording of the connect error to match dialog connection error
@@ -948,7 +943,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   scene.addEventListener("hub_closed", () => {
-    App.sfu.disconnect();
+    APP.sfu.disconnect();
     scene.exitVR();
     entryManager.exitScene();
     remountUI({ roomUnavailableReason: ExitReason.closed });

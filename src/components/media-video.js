@@ -555,7 +555,7 @@ AFRAME.registerComponent("media-video", {
       // Set src on video to begin loading.
       if (url.startsWith("hubs://")) {
         const streamClientId = url.substring(7).split("/")[1]; // /clients/<client id>/video is only URL for now
-        const stream = await APP.dialog.getMediaStream(streamClientId, "video");
+        const stream = await APP.sfu.getMediaStream(streamClientId, "video");
         // We subscribe to video stream notifications for this peer to update the video element
         // This could happen in case there is an ICE failure that requires a transport recreation.
         if (this._onStreamUpdated) {
@@ -564,7 +564,7 @@ AFRAME.registerComponent("media-video", {
         this._onStreamUpdated = async (peerId, kind) => {
           if (peerId === streamClientId && kind === "video") {
             // The video stream for this peer has been updated
-            const stream = await APP.dialog.getMediaStream(peerId, "video").catch(e => {
+            const stream = await APP.sfu.getMediaStream(peerId, "video").catch(e => {
               console.error(`Error getting video stream for ${peerId}`, e);
             });
             if (stream) {
