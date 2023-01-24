@@ -20,6 +20,7 @@ export class SoraAdapter extends SfuAdapter {
   _localMediaStream: MediaStream | null;
   _remoteMediaStreams: Map<string, MediaStream | null>;
   _clientStreamIdPair: Map<string, string>;
+  _blockedClients: Map<string, boolean>;
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
 
@@ -30,6 +31,7 @@ export class SoraAdapter extends SfuAdapter {
     this._localMediaStream = null;
     this._remoteMediaStreams = new Map<string, MediaStream | null>();
     this._clientStreamIdPair = new Map<string, string>();
+    this._blockedClients = new Map<string, boolean>();
     this._micShouldBeEnabled = false;
   }
 
@@ -180,12 +182,26 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   block(clientId: string) {
-    // ...
+    const streamId = this._clientStreamIdPair.get(clientId);
+    if (streamId) {
+      let stream = this._remoteMediaStreams.get(streamId);
+      stream?.getTracks().forEach(track => {
+        track.enabled = false;
+      });
+    }
+    this._blockedClients.set(clientId, true);
     document.body.dispatchEvent(new CustomEvent("blocked", { detail: { clientId: clientId } }));
   }
 
   unblock(clientId: string) {
-    // ...
+    const streamId = this._clientStreamIdPair.get(clientId);
+    if (streamId) {
+      let stream = this._remoteMediaStreams.get(streamId);
+      stream?.getTracks().forEach(track => {
+        track.enabled = true;
+      });
+    }
+    this._blockedClients.delete(clientId);
     document.body.dispatchEvent(new CustomEvent("unblocked", { detail: { clientId: clientId } }));
   }
 
