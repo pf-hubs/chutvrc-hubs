@@ -2,7 +2,7 @@ import React from "react";
 import PropTypes from "prop-types";
 import configs from "../../utils/configs";
 import { ExitedRoomScreen } from "./ExitedRoomScreen";
-import constants from "../../constants";
+import * as constants from "../../constants";
 
 export function ExitedRoomScreenContainer({ reason }) {
   return (

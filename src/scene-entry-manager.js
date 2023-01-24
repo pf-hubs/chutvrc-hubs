@@ -25,6 +25,7 @@ import { MediaDevices, MediaDevicesEvents } from "./utils/media-devices-utils";
 import { addComponent, removeEntity } from "bitecs";
 import { MyCameraTool } from "./bit-components";
 import { anyEntityWith } from "./utils/bit-utils";
+import { SFU } from "./available-sfu";
 
 export default class SceneEntryManager {
   constructor(hubChannel, authChannel, history) {
@@ -144,6 +145,12 @@ export default class SceneEntryManager {
     this.scene.exitVR();
     if (APP.sfu && APP.sfu._localMediaStream) {
       APP.sfu._localMediaStream.getTracks().forEach(t => t.stop());
+
+      // In the case of using Dialog, when the kick button is clicked, in parallel with sending a request to Reticulum to disconnect the target client
+      // Hubs also send a request through websocket directly to Dialog to disconnect the target client in APP.dialog.kick().
+      // However when using Sora, one is only allowed to disconnect oneself since there is no API in Sora to disconnect someone else by specifying client id.
+      // Therefore, here we have the kicked client explicitly call APP.sfu.disconnect() when exiting the scene (when exitScene() is called).
+      if (APP.sfu === SFU.SORA) APP.sfu.disconnect();
     }
     if (this.hubChannel) {
       this.hubChannel.disconnect();

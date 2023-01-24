@@ -7,7 +7,7 @@ export abstract class SfuAdapter extends EventEmitter {
   connect(props: any) { }
   disconnect() { }
   getMediaStream(clientId: string, kind: string) { }
-  setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null) { }
+  setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId?: Map<string, string> | null) { }
   toggleMicrophone() { }
   enableMicrophone(enabled: boolean) { }
   get isMicEnabled(): boolean | null { return false; }

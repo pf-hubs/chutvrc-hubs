@@ -176,7 +176,6 @@ export class SoraAdapter extends SfuAdapter {
   async disableShare() {}
 
   kick(clientId: string) {
-    // ...
     document.body.dispatchEvent(new CustomEvent("kicked", { detail: { clientId: clientId } }));
   }
 

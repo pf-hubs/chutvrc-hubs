@@ -2,7 +2,6 @@ import { EventEmitter } from "eventemitter3";
 import { MediaDevicesEvents, PermissionStatus, MediaDevices, NO_DEVICE_ID } from "./media-devices-utils";
 import { detectOS, detect } from "detect-browser";
 import { isIOS as detectIOS } from "./is-mobile";
-import { SFU } from "../available-sfu";
 
 const isMobile = AFRAME.utils.device.isMobile();
 const isIOS = detectIOS();
@@ -258,7 +257,7 @@ export default class MediaDevicesManager extends EventEmitter {
       console.log("No available audio tracks");
     }
 
-    if (APP.usingSfu === SFU.DIALOG) await APP.sfu.setLocalMediaStream(this._mediaStream);
+    await APP.sfu.setLocalMediaStream(this._mediaStream);
 
     if (unmute) {
       APP.sfu.enableMicrophone(true);
