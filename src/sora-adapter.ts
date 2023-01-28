@@ -111,6 +111,10 @@ export class SoraAdapter extends SfuAdapter {
     return null;
   }
 
+  getLocalMicTrack() {
+    return this._localMediaStream?.getAudioTracks()[0];
+  }
+
   async setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null = null) {
     let sawAudio = false;
     let sawVideo = false;

@@ -538,6 +538,10 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
+  getLocalMicTrack() {
+    return this._micProducer?.track;
+  }
+
   async createSendTransport(iceServers) {
     // Create mediasoup Transport for sending (unless we don't want to produce).
     const sendTransportInfo = await this._protoo.request("createWebRtcTransport", {
