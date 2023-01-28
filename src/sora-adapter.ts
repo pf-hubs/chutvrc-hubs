@@ -169,13 +169,41 @@ export class SoraAdapter extends SfuAdapter {
     return this._localMediaStream != null && this._micShouldBeEnabled;
   }
 
-  async enableCamera(track: MediaStreamTrack) {}
+  async enableCamera(track: MediaStreamTrack) {
+    if (this._localMediaStream) {
+      await this._sendrecv?.replaceVideoTrack(this._localMediaStream, track);
+    }
+    this._sendrecv?.on("removetrack", e => {
+      if (e.track.kind === "video") {
+        this.emitRTCEvent("info", "RTC", () => `Camera track ended`);
+        this.disableCamera();
+      }
+    })
+  }
 
-  async disableCamera() {}
+  async disableCamera() {
+    if (this._localMediaStream) {
+      this._sendrecv?.stopVideoTrack(this._localMediaStream);
+    }
+  }
 
-  async enableShare(track: MediaStreamTrack) {}
+  async enableShare(track: MediaStreamTrack) {
+    if (this._localMediaStream) {
+      await this._sendrecv?.replaceVideoTrack(this._localMediaStream, track);
+    }
+    this._sendrecv?.on("removetrack", e => {
+      if (e.track.kind === "video") {
+        this.emitRTCEvent("info", "RTC", () => `Desktop Share transport track ended`);
+        this.disableCamera();
+      }
+    })
+  }
 
-  async disableShare() {}
+  async disableShare() {
+    if (this._localMediaStream) {
+      this._sendrecv?.stopVideoTrack(this._localMediaStream);
+    }
+  }
 
   kick(clientId: string) {
     document.body.dispatchEvent(new CustomEvent("kicked", { detail: { clientId: clientId } }));
