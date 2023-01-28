@@ -42,7 +42,7 @@ export class SoraAdapter extends SfuAdapter {
       clientId: clientId,
       audio: true,
       multistream: true,
-      video: true
+      video: true,
     };
 
     this._clientId = clientId;
@@ -51,7 +51,13 @@ export class SoraAdapter extends SfuAdapter {
       if (event.event_type === "connection.created") {
         if (event.client_id && event.connection_id && !this._remoteMediaStreams.has(event.client_id)){
           this._clientStreamIdPair.set(event.client_id, event.connection_id);
+          this.emit("stream_updated", event.client_id, "audio");
+          this.emit("stream_updated", event.client_id, "video");
         }
+      }
+      if (event.event_type === "connection.updated") {
+        this.emit("stream_updated", event.client_id, "audio");
+        this.emit("stream_updated", event.client_id, "video");
       }
     })
     this._sendrecv.on("track", event => {
@@ -63,7 +69,7 @@ export class SoraAdapter extends SfuAdapter {
     });
     this._sendrecv.on("removetrack", event => {
       // @ts-ignore
-      console.log("Track removed: " + event.target?.id);
+      console.log("Track removed: " + event.track.id);
     });
     const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     this._sendrecv
@@ -105,7 +111,14 @@ export class SoraAdapter extends SfuAdapter {
 
     if (stream) {
       tracks = kind === "audio" ? stream.getAudioTracks() : stream.getVideoTracks();
-      if (tracks) return new MediaStream(tracks);
+      if (tracks) {
+        const promise = Promise.resolve(new MediaStream(tracks));
+        promise.catch(e => {
+          this.emitRTCEvent("error", "Adapter", () => `getMediaStream error: ${e}`);
+          console.warn(`${clientId} getMediaStream Error`, e);
+        });
+        return promise;
+      }
     }
 
     return null;

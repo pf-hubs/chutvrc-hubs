@@ -559,7 +559,7 @@ AFRAME.registerComponent("media-video", {
         // We subscribe to video stream notifications for this peer to update the video element
         // This could happen in case there is an ICE failure that requires a transport recreation.
         if (this._onStreamUpdated) {
-          APP.dialog.off("stream_updated", this._onStreamUpdated);
+          APP.sfu.off("stream_updated", this._onStreamUpdated);
         }
         this._onStreamUpdated = async (peerId, kind) => {
           if (peerId === streamClientId && kind === "video") {
@@ -572,7 +572,7 @@ AFRAME.registerComponent("media-video", {
             }
           }
         };
-        APP.dialog.on("stream_updated", this._onStreamUpdated, this);
+        APP.sfu.on("stream_updated", this._onStreamUpdated, this);
         videoEl.srcObject = new MediaStream(stream.getVideoTracks());
         // If hls.js is supported we always use it as it gives us better events
       } else if (contentType.startsWith("application/dash")) {
@@ -845,7 +845,7 @@ AFRAME.registerComponent("media-video", {
     if (this.video) {
       this.video.removeEventListener("pause", this.onPauseStateChange);
       this.video.removeEventListener("play", this.onPauseStateChange);
-      APP.dialog.off("stream_updated", this._onStreamUpdated);
+      APP.sfu.off("stream_updated", this._onStreamUpdated);
     }
 
     if (this.hoverMenu) {

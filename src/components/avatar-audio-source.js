@@ -117,7 +117,7 @@ AFRAME.registerComponent("avatar-audio-source", {
     this.audioSystem = this.el.sceneEl.systems["hubs-systems"].audioSystem;
     // We subscribe to audio stream notifications for this peer to update the audio source
     // This could happen in case there is an ICE failure that requires a transport recreation.
-    APP.dialog.on("stream_updated", this._onStreamUpdated, this);
+    APP.sfu.on("stream_updated", this._onStreamUpdated, this);
     this.createAudio();
 
     let { disableLeftRightPanning, audioPanningQuality } = APP.store.state.preferences;
@@ -191,7 +191,7 @@ AFRAME.registerComponent("avatar-audio-source", {
   },
 
   remove: function () {
-    APP.dialog.off("stream_updated", this._onStreamUpdated);
+    APP.sfu.off("stream_updated", this._onStreamUpdated);
     APP.hubChannel.removeEventListener("permissions_updated", this.onPermissionsUpdated);
 
     window.APP.store.removeEventListener("statechanged", this.onPreferenceChanged);
