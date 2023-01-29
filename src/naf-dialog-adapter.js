@@ -748,6 +748,10 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
+  getLocalMediaStream() {
+    return this._localMediaStream;
+  }
+
   async setLocalMediaStream(stream, videoContentHintByTrackId = null) {
     if (!this._sendTransport) {
       console.error("Tried to setLocalMediaStream before a _sendTransport existed");
@@ -866,6 +870,8 @@ export class DialogAdapter extends SfuAdapter {
         share: true
       }
     });
+    console.log(track.enabled);
+    console.log(track.readyState);
 
     this._shareProducer.on("transportclose", () => {
       this.emitRTCEvent("info", "RTC", () => `Desktop Share transport closed`);

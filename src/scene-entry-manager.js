@@ -143,8 +143,9 @@ export default class SceneEntryManager {
 
   exitScene = () => {
     this.scene.exitVR();
-    if (APP.sfu && APP.sfu._localMediaStream) {
-      APP.sfu._localMediaStream.getTracks().forEach(t => t.stop());
+    const localStream = APP.sfu?.getLocalMediaStream();
+    if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
 
       // In previous cases of using Dialog, when the kick button is clicked, in parallel with sending a request to Reticulum to disconnect the target client
       // Hubs also send a request through websocket directly to Dialog to disconnect the target client in function APP.dialog.kick().

@@ -4,12 +4,11 @@ export const SFU_CONNECTION_CONNECTED = "sfu-connection-connected";
 export const SFU_CONNECTION_ERROR_FATAL = "sfu-connection-error-fatal";
 
 export abstract class SfuAdapter extends EventEmitter {
-  _localMediaStream: MediaStream | null;
-
   connect(props: any) { }
   disconnect() { }
   getMediaStream(clientId: string, kind: string) { }
   getLocalMicTrack() { }
+  getLocalMediaStream() { }
   setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId?: Map<string, string> | null) { }
   toggleMicrophone() { }
   enableMicrophone(enabled: boolean) { }
