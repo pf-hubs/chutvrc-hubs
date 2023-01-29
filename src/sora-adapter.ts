@@ -49,6 +49,11 @@ export class SoraAdapter extends SfuAdapter {
     this._sendrecv = sora.sendrecv(channelId, metadata, options);
     this._sendrecv.on("notify", event => {
       if (event.event_type === "connection.created") {
+        event.data?.forEach(c => {
+          if (c.client_id && c.connection_id) {
+            this._clientStreamIdPair.set(c.client_id, c.connection_id);
+          }
+        });
         if (event.client_id && event.connection_id && !this._remoteMediaStreams.has(event.client_id)){
           this._clientStreamIdPair.set(event.client_id, event.connection_id);
           this.emit("stream_updated", event.client_id, "audio");
