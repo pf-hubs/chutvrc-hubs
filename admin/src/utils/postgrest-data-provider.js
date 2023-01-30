@@ -29,6 +29,7 @@ const fetchJson = (url, options) => {
         body: text
       }))
     )
+    .catch(e => console.error(e))
     .then(({ status, statusText, headers, body }) => {
       let json;
       try {

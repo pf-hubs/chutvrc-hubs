@@ -43,7 +43,11 @@ function createHTTPSConfig() {
               },
               {
                 type: 2,
-                value: "localhost"
+                value: "hubs.local"
+              },
+              {
+                type: 2,
+                value: "192.168.11.4"
               }
             ]
           }
@@ -188,9 +192,9 @@ async function fetchAppConfigAndEnvironmentVars() {
 
   process.env.RETICULUM_SERVER = host;
   process.env.SHORTLINK_DOMAIN = shortlink_domain;
-  process.env.CORS_PROXY_SERVER = `localhost:8080/cors-proxy`;
+  process.env.CORS_PROXY_SERVER = `${process.env.INTERNAL_HOSTNAME || "localhost"}:8080/cors-proxy`;
   process.env.THUMBNAIL_SERVER = thumbnail_server;
-  process.env.NON_CORS_PROXY_DOMAINS = `${localIp},localhost,localhost`;
+  process.env.NON_CORS_PROXY_DOMAINS = `${localIp},hubs.local,localhost`;
 
   return appConfig;
 }
@@ -250,7 +254,7 @@ module.exports = async (env, argv) => {
     }
 
     if (env.localDev) {
-      const localDevHost = "localhost";
+      const localDevHost = process.env.INTERNAL_HOSTNAME || "localhost"; // "hubs.local"
       // Local Dev Environment (npm run local)
       Object.assign(process.env, {
         HOST: localDevHost,

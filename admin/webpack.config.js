@@ -36,7 +36,11 @@ function createHTTPSConfig() {
               },
               {
                 type: 2,
-                value: "localhost"
+                value: "hubs.local"
+              },
+              {
+                type: 2,
+                value: "192.168.11.4"
               }
             ]
           }
@@ -70,23 +74,24 @@ module.exports = (env, argv) => {
   dotenv.config({ path: ".env" });
   dotenv.config({ path: ".defaults.env" });
 
+  const localDevHost = process.env.INTERNAL_HOSTNAME || "localhost";
   if (env.local) {
     Object.assign(process.env, {
-      HOST: "localhost",
-      RETICULUM_SOCKET_SERVER: "localhost",
+      HOST: localDevHost,
+      RETICULUM_SOCKET_SERVER: localDevHost,
       CORS_PROXY_SERVER: "hubs-proxy.local:4000",
-      NON_CORS_PROXY_DOMAINS: "localhost,dev.reticulum.io",
-      BASE_ASSETS_PATH: "https://localhost:8989/",
-      RETICULUM_SERVER: "localhost:4000",
-      POSTGREST_SERVER: "",
-      ITA_SERVER: ""
+      NON_CORS_PROXY_DOMAINS: `${localDevHost},localhost,dev.reticulum.io`,
+      BASE_ASSETS_PATH: `https://${localDevHost}:8989/`,
+      RETICULUM_SERVER: `${localDevHost}:4000`,
+      POSTGREST_SERVER: process.env.POSTGREST_SERVER, // "",
+      ITA_SERVER: process.env.ITA_SERVER //""
     });
   }
 
   const defaultHostName = "localhost";
   const host = process.env.HOST_IP || defaultHostName;
 
-  const internalHostname = process.env.INTERNAL_HOSTNAME || "localhost";
+  const internalHostname = process.env.INTERNAL_HOSTNAME || "localhost"; // "hubs.local"
   return {
     cache: {
       type: "filesystem"
