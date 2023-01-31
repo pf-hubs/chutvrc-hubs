@@ -2,7 +2,8 @@ import Sora, * as SoraType from "sora-js-sdk";
 import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 import { MediaDevices } from "./utils/media-devices-utils";
-import { floatToUInt8, uInt8ToFloat, degreeToUInt8, uInt8ToDegree } from "./utils/uint8-parser";
+import { floatToUInt8, uInt8ToFloat, radToUInt8, uInt8ToRad } from "./utils/uint8-parser";
+import { AElement } from "aframe";
 
 const debug = newDebug("naf-dialog-adapter:debug");
 
@@ -15,6 +16,12 @@ type ConnectProps = {
   options?: SoraType.ConnectionOptions;
 }
 
+type AvatarEl = {
+  head: AElement | null;
+  leftHand: AElement | null;
+  rightHand: AElement | null;
+}
+
 export class SoraAdapter extends SfuAdapter {
   _clientId: string;
   _sendrecv: SoraType.ConnectionPublisher | null;
@@ -24,9 +31,10 @@ export class SoraAdapter extends SfuAdapter {
   _blockedClients: Map<string, boolean>;
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
-  _hmd: Element | null;
-  _leftController: Element | null;
-  _rightController: Element | null;
+  _hmd: AElement | null;
+  _leftController: AElement | null;
+  _rightController: AElement | null;
+  _remoteAvatarEls: Map<string, AvatarEl>;
 
   constructor() {
     super();
@@ -40,6 +48,7 @@ export class SoraAdapter extends SfuAdapter {
     this._hmd = null;
     this._leftController = null;
     this._rightController = null;
+    this._remoteAvatarEls = new Map<string, AvatarEl>();
   }
 
   async connect({ clientId, channelId, signalingUrl, accessToken, debug }: ConnectProps) {
@@ -53,15 +62,7 @@ export class SoraAdapter extends SfuAdapter {
       dataChannelSignaling: true,
       dataChannels: [
         {
-          label: "#hmd-transform",
-          direction: "sendrecv" as SoraType.DataChannelDirection
-        },
-        {
-          label: "#left-hand-transform",
-          direction: "sendrecv" as SoraType.DataChannelDirection
-        },
-        {
-          label: "#right-hand-transform",
+          label: "#avatar-transform",
           direction: "sendrecv" as SoraType.DataChannelDirection
         }
       ]
@@ -73,13 +74,39 @@ export class SoraAdapter extends SfuAdapter {
       if (event.event_type === "connection.created") {
         event.data?.forEach(c => {
           // clients entering this room earlier
-          if (c.client_id && c.connection_id && !this._clientStreamIdPair.has(c.client_id)) {
-            this._clientStreamIdPair.set(c.client_id, c.connection_id);
+          if (c.client_id && c.connection_id) {
+            if (!this._clientStreamIdPair.has(c.client_id)) {
+              this._clientStreamIdPair.set(c.client_id, c.connection_id);
+            }
+            const remoteClientAvatar = document.querySelector(`[client-id="${c.client_id}"]`);
+            if (remoteClientAvatar) {
+              this._remoteAvatarEls.set(c.client_id, {
+                head: remoteClientAvatar.querySelector(".camera") as AElement,
+                leftHand: remoteClientAvatar.querySelector(".left-controller") as AElement,
+                rightHand: remoteClientAvatar.querySelector(".right-controller") as AElement
+              })
+            }
           }
         });
         // clients entering this room later
-        if (event.client_id && event.connection_id && !this._remoteMediaStreams.has(event.client_id)) {
-          this._clientStreamIdPair.set(event.client_id, event.connection_id);
+        if (event.client_id && event.connection_id) {
+          if (!this._remoteMediaStreams.has(event.client_id)) {
+            this._clientStreamIdPair.set(event.client_id, event.connection_id);
+          }
+          let intervalId: NodeJS.Timer;
+          const setRemoteAvatar = () => {
+            const remoteClientAvatar = document.querySelector(`[client-id="${event.client_id}"]`);
+            if (remoteClientAvatar && event.client_id) {
+              this._remoteAvatarEls.set(event.client_id, {
+                head: remoteClientAvatar.querySelector(".camera") as AElement,
+                leftHand: remoteClientAvatar.querySelector(".left-controller") as AElement,
+                rightHand: remoteClientAvatar.querySelector(".right-controller") as AElement
+              })
+            }
+            clearInterval(intervalId);
+          }
+          intervalId = setInterval(setRemoteAvatar, 1000);
+          
           this.emit("stream_updated", event.client_id, "audio");
           this.emit("stream_updated", event.client_id, "video");
         }
@@ -101,70 +128,55 @@ export class SoraAdapter extends SfuAdapter {
       console.log("Track removed: " + event.track.id);
     });
     this._sendrecv.on("datachannel", event => {
+      const clientIdUInt8 = new TextEncoder().encode(this._clientId);
       let intervalId: NodeJS.Timer;
       const getPlayerAvatar = () => {
-        this._hmd = document.querySelector("#avatar-pov-node");
-        this._leftController = document.querySelector("#player-left-controller");
-        this._rightController = document.querySelector("#player-right-controller");
+        this._hmd = document.querySelector("#avatar-pov-node") as AElement;
+        this._leftController = document.querySelector("#player-left-controller") as AElement;
+        this._rightController = document.querySelector("#player-right-controller") as AElement;
         if (this._hmd && this._leftController && this._rightController) clearInterval(intervalId);
       }
       intervalId = setInterval(getPlayerAvatar, 1000);
 
-      const syncHmd = async () => {
-        if (this._hmd) {
-          var pos = this._hmd?.getAttribute("position");
-          var rot = this._hmd?.getAttribute("rotation");
-          this._sendrecv?.sendMessage("#hmd-transform", new Uint8Array([
-            // @ts-ignore
-            ...floatToUInt8(pos.x), ...floatToUInt8(pos.y), ...floatToUInt8(pos.z), ...degreeToUInt8(rot.x), ...degreeToUInt8(rot.y), ...degreeToUInt8(rot.z)
-          ]));
+      const syncAvatarTransform = async () => {
+        if (this._hmd && this._leftController && this._rightController) {
+          const headPos = this._hmd?.object3D.position;
+          const headRot = this._hmd?.object3D.rotation;
+          const leftHandPos = this._leftController?.object3D.position;
+          const leftHandRot = this._leftController?.object3D.rotation;
+          const rightHandPos = this._rightController?.object3D.position;
+          const rightHandRot = this._rightController?.object3D.rotation;
+          if (headPos && headRot && leftHandPos && leftHandRot && rightHandPos && rightHandRot) {
+            this._sendrecv?.sendMessage("#avatar-transform", new Uint8Array([
+              // @ts-ignore
+              ...floatToUInt8(headPos.x), ...floatToUInt8(headPos.y), ...floatToUInt8(headPos.z),
+              // @ts-ignore
+              radToUInt8(headRot.x), radToUInt8(headRot.y), radToUInt8(headRot.z),
+              // @ts-ignore
+              ...floatToUInt8(leftHandPos.x), ...floatToUInt8(leftHandPos.y), ...floatToUInt8(leftHandPos.z),
+              // @ts-ignore
+              radToUInt8(leftHandRot.x), radToUInt8(leftHandRot.y), radToUInt8(leftHandRot.z),
+              // @ts-ignore
+              ...floatToUInt8(rightHandPos.x), ...floatToUInt8(rightHandPos.y), ...floatToUInt8(rightHandPos.z),
+              // @ts-ignore
+              radToUInt8(rightHandRot.x), radToUInt8(rightHandRot.y), radToUInt8(rightHandRot.z),
+              ...clientIdUInt8
+            ]));
+          }
         }
       }
-      const syncLeft = async () => {
-        if (this._leftController) {
-          var pos = this._leftController?.getAttribute("position");
-          var rot = this._leftController?.getAttribute("rotation");
-          this._sendrecv?.sendMessage("#left-hand-transform", new Uint8Array([
-            // @ts-ignore
-            ...floatToUInt8(pos.x), ...floatToUInt8(pos.y), ...floatToUInt8(pos.z), ...degreeToUInt8(rot.x), ...degreeToUInt8(rot.y), ...degreeToUInt8(rot.z)
-          ]));
-        }
-      }
-      const syncRight = async () => {
-        if (this._rightController) {
-          var pos = this._rightController?.getAttribute("position");
-          var rot = this._rightController?.getAttribute("rotation");
-          this._sendrecv?.sendMessage("#right-hand-transform", new Uint8Array([
-            // @ts-ignore
-            ...floatToUInt8(pos.x), ...floatToUInt8(pos.y), ...floatToUInt8(pos.z), ...degreeToUInt8(rot.x), ...degreeToUInt8(rot.y), ...degreeToUInt8(rot.z)
-          ]));
-        }
-      }
-      setInterval(syncHmd, 500);
-      setInterval(syncLeft, 500);
-      setInterval(syncRight, 500);
+      setInterval(syncAvatarTransform, 50);
     });
     this._sendrecv.on("message", event => {
-      if (["#hmd-transform", "#left-hand-transform", "#right-hand-transform"].includes(event.label)) {
-        const transform = new Uint8Array(event.data);
-        var pos = {
-          // @ts-ignore
-          x: uInt8ToFloat(transform[0], transform[1]),
-          // @ts-ignore
-          y: uInt8ToFloat(transform[2], transform[3]),
-          // @ts-ignore
-          z: uInt8ToFloat(transform[4], transform[5])
-        };
-        var rot = {
-          // @ts-ignore
-          x: uInt8ToDegree(transform[6], transform[7]),
-          // @ts-ignore
-          y: uInt8ToDegree(transform[8], transform[9]),
-          // @ts-ignore
-          z: uInt8ToDegree(transform[10], transform[11])
-        };
-        console.log(`${event.label} position x: ${pos.x}, y: ${pos.y}, z: ${pos.z}`);
-        console.log(`${event.label} rotation x: ${rot.x}, y: ${rot.y}, z: ${rot.z}`);
+      if (event.label === "#avatar-transform") {
+        const t = new Uint8Array(event.data);
+        const remoteAvatarEl = this._remoteAvatarEls.get(new TextDecoder().decode(t.subarray(27)));
+        remoteAvatarEl?.head?.object3D?.position.set(uInt8ToFloat(t[0], t[1]), uInt8ToFloat(t[2], t[3]), uInt8ToFloat(t[4], t[5]));
+        remoteAvatarEl?.head?.object3D.rotation.set(uInt8ToRad(t[6]), uInt8ToRad(t[7]), uInt8ToRad(t[8]));
+        remoteAvatarEl?.leftHand?.object3D.position.set(uInt8ToFloat(t[9], t[10]), uInt8ToFloat(t[11], t[12]), uInt8ToFloat(t[13], t[14]));
+        remoteAvatarEl?.leftHand?.object3D.rotation.set(uInt8ToRad(t[15]), uInt8ToRad(t[16]), uInt8ToRad(t[17]));
+        remoteAvatarEl?.rightHand?.object3D.position.set(uInt8ToFloat(t[18], t[19]), uInt8ToFloat(t[20], t[21]), uInt8ToFloat(t[22], t[23]));
+        remoteAvatarEl?.rightHand?.object3D.rotation.set(uInt8ToRad(t[24]), uInt8ToRad(t[25]), uInt8ToRad(t[26]));
       }
     });
     this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
