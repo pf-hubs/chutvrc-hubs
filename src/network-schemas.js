@@ -41,40 +41,40 @@ function registerNetworkSchemas() {
       },
       "player-info",
       "networked-avatar",
-      {
-        selector: ".camera",
-        component: "position",
-        requiresNetworkUpdate: vectorRequiresUpdate(0.001)
-      },
-      {
-        selector: ".camera",
-        component: "rotation",
-        requiresNetworkUpdate: vectorRequiresUpdate(0.5)
-      },
-      {
-        selector: ".left-controller",
-        component: "position",
-        requiresNetworkUpdate: vectorRequiresUpdate(0.001)
-      },
-      {
-        selector: ".left-controller",
-        component: "rotation",
-        requiresNetworkUpdate: vectorRequiresUpdate(0.5)
-      },
+      // {
+      //   selector: ".camera",
+      //   component: "position",
+      //   requiresNetworkUpdate: vectorRequiresUpdate(0.001)
+      // },
+      // {
+      //   selector: ".camera",
+      //   component: "rotation",
+      //   requiresNetworkUpdate: vectorRequiresUpdate(0.5)
+      // },
+      // {
+      //   selector: ".left-controller",
+      //   component: "position",
+      //   requiresNetworkUpdate: vectorRequiresUpdate(0.001)
+      // },
+      // {
+      //   selector: ".left-controller",
+      //   component: "rotation",
+      //   requiresNetworkUpdate: vectorRequiresUpdate(0.5)
+      // },
       {
         selector: ".left-controller",
         component: "visible"
       },
-      {
-        selector: ".right-controller",
-        component: "position",
-        requiresNetworkUpdate: vectorRequiresUpdate(0.001)
-      },
-      {
-        selector: ".right-controller",
-        component: "rotation",
-        requiresNetworkUpdate: vectorRequiresUpdate(0.5)
-      },
+      // {
+      //   selector: ".right-controller",
+      //   component: "position",
+      //   requiresNetworkUpdate: vectorRequiresUpdate(0.001)
+      // },
+      // {
+      //   selector: ".right-controller",
+      //   component: "rotation",
+      //   requiresNetworkUpdate: vectorRequiresUpdate(0.5)
+      // },
       {
         selector: ".right-controller",
         component: "visible"

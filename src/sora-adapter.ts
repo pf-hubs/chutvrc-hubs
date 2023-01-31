@@ -2,6 +2,7 @@ import Sora, * as SoraType from "sora-js-sdk";
 import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 import { MediaDevices } from "./utils/media-devices-utils";
+import { floatToUInt8, uInt8ToFloat, degreeToUInt8, uInt8ToDegree } from "./utils/uint8-parser";
 
 const debug = newDebug("naf-dialog-adapter:debug");
 
@@ -23,6 +24,9 @@ export class SoraAdapter extends SfuAdapter {
   _blockedClients: Map<string, boolean>;
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
+  _hmd: Element | null;
+  _leftController: Element | null;
+  _rightController: Element | null;
 
   constructor() {
     super();
@@ -33,6 +37,9 @@ export class SoraAdapter extends SfuAdapter {
     this._clientStreamIdPair = new Map<string, string>();
     this._blockedClients = new Map<string, boolean>();
     this._micShouldBeEnabled = false;
+    this._hmd = null;
+    this._leftController = null;
+    this._rightController = null;
   }
 
   async connect({ clientId, channelId, signalingUrl, accessToken, debug }: ConnectProps) {
@@ -40,9 +47,24 @@ export class SoraAdapter extends SfuAdapter {
     const metadata = { access_Token: accessToken };
     const options = {
       clientId: clientId,
-      audio: true,
       multistream: true,
+      audio: true,
       video: true,
+      dataChannelSignaling: true,
+      dataChannels: [
+        {
+          label: "#hmd-transform",
+          direction: "sendrecv" as SoraType.DataChannelDirection
+        },
+        {
+          label: "#left-hand-transform",
+          direction: "sendrecv" as SoraType.DataChannelDirection
+        },
+        {
+          label: "#right-hand-transform",
+          direction: "sendrecv" as SoraType.DataChannelDirection
+        }
+      ]
     };
 
     this._clientId = clientId;
@@ -77,6 +99,73 @@ export class SoraAdapter extends SfuAdapter {
     this._sendrecv.on("removetrack", event => {
       // @ts-ignore
       console.log("Track removed: " + event.track.id);
+    });
+    this._sendrecv.on("datachannel", event => {
+      let intervalId: NodeJS.Timer;
+      const getPlayerAvatar = () => {
+        this._hmd = document.querySelector("#avatar-pov-node");
+        this._leftController = document.querySelector("#player-left-controller");
+        this._rightController = document.querySelector("#player-right-controller");
+        if (this._hmd && this._leftController && this._rightController) clearInterval(intervalId);
+      }
+      intervalId = setInterval(getPlayerAvatar, 1000);
+
+      const syncHmd = async () => {
+        if (this._hmd) {
+          var pos = this._hmd?.getAttribute("position");
+          var rot = this._hmd?.getAttribute("rotation");
+          this._sendrecv?.sendMessage("#hmd-transform", new Uint8Array([
+            // @ts-ignore
+            ...floatToUInt8(pos.x), ...floatToUInt8(pos.y), ...floatToUInt8(pos.z), ...degreeToUInt8(rot.x), ...degreeToUInt8(rot.y), ...degreeToUInt8(rot.z)
+          ]));
+        }
+      }
+      const syncLeft = async () => {
+        if (this._leftController) {
+          var pos = this._leftController?.getAttribute("position");
+          var rot = this._leftController?.getAttribute("rotation");
+          this._sendrecv?.sendMessage("#left-hand-transform", new Uint8Array([
+            // @ts-ignore
+            ...floatToUInt8(pos.x), ...floatToUInt8(pos.y), ...floatToUInt8(pos.z), ...degreeToUInt8(rot.x), ...degreeToUInt8(rot.y), ...degreeToUInt8(rot.z)
+          ]));
+        }
+      }
+      const syncRight = async () => {
+        if (this._rightController) {
+          var pos = this._rightController?.getAttribute("position");
+          var rot = this._rightController?.getAttribute("rotation");
+          this._sendrecv?.sendMessage("#right-hand-transform", new Uint8Array([
+            // @ts-ignore
+            ...floatToUInt8(pos.x), ...floatToUInt8(pos.y), ...floatToUInt8(pos.z), ...degreeToUInt8(rot.x), ...degreeToUInt8(rot.y), ...degreeToUInt8(rot.z)
+          ]));
+        }
+      }
+      setInterval(syncHmd, 500);
+      setInterval(syncLeft, 500);
+      setInterval(syncRight, 500);
+    });
+    this._sendrecv.on("message", event => {
+      if (["#hmd-transform", "#left-hand-transform", "#right-hand-transform"].includes(event.label)) {
+        const transform = new Uint8Array(event.data);
+        var pos = {
+          // @ts-ignore
+          x: uInt8ToFloat(transform[0], transform[1]),
+          // @ts-ignore
+          y: uInt8ToFloat(transform[2], transform[3]),
+          // @ts-ignore
+          z: uInt8ToFloat(transform[4], transform[5])
+        };
+        var rot = {
+          // @ts-ignore
+          x: uInt8ToDegree(transform[6], transform[7]),
+          // @ts-ignore
+          y: uInt8ToDegree(transform[8], transform[9]),
+          // @ts-ignore
+          z: uInt8ToDegree(transform[10], transform[11])
+        };
+        console.log(`${event.label} position x: ${pos.x}, y: ${pos.y}, z: ${pos.z}`);
+        console.log(`${event.label} rotation x: ${rot.x}, y: ${rot.y}, z: ${rot.z}`);
+      }
     });
     this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
     this._sendrecv

@@ -1222,6 +1222,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
   events.on(`hub:change`, ({ key, previous, current }) => {
+    // key: client_id of this remote client
     if (
       key === hubChannel.channel.socket.params().session_id &&
       previous.profile.avatarId !== current.profile.avatarId
