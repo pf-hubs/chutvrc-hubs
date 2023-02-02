@@ -35,20 +35,9 @@ async function getMediaStream(el) {
     console.error(INFO_INIT_FAILED, INFO_NO_OWNER);
     return null;
   }
-  let stream;
-  switch (APP.usingSfu) {
-    case SFU.SORA:
-      stream = APP.sfu.getMediaStream(peerId);
-      break;
-    case SFU.DIALOG: {
-      stream = await APP.sfu.getMediaStream(peerId).catch(e => {
-        console.error(INFO_INIT_FAILED, `Error getting media stream for ${peerId}`, e);
-      });
-      break;
-    }
-    default:
-      break;
-  }
+  const stream = await APP.sfu.getMediaStream(peerId).catch(e => {
+    console.error(INFO_INIT_FAILED, `Error getting media stream for ${peerId}`, e);
+  });
   if (!stream) {
     return null;
   }

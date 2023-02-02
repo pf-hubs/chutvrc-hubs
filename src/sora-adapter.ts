@@ -20,6 +20,7 @@ export class SoraAdapter extends SfuAdapter {
   _localMediaStream: MediaStream | null;
   _remoteMediaStreams: Map<string, MediaStream | null>;
   _clientStreamIdPair: Map<string, string>;
+  _pendingMediaRequests: Map<string, any>;
   _blockedClients: Map<string, boolean>;
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
@@ -31,6 +32,7 @@ export class SoraAdapter extends SfuAdapter {
     this._localMediaStream = null;
     this._remoteMediaStreams = new Map<string, MediaStream | null>();
     this._clientStreamIdPair = new Map<string, string>();
+    this._pendingMediaRequests = new Map<string, any>();
     this._blockedClients = new Map<string, boolean>();
     this._micShouldBeEnabled = false;
   }
@@ -49,15 +51,25 @@ export class SoraAdapter extends SfuAdapter {
     this._sendrecv = sora.sendrecv(channelId, metadata, options);
     this._sendrecv.on("notify", event => {
       if (event.event_type === "connection.created") {
+        // console.log("connection.created");
+        // console.log("my cid: " + this._clientId);
         event.data?.forEach(c => {
+          // console.log(c.connection_id);
           // clients entering this room earlier
           if (c.client_id && c.connection_id && !this._clientStreamIdPair.has(c.client_id)) {
             this._clientStreamIdPair.set(c.client_id, c.connection_id);
+            console.log("old client _clientStreamIdPair.set");
+            console.log(c.client_id);
+            console.log(c.connection_id);
+            this.resolvePendingMediaRequestForTrack(c.client_id);
           }
         });
         // clients entering this room later
-        if (event.client_id && event.connection_id && !this._remoteMediaStreams.has(event.client_id)) {
+        if (event.client_id && event.connection_id && !this._clientStreamIdPair.has(event.client_id)) {
           this._clientStreamIdPair.set(event.client_id, event.connection_id);
+          // console.log("new client _clientStreamIdPair.set");
+          // console.log(event.client_id);
+          // console.log(event.connection_id);
           this.emit("stream_updated", event.client_id, "audio");
           this.emit("stream_updated", event.client_id, "video");
         }
@@ -68,9 +80,12 @@ export class SoraAdapter extends SfuAdapter {
       }
     })
     this._sendrecv.on("track", event => {
+      // console.log("track");
       const stream = event.streams[0];
       if (!stream) return;
+      // console.log(stream.id);
       if (!this._remoteMediaStreams.has(stream.id)) {
+        // console.log("_remoteMediaStreams.set");
         this._remoteMediaStreams.set(stream.id, stream);
       }
     });
@@ -106,18 +121,20 @@ export class SoraAdapter extends SfuAdapter {
 
   getMediaStream(clientId: string, kind = "audio") {
     let stream: MediaStream | null | undefined = null;
+    let streamId: string | null | undefined = null;
     let tracks: MediaStreamTrack[] | null | undefined = null;
 
     if (this._clientId === clientId) {
       stream = this._sendrecv?.stream;
     } else {
-      const streamId = this._clientStreamIdPair.get(clientId);
+      streamId = this._clientStreamIdPair.get(clientId);
       if (streamId) {
         stream = this._remoteMediaStreams.get(streamId);
       }
     }
 
     if (stream) {
+      debug(`Already had ${kind} for ${clientId}`);
       tracks = kind === "audio" ? stream.getAudioTracks() : stream.getVideoTracks();
       if (tracks) {
         const promise = Promise.resolve(new MediaStream(tracks));
@@ -127,9 +144,22 @@ export class SoraAdapter extends SfuAdapter {
         });
         return promise;
       }
-    }
+    } else {
+      console.log(`Waiting on ${kind} for ${clientId}`);
+      debug(`Waiting on ${kind} for ${clientId}`);
+      if (!this._pendingMediaRequests.has(clientId)) {
+        this._pendingMediaRequests.set(clientId, {});
+      }
 
-    return null;
+      const requests = this._pendingMediaRequests.get(clientId);
+      const promise = new Promise((resolve, reject) => (requests[kind] = { resolve, reject }));
+      requests[kind].promise = promise;
+      promise.catch(e => {
+        this.emitRTCEvent("error", "Adapter", () => `getMediaStream error: ${e}`);
+        console.warn(`${clientId} getMediaStream Error`, e);
+      });
+      return promise;
+    }
   }
 
   getLocalMicTrack() {
@@ -270,5 +300,30 @@ export class SoraAdapter extends SfuAdapter {
     });
     // @ts-ignore
     this._scene?.emit("rtc_event", { level, tag, time, msg: msgFunc() });
+  }
+
+  resolvePendingMediaRequestForTrack(clientId: string) {
+    const requests = this._pendingMediaRequests.get(clientId);
+    const streamId = this._clientStreamIdPair.get(clientId);
+    if (streamId) {
+      const stream = this._remoteMediaStreams.get(streamId);
+      if (stream && requests) {
+        console.log("resolvePendingMediaRequestForTrack");
+        if (requests["audio"]) {
+          const resolve = requests["audio"].resolve;
+          delete requests["audio"];
+          resolve(new MediaStream(stream.getAudioTracks()));
+        }
+        if (requests["video"]) {
+          const resolve = requests["video"].resolve;
+          delete requests["video"];
+          resolve(new MediaStream(stream.getVideoTracks()));
+        }
+      }
+    }
+
+    if (requests && Object.keys(requests).length === 0) {
+      this._pendingMediaRequests.delete(clientId);
+    }
   }
 }
