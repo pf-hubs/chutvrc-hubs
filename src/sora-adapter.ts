@@ -78,7 +78,7 @@ export class SoraAdapter extends SfuAdapter {
       // @ts-ignore
       console.log("Track removed: " + event.track.id);
     });
-    this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     this._sendrecv
       .connect(this._localMediaStream)
       .then(stream => {
@@ -147,12 +147,9 @@ export class SoraAdapter extends SfuAdapter {
       stream.getTracks().map(async track => {
         if (track.kind === "audio") {
           sawAudio = true;
-          if (this._sendrecv) {
-            if (this._sendrecv.stream) {
-              this._sendrecv.replaceAudioTrack(this._sendrecv.stream, track);
-            } else {
-              this._sendrecv.stream = new MediaStream([track]);
-            }
+          if (!track.enabled || track.readyState === "ended" || track.id === this._localMediaStream?.getAudioTracks()[0].id) return;
+          if (this._localMediaStream) {
+            this._sendrecv?.replaceAudioTrack(this._localMediaStream, track.clone());
           }
         } else {
           sawVideo = true;
@@ -173,7 +170,6 @@ export class SoraAdapter extends SfuAdapter {
       this.disableCamera();
       this.disableShare();
     }
-    if (this._sendrecv) this._sendrecv.stream = stream;
   }
 
   toggleMicrophone() {
