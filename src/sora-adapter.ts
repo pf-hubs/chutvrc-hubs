@@ -4,6 +4,8 @@ import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from
 import { MediaDevices } from "./utils/media-devices-utils";
 
 const debug = newDebug("naf-dialog-adapter:debug");
+const sendStats: any[] = [];
+const recvStats: any[] = [];
 
 type ConnectProps = {
   clientId: string;
@@ -24,6 +26,7 @@ export class SoraAdapter extends SfuAdapter {
   _blockedClients: Map<string, boolean>;
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
+  _recordStatsId: NodeJS.Timer;
 
   constructor() {
     super();
@@ -325,5 +328,34 @@ export class SoraAdapter extends SfuAdapter {
     if (requests && Object.keys(requests).length === 0) {
       this._pendingMediaRequests.delete(clientId);
     }
+  }
+
+  startRecordStats() {
+    this._recordStatsId = setInterval(async () => {
+      (await this._sendrecv?.pc?.getStats())?.forEach((stat) => {
+        if (stat.type === "outbound-rtp") sendStats.push(stat);
+        if (stat.type === "inbound-rtp") recvStats.push(stat);
+      });
+    }, 3000);
+  }
+
+  stopRecordStats() {
+    if (this._recordStatsId) clearInterval(this._recordStatsId);
+
+    const sendStatsBlob = new Blob([JSON.stringify(sendStats)], { type: "text/json" });
+    const sendStatslink = document.createElement("a");
+    document.body.appendChild(sendStatslink);
+    sendStatslink.href = window.URL.createObjectURL(sendStatsBlob);
+    sendStatslink.setAttribute("download", "/sendStats.json");
+    sendStatslink.click();
+    document.body.removeChild(sendStatslink);
+
+    const recvStatsBlob = new Blob([JSON.stringify(recvStats)], { type: "text/json" });
+    const recvStatsLink = document.createElement("a");
+    document.body.appendChild(recvStatsLink);
+    recvStatsLink.href = window.URL.createObjectURL(recvStatsBlob);
+    recvStatsLink.setAttribute("download", "/recvStats.json");
+    recvStatsLink.click();
+    document.body.removeChild(recvStatsLink);
   }
 }

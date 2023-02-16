@@ -63,6 +63,9 @@ export function getScene() {
   return promiseToScene;
 }
 
+const dialogAdapter = new DialogAdapter();
+const soraAdapter = new SoraAdapter();
+
 export class App {
   scene?: AScene;
   hubChannel?: HubChannel;
@@ -95,9 +98,10 @@ export class App {
   audioListener: AudioListener;
 
   usingSfu = SFU.SORA;
-  sfu: SfuAdapter = new SoraAdapter(); // or new DialogAdapter();
-  dialog = new DialogAdapter();
-  sora = new SoraAdapter();
+  sfu: SfuAdapter = soraAdapter;
+  // sfu: DialogAdapter = dialogAdapter;
+  dialog = dialogAdapter;
+  sora = soraAdapter;
 
   RENDER_ORDER = {
     HUD_BACKGROUND: 1,

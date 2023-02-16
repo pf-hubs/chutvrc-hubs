@@ -7,6 +7,10 @@ import { Button } from "../input/Button.js";
 import styles from "./RtcDebugPanel.scss";
 import { FormattedMessage } from "react-intl";
 import { AudioDebugPanel } from "./AudioDebugPanel";
+import { SFU } from "../../available-sfu";
+
+const sendStats = [];
+const recvStats = [];
 
 const isMobile = AFRAME.utils.device.isMobile();
 
@@ -25,7 +29,7 @@ const StatsType = {
 };
 
 const ERROR_COLOR = "#8b1c00";
-const STATS_REFRESH_TIME = 2000;
+const STATS_REFRESH_TIME = 3000;
 const PRODUCERS_KEY = "producers";
 const CONSUMERS_KEY = "consumers";
 const MEDIASOUP_DOC_BASE_URL = "https://mediasoup.org/documentation/v3/libmediasoupclient/api/";
@@ -231,7 +235,8 @@ export default class RtcDebugPanel extends Component {
 
     this.state = {
       log: [],
-      collapsed: { Local: false, Log: isMobile, Remote: true, Audio: true }
+      collapsed: { Local: false, Log: isMobile, Remote: true, Audio: true },
+      isRecording: false
     };
   }
 
@@ -654,6 +659,7 @@ export default class RtcDebugPanel extends Component {
 
   createProducers(producers = [], stats) {
     return producers.map(producer => {
+      if (this.state.isRecording) sendStats.push(stats[producer.id]);
       return (
         <TrackStatsPanel
           key={producer.id}
@@ -686,6 +692,7 @@ export default class RtcDebugPanel extends Component {
     const components = [];
     for (const [, reducedConsumer] of Object.entries(reducedConsumers)) {
       const consumerPanels = reducedConsumer.consumers.map(consumer => {
+        if (this.state.isRecording) recvStats.push(stats[consumer.id]);
         return (
           <TrackStatsPanel
             key={consumer.id}
@@ -843,6 +850,42 @@ export default class RtcDebugPanel extends Component {
     });
   };
 
+  startRecordingStats = () => {
+    if (APP.usingSfu === SFU.DIALOG) {
+      this.setState({ isRecording: true });
+    } else if (APP.usingSfu === SFU.SORA) {
+      APP.sfu.startRecordStats();
+    }
+  };
+
+  stopRecordingStats = async () => {
+    if (APP.usingSfu === SFU.SORA) {
+      APP.sfu.stopRecordStats();
+      return;
+    }
+
+    this.setState({ isRecording: false });
+
+    const sendStatsBlob = new Blob([JSON.stringify(sendStats)], { type: "text/json" });
+    const sendStatslink = document.createElement("a");
+    document.body.appendChild(sendStatslink);
+    sendStatslink.href = window.URL.createObjectURL(sendStatsBlob);
+    sendStatslink.setAttribute("download", "/sendStats.json");
+    sendStatslink.click();
+    document.body.removeChild(sendStatslink);
+
+    const recvStatsBlob = new Blob([JSON.stringify(recvStats)], { type: "text/json" });
+    const recvStatsLink = document.createElement("a");
+    document.body.appendChild(recvStatsLink);
+    recvStatsLink.href = window.URL.createObjectURL(recvStatsBlob);
+    recvStatsLink.setAttribute("download", "/recvStats.json");
+    recvStatsLink.click();
+    document.body.removeChild(recvStatsLink);
+
+    sendStats.length = 0;
+    recvStats.length = 0;
+  };
+
   render() {
     const { signalingData, serverData, statsData, deviceData, transportsData, collapsed } = this.state;
     const isNarrow = isMobile || window.innerWidth < 500;
@@ -865,6 +908,10 @@ export default class RtcDebugPanel extends Component {
                 collapsed={collapsed.Local}
                 onCollapse={this.onCollapse}
               >
+                <div>
+                  <button onClick={this.startRecordingStats}>{"Start Recording Stats"}</button>
+                  <button onClick={this.stopRecordingStats}>{"Stop Recording Stats"}</button>
+                </div>
                 {deviceData && (
                   <CollapsiblePanel
                     title={<FormattedMessage id="rtc-debug-panel.device-panel-title" defaultMessage="Device" />}
