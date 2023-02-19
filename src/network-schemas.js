@@ -30,14 +30,6 @@ function registerNetworkSchemas() {
     template: "#remote-avatar",
     components: [
       {
-        component: "position",
-        requiresNetworkUpdate: vectorRequiresUpdate(0.001)
-      },
-      {
-        component: "rotation",
-        requiresNetworkUpdate: vectorRequiresUpdate(0.5)
-      },
-      {
         component: "scale",
         requiresNetworkUpdate: vectorRequiresUpdate(0.001)
       },
@@ -56,6 +48,14 @@ function registerNetworkSchemas() {
       APP.usingSfu === SFU.SORA
         ? []
         : [
+            {
+              component: "position",
+              requiresNetworkUpdate: vectorRequiresUpdate(0.001)
+            },
+            {
+              component: "rotation",
+              requiresNetworkUpdate: vectorRequiresUpdate(0.5)
+            },
             {
               selector: ".camera",
               component: "position",

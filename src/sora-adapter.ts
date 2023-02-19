@@ -17,6 +17,7 @@ type ConnectProps = {
 }
 
 type AvatarEl = {
+  avatar: AElement | null;
   head: AElement | null;
   leftHand: AElement | null;
   rightHand: AElement | null;
@@ -31,7 +32,8 @@ export class SoraAdapter extends SfuAdapter {
   _blockedClients: Map<string, boolean>;
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
-  _hmd: AElement | null;
+  _avatarRig: AElement | null;
+  _avatarHead: AElement | null;
   _leftController: AElement | null;
   _rightController: AElement | null;
   _remoteAvatarEls: Map<string, AvatarEl>;
@@ -45,7 +47,8 @@ export class SoraAdapter extends SfuAdapter {
     this._clientStreamIdPair = new Map<string, string>();
     this._blockedClients = new Map<string, boolean>();
     this._micShouldBeEnabled = false;
-    this._hmd = null;
+    this._avatarRig = null;
+    this._avatarHead = null;
     this._leftController = null;
     this._rightController = null;
     this._remoteAvatarEls = new Map<string, AvatarEl>();
@@ -62,7 +65,7 @@ export class SoraAdapter extends SfuAdapter {
       dataChannelSignaling: true,
       dataChannels: [
         {
-          label: "#avatar-transform",
+          label: "#avatar-pose",
           direction: "sendrecv" as SoraType.DataChannelDirection
         }
       ]
@@ -78,34 +81,16 @@ export class SoraAdapter extends SfuAdapter {
             if (!this._clientStreamIdPair.has(c.client_id)) {
               this._clientStreamIdPair.set(c.client_id, c.connection_id);
             }
-            const remoteClientAvatar = document.querySelector(`[client-id="${c.client_id}"]`);
-            if (remoteClientAvatar) {
-              this._remoteAvatarEls.set(c.client_id, {
-                head: remoteClientAvatar.querySelector(".camera") as AElement,
-                leftHand: remoteClientAvatar.querySelector(".left-controller") as AElement,
-                rightHand: remoteClientAvatar.querySelector(".right-controller") as AElement
-              })
-            }
+            this.setRemoteClientAvatar(c.client_id);
           }
         });
+        
         // clients entering this room later
-        if (event.client_id && event.connection_id) {
+        if (event.client_id && event.client_id !== this._clientId && event.connection_id) {
           if (!this._remoteMediaStreams.has(event.client_id)) {
             this._clientStreamIdPair.set(event.client_id, event.connection_id);
           }
-          let intervalId: NodeJS.Timer;
-          const setRemoteAvatar = () => {
-            const remoteClientAvatar = document.querySelector(`[client-id="${event.client_id}"]`);
-            if (remoteClientAvatar && event.client_id) {
-              this._remoteAvatarEls.set(event.client_id, {
-                head: remoteClientAvatar.querySelector(".camera") as AElement,
-                leftHand: remoteClientAvatar.querySelector(".left-controller") as AElement,
-                rightHand: remoteClientAvatar.querySelector(".right-controller") as AElement
-              })
-            }
-            clearInterval(intervalId);
-          }
-          intervalId = setInterval(setRemoteAvatar, 1000);
+          this.setRemoteClientAvatar(event.client_id);
           
           this.emit("stream_updated", event.client_id, "audio");
           this.emit("stream_updated", event.client_id, "video");
@@ -131,23 +116,26 @@ export class SoraAdapter extends SfuAdapter {
       const clientIdUInt8 = new TextEncoder().encode(this._clientId);
       let intervalId: NodeJS.Timer;
       const getPlayerAvatar = () => {
-        this._hmd = document.querySelector("#avatar-pov-node") as AElement;
+        this._avatarRig = document.querySelector("#avatar-rig") as AElement;
+        this._avatarHead = document.querySelector("#avatar-pov-node") as AElement;
         this._leftController = document.querySelector("#player-left-controller") as AElement;
         this._rightController = document.querySelector("#player-right-controller") as AElement;
-        if (this._hmd && this._leftController && this._rightController) clearInterval(intervalId);
+        if (this._avatarRig && this._avatarHead && this._leftController && this._rightController) clearInterval(intervalId);
       }
       intervalId = setInterval(getPlayerAvatar, 1000);
 
       const syncAvatarTransform = async () => {
-        if (this._hmd && this._leftController && this._rightController) {
-          const headPos = this._hmd?.object3D.position;
-          const headRot = this._hmd?.object3D.rotation;
+        if (this._avatarRig && this._avatarHead && this._leftController && this._rightController) {
+          const selfPos = this._avatarRig?.object3D.position;
+          const selfRot = this._avatarRig?.object3D.rotation;
+          const headPos = this._avatarHead?.object3D.position;
+          const headRot = this._avatarHead?.object3D.rotation;
           const leftHandPos = this._leftController?.object3D.position;
           const leftHandRot = this._leftController?.object3D.rotation;
           const rightHandPos = this._rightController?.object3D.position;
           const rightHandRot = this._rightController?.object3D.rotation;
-          if (headPos && headRot && leftHandPos && leftHandRot && rightHandPos && rightHandRot) {
-            this._sendrecv?.sendMessage("#avatar-transform", new Uint8Array([
+          if (selfPos && selfRot && headPos && headRot && leftHandPos && leftHandRot && rightHandPos && rightHandRot) {
+            this._sendrecv?.sendMessage("#avatar-pose", new Uint8Array([
               // @ts-ignore
               ...floatToUInt8(headPos.x), ...floatToUInt8(headPos.y), ...floatToUInt8(headPos.z),
               // @ts-ignore
@@ -160,23 +148,29 @@ export class SoraAdapter extends SfuAdapter {
               ...floatToUInt8(rightHandPos.x), ...floatToUInt8(rightHandPos.y), ...floatToUInt8(rightHandPos.z),
               // @ts-ignore
               radToUInt8(rightHandRot.x), radToUInt8(rightHandRot.y), radToUInt8(rightHandRot.z),
+              // @ts-ignore
+              ...floatToUInt8(selfPos.x), ...floatToUInt8(selfPos.y), ...floatToUInt8(selfPos.z),
+              // @ts-ignore
+              radToUInt8(selfRot.x), radToUInt8(selfRot.y), radToUInt8(selfRot.z),
               ...clientIdUInt8
             ]));
           }
         }
       }
-      setInterval(syncAvatarTransform, 50);
+      setInterval(syncAvatarTransform, 20);
     });
     this._sendrecv.on("message", event => {
-      if (event.label === "#avatar-transform") {
+      if (event.label === "#avatar-pose") {
         const t = new Uint8Array(event.data);
-        const remoteAvatarEl = this._remoteAvatarEls.get(new TextDecoder().decode(t.subarray(27)));
+        const remoteAvatarEl = this._remoteAvatarEls.get(new TextDecoder().decode(t.subarray(36)));
         remoteAvatarEl?.head?.object3D?.position.set(uInt8ToFloat(t[0], t[1]), uInt8ToFloat(t[2], t[3]), uInt8ToFloat(t[4], t[5]));
         remoteAvatarEl?.head?.object3D.rotation.set(uInt8ToRad(t[6]), uInt8ToRad(t[7]), uInt8ToRad(t[8]));
         remoteAvatarEl?.leftHand?.object3D.position.set(uInt8ToFloat(t[9], t[10]), uInt8ToFloat(t[11], t[12]), uInt8ToFloat(t[13], t[14]));
         remoteAvatarEl?.leftHand?.object3D.rotation.set(uInt8ToRad(t[15]), uInt8ToRad(t[16]), uInt8ToRad(t[17]));
         remoteAvatarEl?.rightHand?.object3D.position.set(uInt8ToFloat(t[18], t[19]), uInt8ToFloat(t[20], t[21]), uInt8ToFloat(t[22], t[23]));
         remoteAvatarEl?.rightHand?.object3D.rotation.set(uInt8ToRad(t[24]), uInt8ToRad(t[25]), uInt8ToRad(t[26]));
+        remoteAvatarEl?.avatar?.object3D.position.set(uInt8ToFloat(t[27], t[28]), uInt8ToFloat(t[29], t[30]), uInt8ToFloat(t[31], t[32]));
+        remoteAvatarEl?.avatar?.object3D.rotation.set(uInt8ToRad(t[33]), uInt8ToRad(t[34]), uInt8ToRad(t[35]));
       }
     });
     this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -363,6 +357,24 @@ export class SoraAdapter extends SfuAdapter {
     }
     this._blockedClients.delete(clientId);
     document.body.dispatchEvent(new CustomEvent("unblocked", { detail: { clientId: clientId } }));
+  }
+
+  // Keep trying to retrieve remote client avatar every second until retrieved
+  setRemoteClientAvatar(clientId: string) {
+    let intervalId: NodeJS.Timer;
+    const trySetRemoteAvatar = () => {
+      const remoteClientAvatar = document.querySelector(`[client-id="${clientId}"]`);
+      if (remoteClientAvatar && clientId) {
+        this._remoteAvatarEls.set(clientId, {
+          avatar: remoteClientAvatar as AElement,
+          head: remoteClientAvatar.querySelector(".camera") as AElement,
+          leftHand: remoteClientAvatar.querySelector(".left-controller") as AElement,
+          rightHand: remoteClientAvatar.querySelector(".right-controller") as AElement
+        });
+        clearInterval(intervalId);
+      }
+    }
+    intervalId = setInterval(trySetRemoteAvatar, 1000);
   }
 
   emitRTCEvent(level: string, tag: string, msgFunc: () => void) {
