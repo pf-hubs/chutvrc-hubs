@@ -91,6 +91,7 @@ export default class SceneEntryManager {
     if (qsTruthy("offline")) return;
 
     this._spawnAvatar();
+    this.avatarRig.setAttribute("client-id", NAF.clientId);
 
     this.scene.systems["hubs-systems"].soundEffectsSystem.playSoundOneShot(SOUND_ENTER_SCENE);
 

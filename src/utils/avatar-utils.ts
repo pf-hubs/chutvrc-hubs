@@ -1,6 +1,10 @@
+// @ts-nocheck
+
 import { fetchReticulumAuthenticated } from "./phoenix-utils";
 import { proxiedUrlFor } from "./media-url-utils";
 import avatarUnavailableImage from "../assets/images/avatar_unavailable.png";
+import { Object3D } from "three";
+import { floatToUInt8, radToUInt8, uInt8ToFloat, uInt8ToRad } from "./uint8-parser";
 
 const AVATARS_API = "/api/v1/avatars";
 
@@ -91,4 +95,21 @@ export async function remixAvatar(parentId, name) {
   };
 
   return fetchReticulumAuthenticated(AVATARS_API, "POST", { avatar });
+}
+
+export function encodeAvatarTransform(avatarPartObj: Object3D, clientId: Uint8Array) {
+  return [
+    ...floatToUInt8(avatarPartObj.position.x),
+    ...floatToUInt8(avatarPartObj.position.y),
+    ...floatToUInt8(avatarPartObj.position.z),
+    radToUInt8(avatarPartObj.rotation.x),
+    radToUInt8(avatarPartObj.rotation.y),
+    radToUInt8(avatarPartObj.rotation.z),
+    ...clientId
+  ];
+}
+
+export function decodeAndSetAvatarTransform(encodedTransform: Uint8Array, avatarPartObj: Object3D): void {
+  avatarPartObj.position.set(uInt8ToFloat(encodedTransform[0], encodedTransform[1]), uInt8ToFloat(encodedTransform[2], encodedTransform[3]), uInt8ToFloat(encodedTransform[4], encodedTransform[5]));
+  avatarPartObj.rotation.set(uInt8ToRad(encodedTransform[6]), uInt8ToRad(encodedTransform[7]), uInt8ToRad(encodedTransform[8]), "YXZ");
 }

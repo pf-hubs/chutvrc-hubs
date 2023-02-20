@@ -4,6 +4,7 @@ export const SFU_CONNECTION_CONNECTED = "sfu-connection-connected";
 export const SFU_CONNECTION_ERROR_FATAL = "sfu-connection-error-fatal";
 
 export abstract class SfuAdapter extends EventEmitter {
+  _clientId: string;
   connect(props: any) { }
   disconnect() { }
   getMediaStream(clientId: string, kind: string) { }
