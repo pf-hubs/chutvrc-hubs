@@ -7,6 +7,8 @@ import { AvatarObjects, AvatarPart, AvatarTransformBuffer, avatarPartTypes } fro
 import { decodeAndSetAvatarTransform } from "./utils/avatar-utils";
 
 const debug = newDebug("naf-dialog-adapter:debug");
+const sendStats: any[] = [];
+const recvStats: any[] = [];
 
 type ConnectProps = {
   clientId: string;
@@ -24,11 +26,13 @@ export class SoraAdapter extends SfuAdapter {
   _localMediaStream: MediaStream | null;
   _remoteMediaStreams: Map<string, MediaStream | null>;
   _clientStreamIdPair: Map<string, string>;
+  _pendingMediaRequests: Map<string, any>;
   _blockedClients: Map<string, boolean>;
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
   _remoteAvatarObjects: Map<string, AvatarObjects>;
   _selfAvatarTransformBuffer: AvatarTransformBuffer;
+  _recordStatsId: NodeJS.Timer;
 
   constructor() {
     super();
@@ -37,6 +41,7 @@ export class SoraAdapter extends SfuAdapter {
     this._localMediaStream = null;
     this._remoteMediaStreams = new Map<string, MediaStream | null>();
     this._clientStreamIdPair = new Map<string, string>();
+    this._pendingMediaRequests = new Map<string, any>();
     this._blockedClients = new Map<string, boolean>();
     this._micShouldBeEnabled = false;
     this._remoteAvatarObjects = new Map<string, AvatarObjects>();
@@ -78,21 +83,17 @@ export class SoraAdapter extends SfuAdapter {
       if (event.event_type === "connection.created") {
         event.data?.forEach(c => {
           // clients entering this room earlier
-          if (c.client_id && c.connection_id) {
-            if (!this._clientStreamIdPair.has(c.client_id)) {
-              this._clientStreamIdPair.set(c.client_id, c.connection_id);
-            }
+          if (c.client_id && c.connection_id && !this._clientStreamIdPair.has(c.client_id)) {
+            this._clientStreamIdPair.set(c.client_id, c.connection_id);
+            this.resolvePendingMediaRequestForTrack(c.client_id);
             this.setRemoteClientAvatar(c.client_id, false);
           }
         });
         
         // clients entering this room later
-        if (event.client_id && event.client_id !== this._clientId && event.connection_id) {
-          if (!this._remoteMediaStreams.has(event.client_id)) {
-            this._clientStreamIdPair.set(event.client_id, event.connection_id);
-          }
+        if (event.client_id && event.client_id !== this._clientId && event.connection_id && !this._clientStreamIdPair.has(event.client_id)) {
+          this._clientStreamIdPair.set(event.client_id, event.connection_id);
           this.setRemoteClientAvatar(event.client_id, true);
-          
           this.emit("stream_updated", event.client_id, "audio");
           this.emit("stream_updated", event.client_id, "video");
         }
@@ -103,9 +104,12 @@ export class SoraAdapter extends SfuAdapter {
       }
     })
     this._sendrecv.on("track", event => {
+      // console.log("track");
       const stream = event.streams[0];
       if (!stream) return;
+      // console.log(stream.id);
       if (!this._remoteMediaStreams.has(stream.id)) {
+        // console.log("_remoteMediaStreams.set");
         this._remoteMediaStreams.set(stream.id, stream);
       }
     });
@@ -150,7 +154,7 @@ export class SoraAdapter extends SfuAdapter {
       await new Promise(res => setTimeout(res, 1000));
       this.sendSelfAvatarTransform(false);
     });
-    this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     this._sendrecv
       .connect(this._localMediaStream)
       .then(stream => {
@@ -178,18 +182,20 @@ export class SoraAdapter extends SfuAdapter {
 
   getMediaStream(clientId: string, kind = "audio") {
     let stream: MediaStream | null | undefined = null;
+    let streamId: string | null | undefined = null;
     let tracks: MediaStreamTrack[] | null | undefined = null;
 
     if (this._clientId === clientId) {
       stream = this._sendrecv?.stream;
     } else {
-      const streamId = this._clientStreamIdPair.get(clientId);
+      streamId = this._clientStreamIdPair.get(clientId);
       if (streamId) {
         stream = this._remoteMediaStreams.get(streamId);
       }
     }
 
     if (stream) {
+      debug(`Already had ${kind} for ${clientId}`);
       tracks = kind === "audio" ? stream.getAudioTracks() : stream.getVideoTracks();
       if (tracks) {
         const promise = Promise.resolve(new MediaStream(tracks));
@@ -199,9 +205,22 @@ export class SoraAdapter extends SfuAdapter {
         });
         return promise;
       }
-    }
+    } else {
+      console.log(`Waiting on ${kind} for ${clientId}`);
+      debug(`Waiting on ${kind} for ${clientId}`);
+      if (!this._pendingMediaRequests.has(clientId)) {
+        this._pendingMediaRequests.set(clientId, {});
+      }
 
-    return null;
+      const requests = this._pendingMediaRequests.get(clientId);
+      const promise = new Promise((resolve, reject) => (requests[kind] = { resolve, reject }));
+      requests[kind].promise = promise;
+      promise.catch(e => {
+        this.emitRTCEvent("error", "Adapter", () => `getMediaStream error: ${e}`);
+        console.warn(`${clientId} getMediaStream Error`, e);
+      });
+      return promise;
+    }
   }
 
   getLocalMicTrack() {
@@ -219,12 +238,9 @@ export class SoraAdapter extends SfuAdapter {
       stream.getTracks().map(async track => {
         if (track.kind === "audio") {
           sawAudio = true;
-          if (this._sendrecv) {
-            if (this._sendrecv.stream) {
-              this._sendrecv.replaceAudioTrack(this._sendrecv.stream, track);
-            } else {
-              this._sendrecv.stream = new MediaStream([track]);
-            }
+          if (!track.enabled || track.readyState === "ended" || track.id === this._localMediaStream?.getAudioTracks()[0].id) return;
+          if (this._localMediaStream) {
+            this._sendrecv?.replaceAudioTrack(this._localMediaStream, track.clone());
           }
         } else {
           sawVideo = true;
@@ -245,7 +261,6 @@ export class SoraAdapter extends SfuAdapter {
       this.disableCamera();
       this.disableShare();
     }
-    if (this._sendrecv) this._sendrecv.stream = stream;
   }
 
   toggleMicrophone() {
@@ -376,5 +391,59 @@ export class SoraAdapter extends SfuAdapter {
     });
     // @ts-ignore
     this._scene?.emit("rtc_event", { level, tag, time, msg: msgFunc() });
+  }
+
+  resolvePendingMediaRequestForTrack(clientId: string) {
+    const requests = this._pendingMediaRequests.get(clientId);
+    const streamId = this._clientStreamIdPair.get(clientId);
+    if (streamId) {
+      const stream = this._remoteMediaStreams.get(streamId);
+      if (stream && requests) {
+        console.log("resolvePendingMediaRequestForTrack");
+        if (requests["audio"]) {
+          const resolve = requests["audio"].resolve;
+          delete requests["audio"];
+          resolve(new MediaStream(stream.getAudioTracks()));
+        }
+        if (requests["video"]) {
+          const resolve = requests["video"].resolve;
+          delete requests["video"];
+          resolve(new MediaStream(stream.getVideoTracks()));
+        }
+      }
+    }
+
+    if (requests && Object.keys(requests).length === 0) {
+      this._pendingMediaRequests.delete(clientId);
+    }
+  }
+
+  startRecordStats() {
+    this._recordStatsId = setInterval(async () => {
+      (await this._sendrecv?.pc?.getStats())?.forEach((stat) => {
+        if (stat.type === "outbound-rtp") sendStats.push(stat);
+        if (stat.type === "inbound-rtp") recvStats.push(stat);
+      });
+    }, 3000);
+  }
+
+  stopRecordStats() {
+    if (this._recordStatsId) clearInterval(this._recordStatsId);
+
+    const sendStatsBlob = new Blob([JSON.stringify(sendStats)], { type: "text/json" });
+    const sendStatslink = document.createElement("a");
+    document.body.appendChild(sendStatslink);
+    sendStatslink.href = window.URL.createObjectURL(sendStatsBlob);
+    sendStatslink.setAttribute("download", "/sendStats.json");
+    sendStatslink.click();
+    document.body.removeChild(sendStatslink);
+
+    const recvStatsBlob = new Blob([JSON.stringify(recvStats)], { type: "text/json" });
+    const recvStatsLink = document.createElement("a");
+    document.body.appendChild(recvStatsLink);
+    recvStatsLink.href = window.URL.createObjectURL(recvStatsBlob);
+    recvStatsLink.setAttribute("download", "/recvStats.json");
+    recvStatsLink.click();
+    document.body.removeChild(recvStatsLink);
   }
 }

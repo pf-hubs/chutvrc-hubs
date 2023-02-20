@@ -870,8 +870,6 @@ export class DialogAdapter extends SfuAdapter {
         share: true
       }
     });
-    console.log(track.enabled);
-    console.log(track.readyState);
 
     this._shareProducer.on("transportclose", () => {
       this.emitRTCEvent("info", "RTC", () => `Desktop Share transport closed`);
