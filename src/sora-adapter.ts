@@ -2,8 +2,9 @@ import Sora, * as SoraType from "sora-js-sdk";
 import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 import { MediaDevices } from "./utils/media-devices-utils";
-import { floatToUInt8, uInt8ToFloat, radToUInt8, uInt8ToRad } from "./utils/uint8-parser";
 import { AElement } from "aframe";
+import { AvatarObjects, AvatarPart, AvatarTransformBuffer, avatarPartTypes } from "./utils/avatar-transform-buffer";
+import { decodeAndSetAvatarTransform } from "./utils/avatar-utils";
 
 const debug = newDebug("naf-dialog-adapter:debug");
 
@@ -12,15 +13,9 @@ type ConnectProps = {
   channelId: string;
   signalingUrl: string;
   accessToken: string;
+  scene: Element;
   debug: boolean;
   options?: SoraType.ConnectionOptions;
-}
-
-type AvatarEl = {
-  avatar: AElement | null;
-  head: AElement | null;
-  leftHand: AElement | null;
-  rightHand: AElement | null;
 }
 
 export class SoraAdapter extends SfuAdapter {
@@ -36,7 +31,8 @@ export class SoraAdapter extends SfuAdapter {
   _avatarHead: AElement | null;
   _leftController: AElement | null;
   _rightController: AElement | null;
-  _remoteAvatarEls: Map<string, AvatarEl>;
+  _remoteAvatarObjects: Map<string, AvatarObjects>;
+  _selfAvatarTransformBuffer: AvatarTransformBuffer;
 
   constructor() {
     super();
@@ -51,10 +47,11 @@ export class SoraAdapter extends SfuAdapter {
     this._avatarHead = null;
     this._leftController = null;
     this._rightController = null;
-    this._remoteAvatarEls = new Map<string, AvatarEl>();
+    this._remoteAvatarObjects = new Map<string, AvatarObjects>();
   }
 
-  async connect({ clientId, channelId, signalingUrl, accessToken, debug }: ConnectProps) {
+  async connect({ clientId, channelId, signalingUrl, accessToken, scene, debug }: ConnectProps) {
+    this._scene = scene;
     const sora = Sora.connection(signalingUrl, debug);
     const metadata = { access_Token: accessToken };
     const options = {
@@ -65,7 +62,19 @@ export class SoraAdapter extends SfuAdapter {
       dataChannelSignaling: true,
       dataChannels: [
         {
-          label: "#avatar-pose",
+          label: "#avatar-RIG",
+          direction: "sendrecv" as SoraType.DataChannelDirection
+        },
+        {
+          label: "#avatar-HEAD",
+          direction: "sendrecv" as SoraType.DataChannelDirection
+        },
+        {
+          label: "#avatar-LEFT",
+          direction: "sendrecv" as SoraType.DataChannelDirection
+        },
+        {
+          label: "#avatar-RIGHT",
           direction: "sendrecv" as SoraType.DataChannelDirection
         }
       ]
@@ -81,7 +90,7 @@ export class SoraAdapter extends SfuAdapter {
             if (!this._clientStreamIdPair.has(c.client_id)) {
               this._clientStreamIdPair.set(c.client_id, c.connection_id);
             }
-            this.setRemoteClientAvatar(c.client_id);
+            this.setRemoteClientAvatar(c.client_id, false);
           }
         });
         
@@ -90,7 +99,7 @@ export class SoraAdapter extends SfuAdapter {
           if (!this._remoteMediaStreams.has(event.client_id)) {
             this._clientStreamIdPair.set(event.client_id, event.connection_id);
           }
-          this.setRemoteClientAvatar(event.client_id);
+          this.setRemoteClientAvatar(event.client_id, true);
           
           this.emit("stream_updated", event.client_id, "audio");
           this.emit("stream_updated", event.client_id, "video");
@@ -113,65 +122,41 @@ export class SoraAdapter extends SfuAdapter {
       console.log("Track removed: " + event.track.id);
     });
     this._sendrecv.on("datachannel", event => {
-      const clientIdUInt8 = new TextEncoder().encode(this._clientId);
-      let intervalId: NodeJS.Timer;
+      // get self avatar parts
+      let getPlayerAvatarIntervalId: NodeJS.Timer;
       const getPlayerAvatar = () => {
-        this._avatarRig = document.querySelector("#avatar-rig") as AElement;
-        this._avatarHead = document.querySelector("#avatar-pov-node") as AElement;
-        this._leftController = document.querySelector("#player-left-controller") as AElement;
-        this._rightController = document.querySelector("#player-right-controller") as AElement;
-        if (this._avatarRig && this._avatarHead && this._leftController && this._rightController) clearInterval(intervalId);
-      }
-      intervalId = setInterval(getPlayerAvatar, 1000);
-
-      const syncAvatarTransform = async () => {
-        if (this._avatarRig && this._avatarHead && this._leftController && this._rightController) {
-          const selfPos = this._avatarRig?.object3D.position;
-          const selfRot = this._avatarRig?.object3D.rotation;
-          const headPos = this._avatarHead?.object3D.position;
-          const headRot = this._avatarHead?.object3D.rotation;
-          const leftHandPos = this._leftController?.object3D.position;
-          const leftHandRot = this._leftController?.object3D.rotation;
-          const rightHandPos = this._rightController?.object3D.position;
-          const rightHandRot = this._rightController?.object3D.rotation;
-          if (selfPos && selfRot && headPos && headRot && leftHandPos && leftHandRot && rightHandPos && rightHandRot) {
-            this._sendrecv?.sendMessage("#avatar-pose", new Uint8Array([
-              // @ts-ignore
-              ...floatToUInt8(headPos.x), ...floatToUInt8(headPos.y), ...floatToUInt8(headPos.z),
-              // @ts-ignore
-              radToUInt8(headRot.x), radToUInt8(headRot.y), radToUInt8(headRot.z),
-              // @ts-ignore
-              ...floatToUInt8(leftHandPos.x), ...floatToUInt8(leftHandPos.y), ...floatToUInt8(leftHandPos.z),
-              // @ts-ignore
-              radToUInt8(leftHandRot.x), radToUInt8(leftHandRot.y), radToUInt8(leftHandRot.z),
-              // @ts-ignore
-              ...floatToUInt8(rightHandPos.x), ...floatToUInt8(rightHandPos.y), ...floatToUInt8(rightHandPos.z),
-              // @ts-ignore
-              radToUInt8(rightHandRot.x), radToUInt8(rightHandRot.y), radToUInt8(rightHandRot.z),
-              // @ts-ignore
-              ...floatToUInt8(selfPos.x), ...floatToUInt8(selfPos.y), ...floatToUInt8(selfPos.z),
-              // @ts-ignore
-              radToUInt8(selfRot.x), radToUInt8(selfRot.y), radToUInt8(selfRot.z),
-              ...clientIdUInt8
-            ]));
-          }
+        if (this._selfAvatarTransformBuffer) {
+          clearInterval(getPlayerAvatarIntervalId);
+          return;
+        }
+        const rig = document.querySelector("#avatar-rig") as AElement;
+        const head = document.querySelector("#avatar-pov-node") as AElement;
+        const left = document.querySelector("#player-left-controller") as AElement;
+        const right = document.querySelector("#player-right-controller") as AElement;
+        if (rig && head && left && right) {
+          this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._clientId, rig, head, left, right);
+          clearInterval(getPlayerAvatarIntervalId);
         }
       }
-      setInterval(syncAvatarTransform, 20);
+      getPlayerAvatarIntervalId = setInterval(getPlayerAvatar, 1000);
+
+      // check self avatar transform periodically, and send message if updated
+      const sendAvatarTransform = async () => {
+        this.sendSelfAvatarTransform(true);
+      }
+      setInterval(sendAvatarTransform, 20);
     });
     this._sendrecv.on("message", event => {
-      if (event.label === "#avatar-pose") {
-        const t = new Uint8Array(event.data);
-        const remoteAvatarEl = this._remoteAvatarEls.get(new TextDecoder().decode(t.subarray(36)));
-        remoteAvatarEl?.head?.object3D?.position.set(uInt8ToFloat(t[0], t[1]), uInt8ToFloat(t[2], t[3]), uInt8ToFloat(t[4], t[5]));
-        remoteAvatarEl?.head?.object3D.rotation.set(uInt8ToRad(t[6]), uInt8ToRad(t[7]), uInt8ToRad(t[8]));
-        remoteAvatarEl?.leftHand?.object3D.position.set(uInt8ToFloat(t[9], t[10]), uInt8ToFloat(t[11], t[12]), uInt8ToFloat(t[13], t[14]));
-        remoteAvatarEl?.leftHand?.object3D.rotation.set(uInt8ToRad(t[15]), uInt8ToRad(t[16]), uInt8ToRad(t[17]));
-        remoteAvatarEl?.rightHand?.object3D.position.set(uInt8ToFloat(t[18], t[19]), uInt8ToFloat(t[20], t[21]), uInt8ToFloat(t[22], t[23]));
-        remoteAvatarEl?.rightHand?.object3D.rotation.set(uInt8ToRad(t[24]), uInt8ToRad(t[25]), uInt8ToRad(t[26]));
-        remoteAvatarEl?.avatar?.object3D.position.set(uInt8ToFloat(t[27], t[28]), uInt8ToFloat(t[29], t[30]), uInt8ToFloat(t[31], t[32]));
-        remoteAvatarEl?.avatar?.object3D.rotation.set(uInt8ToRad(t[33]), uInt8ToRad(t[34]), uInt8ToRad(t[35]));
+      if (event.label.includes("#avatar-")) {
+        // receive other clients' avatar transform when updated
+        const encodedTransform = new Uint8Array(event.data);
+        const remoteAvatarObjs = this._remoteAvatarObjects.get(new TextDecoder().decode(encodedTransform.subarray(9))); // encodedTransform.subarray(9): encoded clientId
+        if (remoteAvatarObjs) decodeAndSetAvatarTransform(encodedTransform, remoteAvatarObjs[event.label.substring(8) as unknown as AvatarPart]); // event.label.substring(8): avatar part
       }
+    });
+    this._scene?.addEventListener("audio_ready", async () => {
+      await new Promise(res => setTimeout(res, 1000));
+      this.sendSelfAvatarTransform(false);
     });
     this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
     this._sendrecv
@@ -360,21 +345,33 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   // Keep trying to retrieve remote client avatar every second until retrieved
-  setRemoteClientAvatar(clientId: string) {
+  setRemoteClientAvatar(clientId: string, isNewClient: boolean) {
     let intervalId: NodeJS.Timer;
     const trySetRemoteAvatar = () => {
       const remoteClientAvatar = document.querySelector(`[client-id="${clientId}"]`);
       if (remoteClientAvatar && clientId) {
-        this._remoteAvatarEls.set(clientId, {
-          avatar: remoteClientAvatar as AElement,
-          head: remoteClientAvatar.querySelector(".camera") as AElement,
-          leftHand: remoteClientAvatar.querySelector(".left-controller") as AElement,
-          rightHand: remoteClientAvatar.querySelector(".right-controller") as AElement
-        });
+        const parts: AvatarObjects = {
+          [AvatarPart.RIG]: (remoteClientAvatar as AElement).object3D,
+          [AvatarPart.HEAD]: (remoteClientAvatar.querySelector(".camera") as AElement).object3D,
+          [AvatarPart.LEFT]: (remoteClientAvatar.querySelector(".left-controller") as AElement).object3D,
+          [AvatarPart.RIGHT]: (remoteClientAvatar.querySelector(".right-controller") as AElement).object3D
+        }
+        this._remoteAvatarObjects.set(clientId, parts);
+        if (isNewClient) this.sendSelfAvatarTransform(false);
         clearInterval(intervalId);
       }
     }
     intervalId = setInterval(trySetRemoteAvatar, 1000);
+  }
+
+  sendSelfAvatarTransform(checkUpdatedRequired: boolean) {
+    if (!this._selfAvatarTransformBuffer) return;
+    avatarPartTypes.forEach(part => {
+      if (!checkUpdatedRequired || this._selfAvatarTransformBuffer?.updateAvatarTransform(part)) {
+        const arrToSend = this._selfAvatarTransformBuffer.getEncodedAvatarTransform(part);
+        this._sendrecv?.sendMessage("#avatar-" + AvatarPart[part], new Uint8Array(arrToSend));
+      }
+    });
   }
 
   emitRTCEvent(level: string, tag: string, msgFunc: () => void) {

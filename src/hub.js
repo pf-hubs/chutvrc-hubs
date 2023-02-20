@@ -151,7 +151,7 @@ import { disableiOSZoom } from "./utils/disable-ios-zoom";
 import { proxiedUrlFor } from "./utils/media-url-utils";
 import { traverseMeshesAndAddShapes } from "./utils/physics-utils";
 import { handleExitTo2DInterstitial, exit2DInterstitialAndEnterVR } from "./utils/vr-interstitial";
-import { getAvatarSrc } from "./utils/avatar-utils.js";
+import { getAvatarSrc } from "./utils/avatar-utils";
 import MessageDispatch from "./message-dispatch";
 import SceneEntryManager from "./scene-entry-manager";
 import Subscriptions from "./subscriptions";
@@ -631,6 +631,7 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
               channelId: data.sora_channel_id,
               signalingUrl: data.sora_signaling_url,
               accessToken: data.sora_access_token,
+              scene,
               debug: data.sora_is_debug
             }
           : {

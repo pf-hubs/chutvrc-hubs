@@ -645,6 +645,8 @@ class UIRoot extends Component {
     if (this.mediaDevicesManager.isVideoShared) {
       console.log("Screen sharing enabled.");
     }
+
+    this.props.scene.emit("audio_ready");
   };
 
   attemptLink = async () => {
