@@ -27,10 +27,6 @@ export class SoraAdapter extends SfuAdapter {
   _blockedClients: Map<string, boolean>;
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
-  _avatarRig: AElement | null;
-  _avatarHead: AElement | null;
-  _leftController: AElement | null;
-  _rightController: AElement | null;
   _remoteAvatarObjects: Map<string, AvatarObjects>;
   _selfAvatarTransformBuffer: AvatarTransformBuffer;
 
@@ -43,10 +39,6 @@ export class SoraAdapter extends SfuAdapter {
     this._clientStreamIdPair = new Map<string, string>();
     this._blockedClients = new Map<string, boolean>();
     this._micShouldBeEnabled = false;
-    this._avatarRig = null;
-    this._avatarHead = null;
-    this._leftController = null;
-    this._rightController = null;
     this._remoteAvatarObjects = new Map<string, AvatarObjects>();
   }
 
