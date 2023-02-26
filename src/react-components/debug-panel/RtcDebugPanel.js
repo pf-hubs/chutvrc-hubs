@@ -866,11 +866,13 @@ export default class RtcDebugPanel extends Component {
 
     this.setState({ isRecording: false });
 
+    const currentTimestamp = Date.now();
+
     const sendStatsBlob = new Blob([JSON.stringify(sendStats)], { type: "text/json" });
     const sendStatslink = document.createElement("a");
     document.body.appendChild(sendStatslink);
     sendStatslink.href = window.URL.createObjectURL(sendStatsBlob);
-    sendStatslink.setAttribute("download", "/sendStats.json");
+    sendStatslink.setAttribute("download", "sendStats_dialog_" + currentTimestamp + ".json");
     sendStatslink.click();
     document.body.removeChild(sendStatslink);
 
@@ -878,7 +880,7 @@ export default class RtcDebugPanel extends Component {
     const recvStatsLink = document.createElement("a");
     document.body.appendChild(recvStatsLink);
     recvStatsLink.href = window.URL.createObjectURL(recvStatsBlob);
-    recvStatsLink.setAttribute("download", "/recvStats.json");
+    recvStatsLink.setAttribute("download", "/recvStats_dialog_" + currentTimestamp + ".json");
     recvStatsLink.click();
     document.body.removeChild(recvStatsLink);
 

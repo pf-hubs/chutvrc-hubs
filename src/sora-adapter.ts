@@ -54,8 +54,11 @@ export class SoraAdapter extends SfuAdapter {
     const options = {
       clientId: clientId,
       multistream: true,
+      spotlight: true,
       audio: true,
       video: true,
+      audioCodecType: "OPUS" as SoraType.AudioCodecType,
+      videoCodecType: "H264" as SoraType.VideoCodecType,
       dataChannelSignaling: true,
       dataChannels: [
         {
@@ -429,12 +432,13 @@ export class SoraAdapter extends SfuAdapter {
 
   stopRecordStats() {
     if (this._recordStatsId) clearInterval(this._recordStatsId);
+    const currentTimestamp = Date.now();
 
     const sendStatsBlob = new Blob([JSON.stringify(sendStats)], { type: "text/json" });
     const sendStatslink = document.createElement("a");
     document.body.appendChild(sendStatslink);
     sendStatslink.href = window.URL.createObjectURL(sendStatsBlob);
-    sendStatslink.setAttribute("download", "/sendStats.json");
+    sendStatslink.setAttribute("download", "sendStats_sora_" + currentTimestamp + ".json");
     sendStatslink.click();
     document.body.removeChild(sendStatslink);
 
@@ -442,7 +446,7 @@ export class SoraAdapter extends SfuAdapter {
     const recvStatsLink = document.createElement("a");
     document.body.appendChild(recvStatsLink);
     recvStatsLink.href = window.URL.createObjectURL(recvStatsBlob);
-    recvStatsLink.setAttribute("download", "/recvStats.json");
+    recvStatsLink.setAttribute("download", "recvStats_sora_" + currentTimestamp + ".json");
     recvStatsLink.click();
     document.body.removeChild(recvStatsLink);
   }
