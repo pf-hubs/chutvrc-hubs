@@ -850,44 +850,6 @@ export default class RtcDebugPanel extends Component {
     });
   };
 
-  startRecordingStats = () => {
-    if (APP.usingSfu === SFU.DIALOG) {
-      this.setState({ isRecording: true });
-    } else if (APP.usingSfu === SFU.SORA) {
-      APP.sfu.startRecordStats();
-    }
-  };
-
-  stopRecordingStats = async () => {
-    if (APP.usingSfu === SFU.SORA) {
-      APP.sfu.stopRecordStats();
-      return;
-    }
-
-    this.setState({ isRecording: false });
-
-    const currentTimestamp = Date.now();
-
-    const sendStatsBlob = new Blob([JSON.stringify(sendStats)], { type: "text/json" });
-    const sendStatslink = document.createElement("a");
-    document.body.appendChild(sendStatslink);
-    sendStatslink.href = window.URL.createObjectURL(sendStatsBlob);
-    sendStatslink.setAttribute("download", "sendStats_dialog_" + currentTimestamp + ".json");
-    sendStatslink.click();
-    document.body.removeChild(sendStatslink);
-
-    const recvStatsBlob = new Blob([JSON.stringify(recvStats)], { type: "text/json" });
-    const recvStatsLink = document.createElement("a");
-    document.body.appendChild(recvStatsLink);
-    recvStatsLink.href = window.URL.createObjectURL(recvStatsBlob);
-    recvStatsLink.setAttribute("download", "/recvStats_dialog_" + currentTimestamp + ".json");
-    recvStatsLink.click();
-    document.body.removeChild(recvStatsLink);
-
-    sendStats.length = 0;
-    recvStats.length = 0;
-  };
-
   render() {
     const { signalingData, serverData, statsData, deviceData, transportsData, collapsed } = this.state;
     const isNarrow = isMobile || window.innerWidth < 500;
@@ -910,10 +872,6 @@ export default class RtcDebugPanel extends Component {
                 collapsed={collapsed.Local}
                 onCollapse={this.onCollapse}
               >
-                <div>
-                  <button onClick={this.startRecordingStats}>{"Start Recording Stats"}</button>
-                  <button onClick={this.stopRecordingStats}>{"Stop Recording Stats"}</button>
-                </div>
                 {deviceData && (
                   <CollapsiblePanel
                     title={<FormattedMessage id="rtc-debug-panel.device-panel-title" defaultMessage="Device" />}

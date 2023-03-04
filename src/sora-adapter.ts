@@ -32,7 +32,7 @@ export class SoraAdapter extends SfuAdapter {
   _scene: Element | null;
   _remoteAvatarObjects: Map<string, AvatarObjects>;
   _selfAvatarTransformBuffer: AvatarTransformBuffer;
-  _recordStatsId: NodeJS.Timer;
+  _recordStatsId: NodeJS.Timer | null;
 
   constructor() {
     super();
@@ -50,7 +50,7 @@ export class SoraAdapter extends SfuAdapter {
   async connect({ clientId, channelId, signalingUrl, accessToken, scene, debug }: ConnectProps) {
     this._scene = scene;
     const sora = Sora.connection(signalingUrl, debug);
-    const metadata = { access_Token: accessToken };
+    const metadata = { access_token: accessToken };
     const options = {
       clientId: clientId,
       multistream: true,
@@ -84,6 +84,10 @@ export class SoraAdapter extends SfuAdapter {
     this._sendrecv = sora.sendrecv(channelId, metadata, options);
     this._sendrecv.on("notify", event => {
       if (event.event_type === "connection.created") {
+        if (event.client_id === this._clientId) {
+          this.startRecordStats();
+        }
+
         event.data?.forEach(c => {
           // clients entering this room earlier
           if (c.client_id && c.connection_id && !this._clientStreamIdPair.has(c.client_id)) {
@@ -427,11 +431,12 @@ export class SoraAdapter extends SfuAdapter {
         if (stat.type === "outbound-rtp") sendStats.push(stat);
         if (stat.type === "inbound-rtp") recvStats.push(stat);
       });
+      if (sendStats.length > 1000) sendStats.shift();
+      if (recvStats.length > 1000) recvStats.shift();
     }, 3000);
   }
 
-  stopRecordStats() {
-    if (this._recordStatsId) clearInterval(this._recordStatsId);
+  downloadRecordedStats() {
     const currentTimestamp = Date.now();
 
     const sendStatsBlob = new Blob([JSON.stringify(sendStats)], { type: "text/json" });

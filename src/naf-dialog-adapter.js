@@ -24,6 +24,9 @@ const debug = newDebug("naf-dialog-adapter:debug");
 const error = newDebug("naf-dialog-adapter:error");
 const info = newDebug("naf-dialog-adapter:info");
 
+const sendStats = [];
+const recvStats = [];
+
 const PC_PROPRIETARY_CONSTRAINTS = {
   optional: [{ googDscp: true }]
 };
@@ -58,6 +61,7 @@ export class DialogAdapter extends SfuAdapter {
     this.scene = null;
     this._serverParams = {};
     this._consumerStats = {};
+    this._recordStatsId = null;
   }
 
   get consumerStats() {
@@ -746,6 +750,8 @@ export class DialogAdapter extends SfuAdapter {
       // TODO: Refactor to be "Create producers"
       await this.setLocalMediaStream(this._localMediaStream);
     }
+
+    this.startRecordStats();
   }
 
   getLocalMediaStream() {
@@ -983,5 +989,45 @@ export class DialogAdapter extends SfuAdapter {
       second: "numeric"
     });
     this.scene.emit("rtc_event", { level, tag, time, msg: msgFunc() });
+  }
+
+  startRecordStats() {
+    this._recordStatsId = setInterval(async () => {
+      if (this._consumers) {
+        const statsList = await Promise.all(
+          Array.from(this._consumers.values()).map(async consumer => consumer.getStats())
+        );
+        statsList.map(stats => {
+          stats.forEach(stat => {
+            if (stat.type === "inbound-rtp") recvStats.push(stat);
+            if (recvStats.length > 1000) recvStats.shift();
+          });
+        });
+      }
+      (await this._micProducer?.getStats())?.forEach(stat => {
+        if (stat.type === "outbound-rtp") sendStats.push(stat);
+      });
+      if (sendStats.length > 1000) sendStats.shift();
+    }, 3000);
+  }
+
+  downloadRecordedStats() {
+    const currentTimestamp = Date.now();
+
+    const sendStatsBlob = new Blob([JSON.stringify(sendStats)], { type: "text/json" });
+    const sendStatslink = document.createElement("a");
+    document.body.appendChild(sendStatslink);
+    sendStatslink.href = window.URL.createObjectURL(sendStatsBlob);
+    sendStatslink.setAttribute("download", "sendStats_dialog_" + currentTimestamp + ".json");
+    sendStatslink.click();
+    document.body.removeChild(sendStatslink);
+
+    const recvStatsBlob = new Blob([JSON.stringify(recvStats)], { type: "text/json" });
+    const recvStatsLink = document.createElement("a");
+    document.body.appendChild(recvStatsLink);
+    recvStatsLink.href = window.URL.createObjectURL(recvStatsBlob);
+    recvStatsLink.setAttribute("download", "recvStats_dialog_" + currentTimestamp + ".json");
+    recvStatsLink.click();
+    document.body.removeChild(recvStatsLink);
   }
 }
