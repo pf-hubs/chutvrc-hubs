@@ -428,11 +428,25 @@ export class SoraAdapter extends SfuAdapter {
   startRecordStats() {
     this._recordStatsId = setInterval(async () => {
       (await this._sendrecv?.pc?.getStats())?.forEach((stat) => {
-        if (stat.type === "outbound-rtp") sendStats.push(stat);
-        if (stat.type === "inbound-rtp") recvStats.push(stat);
+        if (stat.type === "outbound-rtp") {
+          sendStats.push({
+            id: stat.id,
+            king: stat.kind,
+            timestamp: stat.timestamp,
+            bytes: stat.bytesSent
+          });
+        }
+        if (stat.type === "inbound-rtp") {
+          recvStats.push({
+            id: stat.id,
+            king: stat.kind,
+            timestamp: stat.timestamp,
+            bytes: stat.bytesReceived
+          });
+        }
       });
-      if (sendStats.length > 1000) sendStats.shift();
-      if (recvStats.length > 1000) recvStats.shift();
+      if (sendStats.length > 10000) sendStats.shift();
+      if (recvStats.length > 10000) recvStats.shift();
     }, 3000);
   }
 

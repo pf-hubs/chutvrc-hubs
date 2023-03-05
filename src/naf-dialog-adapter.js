@@ -999,15 +999,29 @@ export class DialogAdapter extends SfuAdapter {
         );
         statsList.map(stats => {
           stats.forEach(stat => {
-            if (stat.type === "inbound-rtp") recvStats.push(stat);
-            if (recvStats.length > 1000) recvStats.shift();
+            if (stat.type === "inbound-rtp") {
+              recvStats.push({
+                id: stat.id,
+                king: stat.kind,
+                timestamp: stat.timestamp,
+                bytes: stat.bytesReceived
+              });
+            }
+            if (recvStats.length > 10000) recvStats.shift();
           });
         });
       }
       (await this._micProducer?.getStats())?.forEach(stat => {
-        if (stat.type === "outbound-rtp") sendStats.push(stat);
+        if (stat.type === "outbound-rtp") {
+          sendStats.push({
+            id: stat.id,
+            king: stat.kind,
+            timestamp: stat.timestamp,
+            bytes: stat.bytesSent
+          });
+        }
       });
-      if (sendStats.length > 1000) sendStats.shift();
+      if (sendStats.length > 10000) sendStats.shift();
     }, 3000);
   }
 
