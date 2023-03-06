@@ -406,7 +406,6 @@ export class SoraAdapter extends SfuAdapter {
     if (streamId) {
       const stream = this._remoteMediaStreams.get(streamId);
       if (stream && requests) {
-        console.log("resolvePendingMediaRequestForTrack");
         if (requests["audio"]) {
           const resolve = requests["audio"].resolve;
           delete requests["audio"];

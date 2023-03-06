@@ -1610,6 +1610,14 @@ class UIRoot extends Component {
                             initialPresence={getPresenceProfileForSession(this.props.presences, this.props.sessionId)}
                           />
                         )}
+                        <ToolbarButton
+                          icon={<DocumentIcon />}
+                          label={"Stats"}
+                          preset="accent5"
+                          onClick={() => {
+                            APP.sfu.downloadRecordedStats();
+                          }}
+                        />
                       </>
                     )}
                     <ChatToolbarButtonContainer
@@ -1646,16 +1654,6 @@ class UIRoot extends Component {
                             destinationUrl: "/",
                             reason: LeaveReason.leaveRoom
                           });
-                        }}
-                      />
-                    )}
-                    {entered && (
-                      <ToolbarButton
-                        icon={<DocumentIcon />}
-                        label={"Stats"}
-                        preset="accent5"
-                        onClick={() => {
-                          APP.sfu.downloadRecordedStats();
                         }}
                       />
                     )}
