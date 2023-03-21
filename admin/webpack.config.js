@@ -71,8 +71,12 @@ module.exports = (env, argv) => {
   // Load environment variables from .env files.
   // .env takes precedent over .defaults.env
   // Previously defined environment variables are not overwritten
-  dotenv.config({ path: ".env" });
-  dotenv.config({ path: ".defaults.env" });
+  if (argv.mode === "production") {
+    dotenv.config({ path: ".prod.env" });
+  } else {
+    dotenv.config({ path: ".env" });
+    dotenv.config({ path: ".defaults.env" });
+  }
 
   const localDevHost = process.env.INTERNAL_HOSTNAME || "localhost";
   if (env.local) {
