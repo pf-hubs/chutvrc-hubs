@@ -47,7 +47,7 @@ function createHTTPSConfig() {
               },
               {
                 type: 2,
-                value: "192.168.11.4"
+                value: "change.vr.u-tokyo.ac.jp"
               }
             ]
           }
