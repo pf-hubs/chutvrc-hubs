@@ -430,7 +430,7 @@ export class SoraAdapter extends SfuAdapter {
         if (stat.type === "outbound-rtp") {
           sendStats.push({
             id: stat.id,
-            king: stat.kind,
+            kind: stat.kind,
             timestamp: stat.timestamp,
             bytes: stat.bytesSent
           });
@@ -438,7 +438,7 @@ export class SoraAdapter extends SfuAdapter {
         if (stat.type === "inbound-rtp") {
           recvStats.push({
             id: stat.id,
-            king: stat.kind,
+            kind: stat.kind,
             timestamp: stat.timestamp,
             bytes: stat.bytesReceived
           });
