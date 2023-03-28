@@ -1,4 +1,5 @@
 import configs from "./configs";
+import schema from "../admin-ita-schema.json";
 
 const schemaCategories = [
   "api_keys",
@@ -101,6 +102,14 @@ function getEndpoint(path) {
   }
 }
 
+function getRetEndpoint(path) {
+  if (configs.RETICULUM_SERVER) {
+    return `${configs.RETICULUM_SERVER}/server-settings/${path}`;
+  } else {
+    return `/api/server-settings/${path}`;
+  }
+}
+
 function fetchWithAuth(req) {
   const options = {};
   options.headers = new Headers();
@@ -110,7 +119,15 @@ function fetchWithAuth(req) {
 }
 
 function getSchemas() {
-  return fetchWithAuth(getEndpoint("schemas")).then(resp => resp.json());
+  return fetchWithAuth(getEndpoint("schemas"))
+    .then(resp => resp.json())
+    .catch(e => {
+      if (e instanceof TypeError) {
+        console.log("ita not available for getSchemas");
+        return schema;
+        //fetchWithAuth(getRetEndpoint("schemas")).then(resp => resp.json());
+      }
+    });
 }
 
 function getAdminInfo() {
@@ -119,15 +136,39 @@ function getAdminInfo() {
       if (resp.status === 200) return resp.json();
       else return { error: true, code: resp.status };
     })
-    .catch(e => console.error(e));
+    .catch(e => {
+      if (e instanceof TypeError) {
+        console.log("ita not available for getAdminInfo");
+        return {};
+        //fetchWithAuth(getRetEndpoint(`configs/${service}/ps`)).then(resp => resp.json());
+      } else {
+        console.error(e);
+      }
+    });
 }
 
 function getEditableConfig(service) {
-  return fetchWithAuth(getEndpoint(`configs/${service}/ps`)).then(resp => resp.json());
+  return fetchWithAuth(getEndpoint(`configs/${service}/ps`))
+    .then(resp => resp.json())
+    .catch(e => {
+      if (e instanceof TypeError) {
+        console.log("ita not available for getEditableConfig");
+        return {};
+        //fetchWithAuth(getRetEndpoint(`configs/${service}/ps`)).then(resp => resp.json());
+      }
+    });
 }
 
 function getConfig(service) {
-  return fetchWithAuth(getEndpoint(`configs/${service}`)).then(resp => resp.json());
+  return fetchWithAuth(getEndpoint(`configs/${service}`))
+    .then(resp => resp.json())
+    .catch(e => {
+      if (e instanceof TypeError) {
+        console.log("ita not available for getConfig");
+        return {};
+        //fetchWithAuth(getRetEndpoint(`configs/${service}`)).then(resp => resp.json());
+      }
+    });
 }
 
 function putConfig(service, config) {

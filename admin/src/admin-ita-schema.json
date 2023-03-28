@@ -1,0 +1,689 @@
+{
+  "certbot": {
+    "general": {
+      "plugin": { "type": "string", "default": "dns-route53" },
+      "server": { "type": "string", "default": "https://acme-v02.api.letsencrypt.org/directory" },
+      "renewal_interval": { "type": "number", "default": 86400 },
+      "admin_email": { "type": "string", "default": "noreply@localhost" },
+      "domain": { "type": "string", "default": "localhost", "unmanaged": true },
+      "standalone_port": { "type": "number", "default": 8000 }
+    }
+  },
+  "coturn": {
+    "general": {
+      "realm": { "type": "string", "default": "polycosm" },
+      "no_udp": { "type": "string", "default": "true" },
+      "no_tcp": { "type": "string", "default": "true" },
+      "no_dtls": { "type": "string", "default": "false" },
+      "no_tls": { "type": "string", "default": "false" },
+      "no_auth_pings": { "type": "string", "default": "true" },
+      "no_dynamic_ip_list": { "type": "string", "default": "true" },
+      "no_dynamic_realms": { "type": "string", "default": "true" },
+      "min_port": { "type": "number", "default": 49152 },
+      "max_port": { "type": "number", "default": 51609 },
+      "tls_listening_port": { "type": "number", "default": 5349 },
+      "psql_userdb": { "type": "string", "default": "postgresql://postgres:postgres@localhost/polycosm_production" },
+      "psql_schema": { "type": "string", "default": "coturn" },
+      "use_auth_secret": { "type": "string", "default": "true" }
+    }
+  },
+  "hubs-discord-bot": {
+    "general": {
+      "token": { "type": "string", "default": "dev.reticulum.io" },
+      "reticulum_bot_access_key": { "type": "string", "default": "" },
+      "reticulum_host": { "type": "string", "default": "dev.reticulum.io" },
+      "hubs_hosts": { "type": "string", "default": "localhost,hubs.local" },
+      "statsd_host": { "type": "string", "default": "localhost:8125" },
+      "statsd_prefix": { "type": "string", "default": "discordbot." },
+      "hubs_hook": { "type": "string", "default": "Hubs" },
+      "shard_id": { "type": "string", "default": "0" },
+      "shard_count": { "type": "string", "default": "0" },
+      "verbose": { "type": "string", "default": "false" },
+      "locale": { "type": "string", "default": "en-US" },
+      "timezone": { "type": "string", "default": "America/Los_Angeles" },
+      "default_scene_url": { "type": "string", "default": "" }
+    }
+  },
+  "hubs": {
+    "general": {
+      "reticulum_server": { "type": "string" },
+      "cors_proxy_server": { "type": "string", "default": "" },
+      "base_assets_path": { "type": "string", "default": "/" },
+      "shortlink_domain": { "type": "string", "default": "" },
+      "thumbnail_server": { "type": "string" },
+      "non_cors_proxy_domains": { "type": "string" },
+      "postgrest_server": { "type": "string" },
+      "sentry_dsn": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Hubs Sentry DSN",
+        "description": "Sentry DSN to use for Hubs error reporting."
+      },
+      "ga_tracking_id": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Hubs Google Analytics Tracking ID",
+        "description": "Google Analytics ID to use for instrumenting page hits."
+      },
+      "uploads_host": { "type": "string", "default": "" }
+    },
+    "deploy": {
+      "type": { "type": "string", "default": "none" },
+      "region": { "type": "string", "default": "" },
+      "target": { "type": "string", "default": "" }
+    }
+  },
+  "imgproxy": { "server": { "bind": { "type": "string", "default": "127.0.0.1:5000" } } },
+  "ita": {
+    "general": {
+      "host": { "type": "string", "default": "localhost" },
+      "port": { "type": "number", "default": 3000 },
+      "debug": { "type": "string", "default": "ita:*,ita,configtool:*,configtool" },
+      "req_log_format": { "type": "string", "default": ":date[iso] :method :url :status" }
+    },
+    "aws": {
+      "region": { "type": "string", "default": "us-west-1" },
+      "stack_id": { "type": "string", "default": "" },
+      "ps_reqs_per_sec": { "type": "number", "default": 3 },
+      "ps_retry_delay_ms": { "type": "number", "default": 5000 }
+    },
+    "hab": {
+      "group": { "type": "string", "default": "default" },
+      "org": { "type": "string", "default": "" },
+      "http_host": { "type": "string", "default": "localhost" },
+      "http_port": { "type": "number", "default": 9631 },
+      "sup_host": { "type": "string", "default": "localhost" },
+      "sup_port": { "type": "number", "default": 9632 },
+      "user": { "type": "string", "default": "" }
+    },
+    "db": {
+      "username": { "type": "string", "default": "postgres" },
+      "password": { "type": "string", "default": "postgres" },
+      "hostname": { "type": "string", "default": "localhost" },
+      "database": { "type": "string", "default": "ret_dev" }
+    }
+  },
+  "janus-gateway": {
+    "general": {
+      "server_name": { "type": "string", "default": "Janus" },
+      "iface": { "type": "string", "default": "0.0.0.0" },
+      "log_to_syslog": { "type": "string", "default": "true" },
+      "debug_level": { "type": "number", "default": 4, "category": "advanced", "name": "Janus Debug Log Level" },
+      "token_auth": { "type": "string", "default": "no" },
+      "session_timeout": { "type": "number", "default": 60 },
+      "admin_secret": { "type": "string", "default": "secret" },
+      "api_secret": { "type": "string", "default": "" }
+    },
+    "media": {
+      "ipv6": { "type": "string", "default": "true" },
+      "max_nack_queue": { "type": "number", "default": 300 },
+      "rtp_port_range": { "type": "string", "default": "20000-40000" },
+      "dtls_mtu": { "type": "number", "default": 1472 },
+      "force_bundle": { "type": "string", "default": "false" },
+      "force_rtcp_mux": { "type": "string", "default": "false" },
+      "no_media_timer": { "type": "number", "default": 1 }
+    },
+    "nat": {
+      "nice_debug": { "type": "string", "default": "false", "category": "advanced", "name": "Enable ICE Debugging" },
+      "ice_lite": {
+        "type": "string",
+        "default": "false",
+        "category": "advanced",
+        "name": "Use ICE Lite",
+        "description": "Use ICE lite"
+      },
+      "ice_tcp": {
+        "type": "string",
+        "default": "false",
+        "category": "advanced",
+        "name": "Use TCP ICE",
+        "description": "Use TCP protocol for WebRTC media (requires ICE lite)"
+      },
+      "ice_ignore_list": { "type": "string", "default": "vmnet" },
+      "nat_1_1_mapping": { "type": "string", "default": "vmnet", "unmanaged": true },
+      "stun_server": { "type": "string", "default": "stun.l.google.com" },
+      "stun_port": { "type": "number", "default": 19302 }
+    },
+    "plugins": {
+      "disabled": {
+        "type": "list",
+        "of": "string",
+        "default": [
+          "libjanus_audiobridge.so",
+          "libjanus_echotest.so",
+          "libjanus_recordplay.so",
+          "libjanus_streaming.so",
+          "libjanus_textroom.so",
+          "libjanus_videocall.so",
+          "libjanus_videoroom.so"
+        ]
+      },
+      "sfu": {
+        "max_room_size": {
+          "type": "number",
+          "default": 50,
+          "category": "advanced",
+          "name": "Janus Max Room Size",
+          "description": "Maximum number of connections allowed to a voice room"
+        }
+      }
+    },
+    "transports": {
+      "disabled": { "type": "list", "of": "string", "default": ["libjanus_pfunix.so"] },
+      "pfunix": {
+        "enabled": { "type": "string", "default": "no" },
+        "admin_enabled": { "type": "string", "default": "no" },
+        "json": { "type": "string", "default": "indented" },
+        "type": { "type": "string", "default": "SOCK_SEQPACKET" },
+        "admin_type": { "type": "string", "default": "SOCK_SEQPACKET" }
+      },
+      "http": {
+        "json": { "type": "string", "default": "indented" },
+        "base_path": { "type": "string", "default": "/janus" },
+        "threads": { "type": "string", "default": "unlimited" },
+        "http": { "type": "string", "default": "no" },
+        "admin_ip": { "type": "string", "default": "127.0.0.1", "unmanaged": true },
+        "port": { "type": "number", "default": 8080 },
+        "secure_port": { "type": "number", "default": 8443 },
+        "https": { "type": "string", "default": "no" },
+        "admin_base_path": { "type": "string", "default": "/admin" },
+        "admin_threads": { "type": "string", "default": "unlimited" },
+        "admin_http": { "type": "string", "default": "yes" },
+        "admin_port": { "type": "number", "default": 7088 },
+        "admin_https": { "type": "string", "default": "no" }
+      },
+      "websockets": {
+        "json": { "type": "string", "default": "indented" },
+        "ws": { "type": "string", "default": "no" },
+        "ws_port": { "type": "number", "default": 8188 },
+        "wss": { "type": "string", "default": "yes" },
+        "wss_port": { "type": "number", "default": 8189 },
+        "admin_ws": { "type": "string", "default": "no" },
+        "admin_ws_port": { "type": "number", "default": 7188 },
+        "admin_wss": { "type": "string", "default": "no" }
+      }
+    },
+    "events": {
+      "broadcast": { "type": "string", "default": "yes" },
+      "stats_period": { "type": "number", "default": 5 }
+    }
+  },
+  "pgbouncer": {
+    "pgbouncer": {
+      "db": { "type": "string" },
+      "listen_addr": { "type": "string", "default": "127.0.0.1" },
+      "listen_port": { "type": "number", "default": 5432 },
+      "default_pool_size": { "type": "number", "default": 16 },
+      "min_pool_size": { "type": "number", "default": 0 },
+      "server_idle_timeout": { "type": "number", "default": 240 },
+      "idle_transaction_timeout": { "type": "number", "default": 240 },
+      "server_connect_timeout": { "type": "number", "default": 60 }
+    }
+  },
+  "polycosm-lambdas": {
+    "aws": { "region": { "type": "string" }, "lambda_bucket": { "type": "string" }, "stack_name": { "type": "string" } }
+  },
+  "polycosm-static-assets": {
+    "deploy": {
+      "type": { "type": "string" },
+      "assets_target": { "type": "string" },
+      "assets_region": { "type": "string" },
+      "redirector_target": { "type": "string" },
+      "redirector_region": { "type": "string" }
+    }
+  },
+  "postgrest": {
+    "db": {
+      "uri": { "type": "string" },
+      "schema": { "type": "string", "default": "ret0_admin" },
+      "anon_role": { "type": "string", "default": "postgrest_anonymous" },
+      "pool": { "type": "number", "default": 10 }
+    },
+    "server": { "host": { "type": "string", "default": "127.0.0.1" }, "port": { "type": "number", "default": 3000 } },
+    "security": {
+      "jwt_secret_enabled": { "type": "boolean", "default": true },
+      "jwt_aud": { "type": "string", "default": "ret_perms" },
+      "role_claim_key": { "type": "string", "default": ".postgrest_role" }
+    }
+  },
+  "reticulum": {
+    "ret": {
+      "pool": { "type": "string", "default": "default" },
+      "bot_access_key": { "type": "string", "default": "" }
+    },
+    "phx": {
+      "port": { "type": "number", "default": 4000 },
+      "ip": { "type": "string", "default": "127.0.0.1" },
+      "secret_key": { "type": "string", "default": "txlMOtlaY5x3crvOCko4uV5PM29ul3zGo1oBGNO3cDXx+7GHLKqt0gR9qzgThxb5" },
+      "url_host": { "type": "string", "default": "" },
+      "url_port": { "type": "number", "default": 443 },
+      "url_host_prefix": { "type": "string", "default": "" },
+      "static_url_host": { "type": "string", "default": "" },
+      "static_url_host_prefix": { "type": "string", "default": "" },
+      "secondary_url_host": { "type": "string", "default": "" },
+      "cors_proxy_url_host": { "type": "string", "default": "" },
+      "thumbnail_url_host": { "type": "string", "default": "" },
+      "imgproxy_url_host": { "type": "string", "default": "" },
+      "imgproxy_url_port": { "type": "number", "default": 5000 },
+      "assets_url_host": { "type": "string", "default": "" },
+      "link_url_host": { "type": "string", "default": "" },
+      "admin_access_key": { "type": "string", "default": "" },
+      "allow_crawlers": {
+        "type": "boolean",
+        "default": false,
+        "category": "content",
+        "name": "Allow Web Crawlers",
+        "description": "Allowing web crawlers will cause your site to be hit regularly and be listed in search engines."
+      }
+    },
+    "guardian": {
+      "secret_key": { "type": "string", "default": "txlMOtlaY5x3crvOCko4uV5PM29ul3zGo1oBGNO3cDXx+7GHLKqt0gR9qzgThxb5" },
+      "perms_key": { "type": "string", "default": "" },
+      "oauth_token_key": { "type": "string", "default": "" }
+    },
+    "erlang": {
+      "node_cookie": { "type": "string", "default": "txlMOtlaY5x3crvOCko4uV5PM29ul3zGo1oBGNO3cDXx+7GHLKqt0gR9qzgThxb5" }
+    },
+    "habitat": {
+      "http_port": { "type": "number", "default": 9631 },
+      "ip": { "type": "string", "default": "127.0.0.1" }
+    },
+    "oauth_google": {
+      "client_id": { "type": "string", "default": "foo" },
+      "client_secret": { "type": "string", "default": "bar" }
+    },
+    "db": {
+      "username": { "type": "string", "default": "postgres" },
+      "password": { "type": "string", "default": "postgres" },
+      "port": { "type": "number", "default": 5432 },
+      "postgrest_password": { "type": "string", "default": "admin" },
+      "coturn_password": { "type": "string", "default": "" },
+      "hostname": { "type": "string", "default": "localhost" },
+      "database": { "type": "string", "default": "polycosm_production" },
+      "template": { "type": "string", "default": "template0" },
+      "pool_size": { "type": "number", "default": 16 },
+      "idle_interval": { "type": "number", "default": 3000000000 },
+      "queue_interval": { "type": "number", "default": 60000 },
+      "queue_target": { "type": "number", "default": 2500 },
+      "timeout": { "type": "number", "default": 60000 },
+      "ssl": { "type": "boolean", "default": false }
+    },
+    "hackney": { "max_connections": { "type": "number", "default": 250 } },
+    "turn": {
+      "realm": { "type": "string", "default": "" },
+      "public_tls_ports": { "type": "string", "default": "443,5349" }
+    },
+    "session_lock_db": {
+      "username": { "type": "string", "default": "postgres" },
+      "password": { "type": "string", "default": "postgres" },
+      "hostname": { "type": "string", "default": "localhost" },
+      "database": { "type": "string", "default": "polycosm_locking" },
+      "port": { "type": "number", "default": 5432 },
+      "ssl": { "type": "boolean", "default": false }
+    },
+    "extra_csp": {
+      "script_src": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Content Security Policy script-src Rules",
+        "description": "Additional script-src Content-Security-Policy rules to add to page headers."
+      },
+      "font_src": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Content Security Policy font-src Rules",
+        "description": "Additional font-src Content-Security-Policy rules to add to page headers."
+      },
+      "style_src": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Content Security Policy style-src Rules",
+        "description": "Additional style-src Content-Security-Policy rules to add to page headers."
+      },
+      "connect_src": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Content Security Policy connect-src Rules",
+        "description": "Additional connect-src Content-Security-Policy rules to add to page headers."
+      },
+      "frame_src": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Content Security Policy frame-src Rules",
+        "description": "Additional frame-src Content-Security-Policy rules to add to page headers."
+      },
+      "worker_src": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Content Security Policy worker-src Rules",
+        "description": "Additional worker-src Content-Security-Policy rules to add to page headers."
+      },
+      "child_src": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Content Security Policy child-src Rules",
+        "description": "Additional child-src Content-Security-Policy rules to add to page headers."
+      },
+      "img_src": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Content Security Policy img-src Rules",
+        "description": "Additional img-src Content-Security-Policy rules to add to page headers."
+      },
+      "media_src": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Content Security Policy media-src Rules",
+        "description": "Additional media-src Content-Security-Policy rules to add to page headers."
+      },
+      "manifest_src": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Content Security Policy manifest-src Rules",
+        "description": "Additional manifest-src Content-Security-Policy rules to add to page headers."
+      },
+      "form_action": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Content Security Policy form-action Rules",
+        "description": "Additional form-action Content-Security-Policy rules to add to page headers."
+      }
+    },
+    "extra_headers": {
+      "extra_index_headers": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Homepage HTTP Headers",
+        "description": "Pipe separated extra HTTP headers for homepage. (Eg X-Header-1: Value|X-Header-2: Value)"
+      },
+      "extra_room_headers": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Room HTTP Headers",
+        "description": "Pipe separated extra HTTP headers for room pages. (Eg X-Header-1: Value|X-Header-2: Value)"
+      },
+      "extra_scene_headers": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Scene HTTP Headers",
+        "description": "Pipe separated extra HTTP headers for scene pages. (Eg X-Header-1: Value|X-Header-2: Value)"
+      },
+      "extra_avatar_headers": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Avatar HTTP Headers",
+        "description": "Pipe separated extra HTTP headers for avatar pages. (Eg X-Header-1: Value|X-Header-2: Value)"
+      }
+    },
+    "extra_html": {
+      "extra_index_html": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Homepage Header HTML",
+        "description": "Extra HTML to include in the <head> of the homepage."
+      },
+      "extra_room_html": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Room Header HTML",
+        "description": "Extra HTML to include in the <head> of room pages."
+      },
+      "extra_scene_html": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Scene Header HTML",
+        "description": "Extra HTML to include in the <head> of scene pages."
+      },
+      "extra_avatar_html": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Avatar Header HTML",
+        "description": "Extra HTML to include in the <head> of avatar pages."
+      }
+    },
+    "extra_scripts": {
+      "extra_index_script": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Homepage Script",
+        "description": "Extra Javascript to run on homepage."
+      },
+      "extra_room_script": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Room Script",
+        "description": "Extra Javascript to run on room pages."
+      },
+      "extra_scene_script": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Scene Script",
+        "description": "Extra Javascript to run on scene pages."
+      },
+      "extra_avatar_script": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Extra Avatar Script",
+        "description": "Extra Javascript to run on avatar pages."
+      }
+    },
+    "security": {
+      "cors_origins": {
+        "type": "string",
+        "default": "",
+        "category": "advanced",
+        "name": "Allowed CORS Origins",
+        "description": "A comma-separated list of origins for CORS access. Note this should always include your main domain and link domain."
+      }
+    },
+    "uploads": {
+      "host": { "type": "string", "default": "" },
+      "storage_path": { "type": "string", "default": "/storage" },
+      "quota_gb": { "type": "number", "default": 100 },
+      "ttl": {
+        "type": "number",
+        "default": 172800,
+        "category": "content",
+        "name": "Storage TTL (seconds)",
+        "description": "Un-pinned stored files are removed after this TTL. (Default: 172800 seconds = 2 days)"
+      }
+    },
+    "pages": {
+      "insecure_ssl": { "type": "string", "default": "false" },
+      "hubs_page_origin": { "type": "string", "default": "" },
+      "spoke_page_origin": { "type": "string", "default": "" }
+    },
+    "janus": {
+      "admin_secret": { "type": "string", "default": "secret" },
+      "admin_port": { "type": "number", "default": 7000 },
+      "service_name": { "type": "string", "default": "janus-gateway" },
+      "janus_port": { "type": "number", "default": 80 }
+    },
+    "run": { "hostname_dns_suffix": { "type": "string", "default": "" } },
+    "web_push": {
+      "public_key": { "type": "string", "default": "" },
+      "private_key": { "type": "string", "default": "" },
+      "subject": { "type": "string", "default": "" }
+    },
+    "speelycaptor": { "speelycaptor_endpoint": { "type": "string", "default": "" } },
+    "resolver": {
+      "photomnemonic_endpoint": { "type": "string", "default": "" },
+      "ytdl_host": { "type": "string", "default": "http://localhost:8080" },
+      "sketchfab_api_key": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Sketchfab API Key",
+        "description": "API key to use for Sketchfab model search."
+      },
+      "tenor_api_key": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Tenor API Key",
+        "description": "API key to use for Tenor GIF search."
+      },
+      "bing_search_api_key": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Bing Search API Key",
+        "description": "API key to use for Bing Image and Video search."
+      },
+      "twitch_client_id": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Twitch Client ID",
+        "description": "Client ID to use for Twitch search."
+      }
+    },
+    "email": {
+      "username": {
+        "type": "string",
+        "default": "",
+        "category": "email",
+        "name": "SMTP Username",
+        "description": "Custom SMTP username for sending email."
+      },
+      "password": {
+        "type": "string",
+        "default": "",
+        "category": "email",
+        "name": "SMTP Password",
+        "description": "Custom SMTP password for sending email."
+      },
+      "from": {
+        "type": "string",
+        "default": "",
+        "category": "email",
+        "name": "SMTP From:",
+        "description": "Custom From: address for sending email."
+      },
+      "server": {
+        "type": "string",
+        "default": "",
+        "category": "email",
+        "name": "SMTP Server",
+        "description": "Custom SMTP server for email."
+      },
+      "port": {
+        "type": "number",
+        "default": 587,
+        "category": "email",
+        "name": "SMTP Port",
+        "description": "Custom SMTP port for email."
+      }
+    },
+    "accounts": { "admin_email": { "type": "string", "default": "" } },
+    "assets": { "assets_path": { "type": "string", "default": "" } },
+    "twitter_client": {
+      "access_token": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Twitter Access Token",
+        "description": "Twitter API Access Token to enable Twitter sharing"
+      },
+      "access_token_secret": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Twitter Access Token Secret",
+        "description": "Twitter API Access Token Secret"
+      },
+      "consumer_secret": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Twitter Consumer Secret",
+        "description": "Twitter API Consumer Secret"
+      },
+      "consumer_key": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Twitter Consumer Key",
+        "description": "Twitter API Consumer Key"
+      }
+    },
+    "discord_client": {
+      "client_id": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Discord Client ID",
+        "description": "Discord Client ID for Hubs Discord Bot"
+      },
+      "client_secret": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Discord Client Secret",
+        "description": "Discord Client Secret for Hubs Discord Bot"
+      },
+      "bot_token": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Discord Bot Token",
+        "description": "Discord Bot Token for Hubs Discord Bot"
+      }
+    }
+  },
+  "spoke": {
+    "general": {
+      "hubs_server": { "type": "string" },
+      "reticulum_server": { "type": "string" },
+      "cors_proxy_server": { "type": "string", "default": "" },
+      "base_assets_path": { "type": "string", "default": "/" },
+      "thumbnail_server": { "type": "string" },
+      "non_cors_proxy_domains": { "type": "string" },
+      "sentry_dsn": {
+        "type": "string",
+        "default": "",
+        "category": "api_keys",
+        "name": "Spoke Sentry DSN",
+        "description": "Sentry DSN to use for Spoke error reporting."
+      },
+      "ga_tracking_id": { "type": "string", "default": "" }
+    },
+    "deploy": {
+      "type": { "type": "string", "default": "none" },
+      "region": { "type": "string", "default": "" },
+      "target": { "type": "string", "default": "" }
+    }
+  },
+  "youtube-dl-api-server": {
+    "general": {
+      "port": { "type": "number", "default": 8080 },
+      "num_workers": { "type": "number", "default": 4 },
+      "bind_ip": { "type": "string", "default": "127.0.0.1" }
+    }
+  }
+}
