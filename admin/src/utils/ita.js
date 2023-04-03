@@ -103,11 +103,12 @@ function getEndpoint(path) {
 }
 
 function getRetEndpoint(path) {
-  if (configs.RETICULUM_SERVER) {
-    return `${configs.RETICULUM_SERVER}/server-settings/${path}`;
-  } else {
-    return `/api/server-settings/${path}`;
-  }
+  return `/api/v1/server_configs/${path}`;
+  // if (configs.RETICULUM_SERVER) {
+  //   return `${configs.RETICULUM_SERVER}/server_configs/${path}`;
+  // } else {
+  //   return `/api/server_configs/${path}`;
+  // }
 }
 
 function fetchWithAuth(req) {
@@ -125,7 +126,7 @@ function getSchemas() {
       if (e instanceof TypeError) {
         console.log("ita not available for getSchemas");
         return schema;
-        //fetchWithAuth(getRetEndpoint("schemas")).then(resp => resp.json());
+        // return fetchWithAuth(getRetEndpoint("schemas")).then(resp => resp.json());
       }
     });
 }
@@ -140,7 +141,7 @@ function getAdminInfo() {
       if (e instanceof TypeError) {
         console.log("ita not available for getAdminInfo");
         return {};
-        //fetchWithAuth(getRetEndpoint(`configs/${service}/ps`)).then(resp => resp.json());
+        // return fetchWithAuth(getRetEndpoint("admin_info")).then(resp => resp.json());
       } else {
         console.error(e);
       }
@@ -151,10 +152,9 @@ function getEditableConfig(service) {
   return fetchWithAuth(getEndpoint(`configs/${service}/ps`))
     .then(resp => resp.json())
     .catch(e => {
-      if (e instanceof TypeError) {
+      if (e instanceof TypeError && service == "reticulum") {
         console.log("ita not available for getEditableConfig");
-        return {};
-        //fetchWithAuth(getRetEndpoint(`configs/${service}/ps`)).then(resp => resp.json());
+        return fetchWithAuth(getRetEndpoint("editable_config")).then(resp => resp.json());
       }
     });
 }
@@ -163,10 +163,9 @@ function getConfig(service) {
   return fetchWithAuth(getEndpoint(`configs/${service}`))
     .then(resp => resp.json())
     .catch(e => {
-      if (e instanceof TypeError) {
+      if (e instanceof TypeError && service == "reticulum") {
         console.log("ita not available for getConfig");
-        return {};
-        //fetchWithAuth(getRetEndpoint(`configs/${service}`)).then(resp => resp.json());
+        return fetchWithAuth(getRetEndpoint("config")).then(resp => resp.json());
       }
     });
 }
@@ -176,7 +175,19 @@ function putConfig(service, config) {
     method: "PATCH",
     body: JSON.stringify(config)
   });
-  return fetchWithAuth(req).then(resp => resp.json());
+  return fetchWithAuth(req)
+    .then(resp => resp.json())
+    .catch(e => {
+      if (e instanceof TypeError && service == "reticulum") {
+        const retReq = new Request(getRetEndpoint("config"), {
+          method: "POST",
+          body: JSON.stringify(config)
+        });
+        return fetchWithAuth(retReq)
+          .then(resp => resp)
+          .catch(err => console.log(err));
+      }
+    });
 }
 
 // An object is considered to be a config descriptor if it at least has
@@ -207,7 +218,7 @@ function isDescriptor(obj) {
 function getConfigValue(config, path) {
   let obj = config;
   for (const p of path) {
-    if (p in obj) {
+    if (p in obj && obj[p] !== undefined) {
       obj = obj[p]; // go down one level
     } else {
       obj = undefined; // the configuration for this value is empty; we can stop
@@ -220,7 +231,7 @@ function getConfigValue(config, path) {
 function setConfigValue(config, path, val) {
   let obj = config;
   for (const p of path.slice(0, -1)) {
-    if (p in obj) {
+    if (p in obj && obj[p] !== undefined) {
       obj = obj[p]; // go down one level
     } else {
       obj = obj[p] = {}; // the configuration for this value is empty; keep creating new objects going down
