@@ -82,25 +82,35 @@ export async function changeHub(hubId, addToHistory = true, waypoint = null) {
 
   APP.retChannel.push("change_hub", { hub_id: hub.hub_id });
 
-  const connectOption =
-    APP.usingSfu === SFU.SORA
-      ? {
-          clientId: data.session_id,
-          channelId: data.sora_channel_id,
-          signalingUrl: data.sora_signaling_url,
-          accessToken: data.sora_access_token,
-          debug: data.sora_is_debug
-        }
-      : {
-          serverUrl: `wss://${hub.host}:${hub.port}`,
-          roomId: hub.hub_id,
-          serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
-          scene,
-          clientId: APP.sfu._clientId,
-          forceTcp: APP.sfu._forceTcp,
-          forceTurn: APP.sfu._forceTurn,
-          iceTransportPolicy: APP.sfu._iceTransportPolicy
-        };
+  let connectOption;
+
+  switch (data.sfu) {
+    case 1:
+      APP.usingSfu = SFU.DIALOG;
+      APP.sfu = APP.dialog;
+      connectOption = {
+        serverUrl: `wss://${hub.host}:${hub.port}`,
+        roomId: hub.hub_id,
+        serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
+        scene,
+        clientId: APP.sfu._clientId,
+        forceTcp: APP.sfu._forceTcp,
+        forceTurn: APP.sfu._forceTurn,
+        iceTransportPolicy: APP.sfu._iceTransportPolicy
+      };
+      break;
+    default:
+      APP.usingSfu = SFU.SORA;
+      APP.sfu = APP.sora;
+      connectOption = {
+        clientId: data.session_id,
+        channelId: data.sora_channel_id,
+        signalingUrl: data.sora_signaling_url,
+        accessToken: data.sora_access_token,
+        debug: data.sora_is_debug
+      };
+      break;
+  }
 
   await Promise.all([APP.sfu.connect(connectOption), NAF.connection.adapter.connect()]);
 

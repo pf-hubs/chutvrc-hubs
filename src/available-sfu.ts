@@ -1,4 +1,4 @@
 export enum SFU {
-  DIALOG,
-  SORA
+  SORA,
+  DIALOG
 }
