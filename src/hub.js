@@ -957,6 +957,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     remountUI({ roomUnavailableReason: ExitReason.closed });
   });
 
+  scene.addEventListener("hub_updated_require_refresh", () => {
+    APP.sfu.disconnect();
+    scene.exitVR();
+    entryManager.exitScene();
+    remountUI({ roomUnavailableReason: ExitReason.updated });
+  });
+
   scene.addEventListener("action_camera_recording_started", () => hubChannel.beginRecording());
   scene.addEventListener("action_camera_recording_ended", () => hubChannel.endRecording());
 
@@ -1401,6 +1408,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (hub.entry_mode === "deny") {
       scene.emit("hub_closed");
+    }
+
+    if (hub.sfu !== APP.usingSfu) {
+      scene.emit("hub_updated_require_refresh");
     }
 
     scene.emit("hub_updated", { hub });

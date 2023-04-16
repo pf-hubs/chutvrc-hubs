@@ -8,6 +8,7 @@ export const ExitReason = {
   exited: "exited",
   closed: "closed",
   denied: "denied",
+  updated: "updated",
   disconnected: "disconnected",
   left: "left",
   full: "full",
@@ -28,6 +29,10 @@ const messages = defineMessages({
   [ExitReason.denied]: {
     id: "exited-room-screen.reason.denied",
     defaultMessage: "You are not permitted to join this room. Please request permission from the room creator."
+  },
+  [ExitReason.updated]: {
+    id: "exited-room-screen.reason.updated",
+    defaultMessage: "Room manager just updated some room settings, which require you to refresh your browser."
   },
   [ExitReason.disconnected]: {
     id: "exited-room-screen.reason.disconnected",

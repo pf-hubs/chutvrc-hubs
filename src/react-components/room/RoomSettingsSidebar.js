@@ -204,6 +204,24 @@ export function RoomSettingsSidebar({
             />
           </div>
         </InputField>
+        <RadioInputField
+          label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu" defaultMessage="WebRTC SFU" />}
+          fullWidth
+          description="Don't change this setting unless you know what you are doing!"
+        >
+          <RadioInputOption
+            name="sfu"
+            value="0"
+            label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-sora" defaultMessage="Sora" />}
+            ref={register}
+          />
+          <RadioInputOption
+            name="sfu"
+            value="1"
+            label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-dialog" defaultMessage="Dialog" />}
+            ref={register}
+          />
+        </RadioInputField>
         <ApplyButton type="submit" />
       </Column>
     </Sidebar>
