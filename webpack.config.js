@@ -179,6 +179,7 @@ async function fetchAppConfigAndEnvironmentVars() {
   }
 
   const hubsConfigsResponse = await fetch(`https://${host}/api/ita/configs/hubs`, { headers });
+  // TODO: fetch server_configs from ret with only config for hubs
 
   const hubsConfigs = await hubsConfigsResponse.json();
 

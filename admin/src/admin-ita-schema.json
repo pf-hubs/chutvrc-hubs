@@ -249,6 +249,15 @@
     }
   },
   "reticulum": {
+    "webrtc-settings": {
+      "allow_switch_sfu": {
+        "type": "boolean",
+        "default": true,
+        "category": "webrtc",
+        "name": "Allow switch WebRTC SFU",
+        "description": "Allowing room manager to switch WebRTC SFU"
+      }
+    },
     "ret": {
       "pool": { "type": "string", "default": "default" },
       "bot_access_key": { "type": "string", "default": "" }
