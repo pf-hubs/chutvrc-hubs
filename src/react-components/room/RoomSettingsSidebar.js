@@ -16,6 +16,7 @@ import { BackButton } from "../input/BackButton";
 import { SceneInfo } from "./RoomSidebar";
 import { Column } from "../layout/Column";
 import { InviteLinkInputField } from "./InviteLinkInputField";
+import configs from "../../utils/configs";
 
 export function RoomSettingsSidebar({
   showBackButton,
@@ -204,24 +205,26 @@ export function RoomSettingsSidebar({
             />
           </div>
         </InputField>
-        <RadioInputField
-          label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu" defaultMessage="WebRTC SFU" />}
-          fullWidth
-          description="Don't change this setting unless you know what you are doing!"
-        >
-          <RadioInputOption
-            name="sfu"
-            value="0"
-            label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-sora" defaultMessage="Sora" />}
-            ref={register}
-          />
-          <RadioInputOption
-            name="sfu"
-            value="1"
-            label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-dialog" defaultMessage="Dialog" />}
-            ref={register}
-          />
-        </RadioInputField>
+        {configs.isAdmin() && (
+          <RadioInputField
+            label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu" defaultMessage="WebRTC SFU" />}
+            fullWidth
+            description="Don't change this setting unless you know what you are doing!"
+          >
+            <RadioInputOption
+              name="sfu"
+              value="0"
+              label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-sora" defaultMessage="Sora" />}
+              ref={register}
+            />
+            <RadioInputOption
+              name="sfu"
+              value="1"
+              label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-dialog" defaultMessage="Dialog" />}
+              ref={register}
+            />
+          </RadioInputField>
+        )}
         <ApplyButton type="submit" />
       </Column>
     </Sidebar>
