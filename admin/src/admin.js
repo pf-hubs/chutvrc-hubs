@@ -27,6 +27,7 @@ import { FeaturedSceneListingList, FeaturedSceneListingEdit } from "./react-comp
 import { PendingSceneList } from "./react-components/pending-scenes";
 import { AccountList, AccountEdit } from "./react-components/accounts";
 import { ProjectList, ProjectShow } from "./react-components/projects";
+import { RoomList, RoomEdit } from "./react-components/rooms";
 import { SystemEditor } from "./react-components/system-editor";
 import { ServiceEditor, AppConfigEditor } from "./react-components/service-editor";
 import { ServerAccess } from "./react-components/server-access";
@@ -154,6 +155,7 @@ class AdminUI extends Component {
               <Resource name="owned_files" />
 
               <Resource name="projects" list={ProjectList} show={ProjectShow} />
+              <Resource name="hubs" list={RoomList} edit={RoomEdit} />
             </Admin>
             {this.state.showAutoEndSessionDialog && (
               <AutoEndSessionDialog

@@ -624,27 +624,34 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
       // Disconnect in case this is a re-entry
       APP.sfu.disconnect();
 
-      const connectOption =
-        APP.usingSfu === SFU.SORA
-          ? {
-              clientId: data.session_id,
-              channelId: data.sora_channel_id,
-              signalingUrl: data.sora_signaling_url,
-              accessToken: data.sora_access_token,
-              scene,
-              debug: data.sora_is_debug
-            }
-          : {
-              serverUrl: `wss://${hub.host}:${hub.port}`,
-              roomId: hub.hub_id,
-              serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
-              scene,
-              clientId: data.session_id,
-              forceTcp: qs.get("force_tcp"),
-              forceTurn: qs.get("force_turn"),
-              iceTransportPolicy: qs.get("force_tcp") || qs.get("force_turn") ? "relay" : "all"
-            };
-      APP.sfu.connect(connectOption);
+      switch (data.sfu) {
+        case 1:
+          APP.usingSfu = SFU.DIALOG;
+          APP.sfu = APP.dialog;
+          APP.sfu.connect({
+            serverUrl: `wss://${hub.host}:${hub.port}`,
+            roomId: hub.hub_id,
+            serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
+            scene,
+            clientId: data.session_id,
+            forceTcp: qs.get("force_tcp"),
+            forceTurn: qs.get("force_turn"),
+            iceTransportPolicy: qs.get("force_tcp") || qs.get("force_turn") ? "relay" : "all"
+          });
+          break;
+        default:
+          APP.usingSfu = SFU.SORA;
+          APP.sfu = APP.sora;
+          APP.sfu.connect({
+            clientId: data.session_id,
+            channelId: data.sora_channel_id,
+            signalingUrl: data.sora_signaling_url,
+            accessToken: data.sora_access_token,
+            scene,
+            debug: data.sora_is_debug
+          });
+          break;
+      }
 
       scene.addEventListener(
         "adapter-ready",
@@ -948,6 +955,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     scene.exitVR();
     entryManager.exitScene();
     remountUI({ roomUnavailableReason: ExitReason.closed });
+  });
+
+  scene.addEventListener("hub_updated_require_refresh", () => {
+    APP.sfu.disconnect();
+    scene.exitVR();
+    entryManager.exitScene();
+    remountUI({ roomUnavailableReason: ExitReason.updated });
   });
 
   scene.addEventListener("action_camera_recording_started", () => hubChannel.beginRecording());
@@ -1394,6 +1408,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (hub.entry_mode === "deny") {
       scene.emit("hub_closed");
+    }
+
+    if (hub.sfu !== APP.usingSfu) {
+      scene.emit("hub_updated_require_refresh");
     }
 
     scene.emit("hub_updated", { hub });
