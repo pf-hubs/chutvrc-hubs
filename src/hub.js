@@ -1355,6 +1355,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     messageDispatch.receive(incomingMessage);
   });
 
+  hubPhxChannel.on("hub_refresh_by_admin", () => {
+    scene.emit("hub_updated_require_refresh");
+  });
+
   hubPhxChannel.on("hub_refresh", ({ session_id, hubs, stale_fields }) => {
     const hub = hubs[0];
     const userInfo = hubChannel.presence.state[session_id];
