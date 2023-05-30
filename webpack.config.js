@@ -356,7 +356,7 @@ module.exports = async (env, argv) => {
       },
       host: "0.0.0.0",
       port: 8080,
-      allowedHosts: [host, internalHostname],
+      allowedHosts: "all", // [host, internalHostname],
       headers: devServerHeaders,
       hot: liveReload,
       liveReload: liveReload,
