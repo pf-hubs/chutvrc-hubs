@@ -126,7 +126,7 @@ export const SCHEMA = {
         showFPSCounter: { type: "bool", default: false },
         allowMultipleHubsInstances: { type: "bool", default: false },
         disableIdleDetection: { type: "bool", default: false },
-        fastRoomSwitching: { type: "bool", default: false },
+        fastRoomSwitching: { type: "bool", default: false }, // No longer used. TODO How to remove this safely?
         lazyLoadSceneMedia: { type: "bool", default: false },
         preferMobileObjectInfoPanel: { type: "bool", default: false },
         // if unset, maxResolution = screen resolution
@@ -294,6 +294,7 @@ export default class Store extends EventTarget {
           this.dispatchEvent(new CustomEvent("themechanged", { detail: { current, previous } }));
         }
         previous = current;
+        console.log("Theme updated to: ", current);
       };
     })();
     this.addEventListener("statechanged", maybeDispatchThemeChanged);

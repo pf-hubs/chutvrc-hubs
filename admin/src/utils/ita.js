@@ -71,8 +71,6 @@ function getCategoryDescription(category, provider) {
       return "Text that you can change.";
     case "features":
       return "Features that you can toggle.";
-    case "images":
-      return "Replace images in the app.";
     case "colors":
       return "Replace colors in the app.";
     case "links":
@@ -155,11 +153,18 @@ function getAdminInfo() {
 
 function getEditableConfig(service) {
   return fetchWithAuth(getEndpoint(`configs/${service}/ps`))
-    .then(resp => resp.json())
+    .then(resp => {
+      if (resp.status === 200) {
+        resp.code = 200;
+        return resp.json();
+      } else return { error: true, code: resp.status };
+    })
     .catch(e => {
       if (e instanceof TypeError && service == "reticulum") {
         console.log("ita not available for getEditableConfig");
-        return fetchWithAuth(getRetEndpoint("editable_config")).then(resp => resp.json());
+        return fetchWithAuth(getRetEndpoint("editable_config"))
+          .then(resp => resp.json())
+          .catch(err => console.error(err));
       }
     });
 }

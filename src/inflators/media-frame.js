@@ -1,10 +1,12 @@
 import { addObject3DComponent } from "../utils/jsx-entity";
-import { NetworkedMediaFrame, MediaFrame, Rigidbody, PhysicsShape, Networked } from "../bit-components";
-import { addComponent, hasComponent } from "bitecs";
+import { NetworkedMediaFrame, MediaFrame, Networked } from "../bit-components";
+import { addComponent, addEntity, hasComponent } from "bitecs";
 import { MediaType } from "../utils/media-utils";
 import { COLLISION_LAYERS } from "../constants";
-import { RIGIDBODY_FLAGS } from "../systems/bit-physics";
 import { Layers } from "../camera-layers";
+import { inflateRigidBody, Type } from "./rigid-body";
+import { Fit, inflatePhysicsShape, Shape } from "./physics-shape";
+import { Mesh, BoxBufferGeometry, ShaderMaterial, Color, DoubleSide } from "three";
 
 const DEFAULTS = {
   bounds: { x: 1, y: 1, z: 1 },
@@ -12,11 +14,11 @@ const DEFAULTS = {
 };
 export function inflateMediaFrame(world, eid, componentProps) {
   componentProps = Object.assign({}, DEFAULTS, componentProps);
-  const guide = new THREE.Mesh(
-    new THREE.BoxBufferGeometry(componentProps.bounds.x, componentProps.bounds.y, componentProps.bounds.z),
-    new THREE.ShaderMaterial({
+  const guide = new Mesh(
+    new BoxBufferGeometry(componentProps.bounds.x, componentProps.bounds.y, componentProps.bounds.z),
+    new ShaderMaterial({
       uniforms: {
-        color: { value: new THREE.Color(0x2f80ed) }
+        color: { value: new Color(0x2f80ed) }
       },
       vertexShader: `
             varying vec2 vUv;
@@ -45,13 +47,12 @@ export function inflateMediaFrame(world, eid, componentProps) {
               gl_FragColor = vec4(color, 1.0);
             }
           `,
-      side: THREE.DoubleSide
+      side: DoubleSide
     })
   );
   guide.layers.set(Layers.CAMERA_LAYER_UI);
-  // TODO: This is a hack around the physics system addBody call requiring its body to have parent
-  guide.parent = new THREE.Group();
-  addObject3DComponent(world, eid, guide);
+  const guideEid = addEntity(world);
+  addObject3DComponent(world, guideEid, guide);
   addComponent(world, MediaFrame, eid, true);
   addComponent(world, NetworkedMediaFrame, eid, true);
 
@@ -66,15 +67,17 @@ export function inflateMediaFrame(world, eid, componentProps) {
     pdf: MediaType.PDF
   }[componentProps.mediaType];
   MediaFrame.bounds[eid].set([componentProps.bounds.x, componentProps.bounds.y, componentProps.bounds.z]);
+  MediaFrame.guide[eid] = guideEid;
 
-  addComponent(world, Rigidbody, eid);
-  Rigidbody.collisionGroup[eid] = COLLISION_LAYERS.MEDIA_FRAMES;
-  Rigidbody.collisionMask[eid] = COLLISION_LAYERS.INTERACTABLES;
-  Rigidbody.flags[eid] = RIGIDBODY_FLAGS.DISABLE_COLLISIONS;
-  addComponent(world, PhysicsShape, eid);
-  PhysicsShape.halfExtents[eid].set([
-    componentProps.bounds.x / 2,
-    componentProps.bounds.y / 2,
-    componentProps.bounds.z / 2
-  ]);
+  inflateRigidBody(world, eid, {
+    type: Type.KINEMATIC,
+    collisionGroup: COLLISION_LAYERS.MEDIA_FRAMES,
+    collisionMask: COLLISION_LAYERS.INTERACTABLES,
+    disableCollision: true
+  });
+  inflatePhysicsShape(world, eid, {
+    type: Shape.BOX,
+    fit: Fit.MANUAL,
+    halfExtents: [componentProps.bounds.x / 2, componentProps.bounds.y / 2, componentProps.bounds.z / 2]
+  });
 }

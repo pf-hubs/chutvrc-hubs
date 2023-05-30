@@ -84,11 +84,12 @@ module.exports = (env, argv) => {
       HOST: localDevHost,
       RETICULUM_SOCKET_SERVER: localDevHost,
       CORS_PROXY_SERVER: "hubs-proxy.local:4000",
-      NON_CORS_PROXY_DOMAINS: `${localDevHost},localhost,dev.reticulum.io`,
-      BASE_ASSETS_PATH: `https://${localDevHost}:8989/`,
-      RETICULUM_SERVER: `${localDevHost}:4000`,
+      NON_CORS_PROXY_DOMAINS: `${localDevHost},localhost,dev.reticulum.io`, // "hubs.local,dev.reticulum.io"
+      BASE_ASSETS_PATH: `https://${localDevHost}:8989/`, // "https://hubs.local:8989/",
+      RETICULUM_SERVER: `${localDevHost}:4000`, // "hubs.local:4000"
       POSTGREST_SERVER: process.env.POSTGREST_SERVER, // "",
-      ITA_SERVER: process.env.ITA_SERVER //""
+      ITA_SERVER: process.env.ITA_SERVER, // "turkey",
+      TIER: "p1"
     });
   }
 
@@ -303,10 +304,12 @@ module.exports = (env, argv) => {
       new webpack.DefinePlugin({
         "process.browser": true,
         "process.env": JSON.stringify({
+          DISABLE_BRANDING: process.env.DISABLE_BRANDING,
           NODE_ENV: argv.mode,
           BUILD_VERSION: process.env.BUILD_VERSION,
           CONFIGURABLE_SERVICES: process.env.CONFIGURABLE_SERVICES,
           ITA_SERVER: process.env.ITA_SERVER,
+          TIER: process.env.TIER,
           RETICULUM_SERVER: process.env.RETICULUM_SERVER,
           CORS_PROXY_SERVER: process.env.CORS_PROXY_SERVER,
           POSTGREST_SERVER: process.env.POSTGREST_SERVER,
