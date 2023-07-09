@@ -156,11 +156,13 @@ const inflateEntities = function (indexToEntityMap, node, templates, isRoot, mod
   // TODO: Remove this once we update the legacy avatars to the new node names
   if (node.name === "Chest") {
     node.name = "Spine";
-  } else if (node.name === "Root Scene") {
+  } else if (node.name === "Root Scene" || node.name === "Root") {
     node.name = "AvatarRoot";
-  } else if (node.name === "Bot_Skinned") {
+  } else if (node.name === "Bot_Skinned" || node.name === "mesh") {
     node.name = "AvatarMesh";
   }
+
+  // TODO: Reset bone names
 
   // inflate subtrees first so that we can determine whether or not this node needs to be inflated
   const childEntities = [];

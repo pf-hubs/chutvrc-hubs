@@ -79,6 +79,8 @@ import { linearTransformSystem } from "../bit-systems/linear-transform";
 import { quackSystem } from "../bit-systems/quack";
 import { mixerAnimatableSystem } from "../bit-systems/mixer-animatable";
 import { loopAnimationSystem } from "../bit-systems/loop-animation";
+import { SFU } from "../available-sfu";
+import { avatarIkSystem } from "../bit-systems/avatar-bones-system";
 
 declare global {
   interface Window {
@@ -149,6 +151,7 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   const sceneEl = AFRAME.scenes[0];
   const aframeSystems = sceneEl.systems;
   const hubsSystems = aframeSystems["hubs-systems"];
+  console.log("test tick");
 
   // TODO does anything actually ever pause the scene?
   if (!sceneEl.isPlaying && !hubsSystems.DOMContentDidLoad) return;
@@ -263,7 +266,7 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   simpleWaterSystem(world);
   linearTransformSystem(world);
   quackSystem(world);
-  
+
   mixerAnimatableSystem(world);
   loopAnimationSystem(world);
 
@@ -287,6 +290,16 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   if (enableNetworkDebug) {
     networkDebugSystem(world, scene);
   }
+
+  /* Implementation for using bitECS */
+  if (APP.usingSfu === SFU.SORA && APP.sora) {
+    avatarIkSystem(world, {
+      hmd: APP.sora._headTransformsBuffer,
+      leftController: APP.sora._leftHandTransformsBuffer,
+      rightController: APP.sora._rightHandTransformsBuffer
+    });
+  }
+  /* End of implementation for using bitECS */
 
   scene.updateMatrixWorld();
 

@@ -110,6 +110,31 @@ export function encodeAvatarTransform(avatarPartObj: Object3D, clientId: Uint8Ar
 }
 
 export function decodeAndSetAvatarTransform(encodedTransform: Uint8Array, avatarPartObj: Object3D): void {
-  avatarPartObj.position.set(uInt8ToFloat(encodedTransform[0], encodedTransform[1]), uInt8ToFloat(encodedTransform[2], encodedTransform[3]), uInt8ToFloat(encodedTransform[4], encodedTransform[5]));
-  avatarPartObj.rotation.set(uInt8ToRad(encodedTransform[6]), uInt8ToRad(encodedTransform[7]), uInt8ToRad(encodedTransform[8]), "YXZ");
+  avatarPartObj.position.set(
+    uInt8ToFloat(encodedTransform[0], encodedTransform[1]),
+    uInt8ToFloat(encodedTransform[2], encodedTransform[3]),
+    uInt8ToFloat(encodedTransform[4], encodedTransform[5])
+  );
+  avatarPartObj.rotation.set(
+    uInt8ToRad(encodedTransform[6]),
+    uInt8ToRad(encodedTransform[7]),
+    uInt8ToRad(encodedTransform[8]),
+    "YXZ"
+  );
+}
+
+export function decodePosition(encodedTransform: Uint8Array) {
+  return {
+    x: uInt8ToFloat(encodedTransform[0], encodedTransform[1]),
+    y: uInt8ToFloat(encodedTransform[2], encodedTransform[3]),
+    z: uInt8ToFloat(encodedTransform[4], encodedTransform[5])
+  };
+}
+
+export function decodeRotation(encodedTransform: Uint8Array) {
+  return {
+    x: uInt8ToRad(encodedTransform[7]),
+    y: uInt8ToRad(encodedTransform[6]),
+    z: uInt8ToRad(encodedTransform[8])
+  };
 }

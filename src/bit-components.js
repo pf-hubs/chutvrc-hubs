@@ -1,4 +1,5 @@
 import { defineComponent, setDefaultSize, setRemovedRecycleThreshold, Types } from "bitecs";
+import { BoneType } from "./constants";
 
 // TODO this has to happen before all components are defined. Is there a better spot to be doing this?
 setDefaultSize(10000);
@@ -342,3 +343,24 @@ export const LinearScale = defineComponent({
   targetZ: Types.f32
 });
 export const Quack = defineComponent();
+
+const Vector3Schema = { x: Types.f32, y: Types.f32, z: Types.f32 };
+const QuaternionSchema = { x: Types.f32, y: Types.f32, z: Types.f32 };
+const TransformSchema = {
+  position: Vector3Schema,
+  rotation: QuaternionSchema
+};
+const BoneSchema = {
+  boneType: BoneType.HEAD,
+  transform: TransformSchema
+};
+const AvatarSchema = {
+  clientId: "",
+  head: Types.eid, // 参照先はBoneComponentTypeがついたentity -> BoneComponent.transform.position.x[AvatarEidByClient.head[avatarEidsByClient[clientId]]] = blablaができる
+  leftHand: Types.eid,
+  rightHand: Types.eid
+};
+
+export const TransformComponent = defineComponent(TransformSchema);
+export const BoneComponent = defineComponent(BoneSchema);
+export const AvatarComponent = defineComponent(AvatarSchema);

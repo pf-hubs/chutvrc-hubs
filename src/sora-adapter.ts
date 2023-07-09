@@ -4,7 +4,7 @@ import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from
 import { MediaDevices } from "./utils/media-devices-utils";
 import { AElement } from "aframe";
 import { AvatarObjects, AvatarPart, AvatarTransformBuffer, avatarPartTypes } from "./utils/avatar-transform-buffer";
-import { decodeAndSetAvatarTransform } from "./utils/avatar-utils";
+import { decodeAndSetAvatarTransform, decodePosition, decodeRotation } from "./utils/avatar-utils";
 
 const debug = newDebug("naf-dialog-adapter:debug");
 const sendStats: any[] = [];
@@ -18,7 +18,13 @@ type ConnectProps = {
   scene: Element;
   debug: boolean;
   options?: SoraType.ConnectionOptions;
-}
+};
+
+/* Implementation for using bitECS */
+type Vector3 = { x: number; y: number; z: number };
+type Quaternion = { x: number; y: number; z: number };
+type Transform = { pos: Vector3; rot: Quaternion };
+/* End of implementation for using bitECS */
 
 export class SoraAdapter extends SfuAdapter {
   _clientId: string;
@@ -33,6 +39,11 @@ export class SoraAdapter extends SfuAdapter {
   _remoteAvatarObjects: Map<string, AvatarObjects>;
   _selfAvatarTransformBuffer: AvatarTransformBuffer;
   _recordStatsId: NodeJS.Timer | null;
+  /* Implementation for using bitECS */
+  _headTransformsBuffer: Map<string, Transform>;
+  _leftHandTransformsBuffer: Map<string, Transform>;
+  _rightHandTransformsBuffer: Map<string, Transform>;
+  /* End of implementation for using bitECS */
 
   constructor() {
     super();
@@ -45,6 +56,11 @@ export class SoraAdapter extends SfuAdapter {
     this._blockedClients = new Map<string, boolean>();
     this._micShouldBeEnabled = false;
     this._remoteAvatarObjects = new Map<string, AvatarObjects>();
+    /* Implementation for using bitECS */
+    this._headTransformsBuffer = new Map<string, Transform>();
+    this._leftHandTransformsBuffer = new Map<string, Transform>();
+    this._rightHandTransformsBuffer = new Map<string, Transform>();
+    /* End of implementation for using bitECS */
   }
 
   async connect({ clientId, channelId, signalingUrl, accessToken, scene, debug }: ConnectProps) {
@@ -96,9 +112,14 @@ export class SoraAdapter extends SfuAdapter {
             this.setRemoteClientAvatar(c.client_id, false);
           }
         });
-        
+
         // clients entering this room later
-        if (event.client_id && event.client_id !== this._clientId && event.connection_id && !this._clientStreamIdPair.has(event.client_id)) {
+        if (
+          event.client_id &&
+          event.client_id !== this._clientId &&
+          event.connection_id &&
+          !this._clientStreamIdPair.has(event.client_id)
+        ) {
           this._clientStreamIdPair.set(event.client_id, event.connection_id);
           this.setRemoteClientAvatar(event.client_id, true);
           this.emit("stream_updated", event.client_id, "audio");
@@ -109,7 +130,7 @@ export class SoraAdapter extends SfuAdapter {
         this.emit("stream_updated", event.client_id, "audio");
         this.emit("stream_updated", event.client_id, "video");
       }
-    })
+    });
     this._sendrecv.on("track", event => {
       // console.log("track");
       const stream = event.streams[0];
@@ -140,21 +161,48 @@ export class SoraAdapter extends SfuAdapter {
           this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._clientId, rig, head, left, right);
           clearInterval(getPlayerAvatarIntervalId);
         }
-      }
+      };
       getPlayerAvatarIntervalId = setInterval(getPlayerAvatar, 1000);
 
       // check self avatar transform periodically, and send message if updated
       const sendAvatarTransform = async () => {
         this.sendSelfAvatarTransform(true);
-      }
+      };
       setInterval(sendAvatarTransform, 20);
     });
     this._sendrecv.on("message", event => {
       if (event.label.includes("#avatar-")) {
         // receive other clients' avatar transform when updated
         const encodedTransform = new Uint8Array(event.data);
-        const remoteAvatarObjs = this._remoteAvatarObjects.get(new TextDecoder().decode(encodedTransform.subarray(9))); // encodedTransform.subarray(9): encoded clientId
-        if (remoteAvatarObjs) decodeAndSetAvatarTransform(encodedTransform, remoteAvatarObjs[event.label.substring(8) as unknown as AvatarPart]); // event.label.substring(8): avatar part
+
+        const clientId = new TextDecoder().decode(encodedTransform.subarray(9));
+        const avatarPart = event.label.substring(8) as unknown as AvatarPart;
+
+        const remoteAvatarObjs = this._remoteAvatarObjects.get(clientId); // encodedTransform.subarray(9): encoded clientId
+        if (remoteAvatarObjs) {
+          decodeAndSetAvatarTransform(encodedTransform, remoteAvatarObjs[avatarPart]); // event.label.substring(8): avatar part
+        }
+
+        /* Implementation for using bitECS */
+        if (avatarPart === AvatarPart.HEAD) {
+          this._headTransformsBuffer.set(clientId, {
+            pos: decodePosition(encodedTransform),
+            rot: decodeRotation(encodedTransform)
+          });
+        }
+        if (avatarPart === AvatarPart.LEFT) {
+          this._leftHandTransformsBuffer.set(clientId, {
+            pos: decodePosition(encodedTransform),
+            rot: decodeRotation(encodedTransform)
+          });
+        }
+        if (avatarPart === AvatarPart.RIGHT) {
+          this._rightHandTransformsBuffer.set(clientId, {
+            pos: decodePosition(encodedTransform),
+            rot: decodeRotation(encodedTransform)
+          });
+        }
+        /* End of implementation for using bitECS */
       }
     });
     this._scene?.addEventListener("audio_ready", async () => {
@@ -245,7 +293,12 @@ export class SoraAdapter extends SfuAdapter {
       stream.getTracks().map(async track => {
         if (track.kind === "audio") {
           sawAudio = true;
-          if (!track.enabled || track.readyState === "ended" || track.id === this._localMediaStream?.getAudioTracks()[0].id) return;
+          if (
+            !track.enabled ||
+            track.readyState === "ended" ||
+            track.id === this._localMediaStream?.getAudioTracks()[0].id
+          )
+            return;
           if (this._localMediaStream) {
             this._sendrecv?.replaceAudioTrack(this._localMediaStream, track.clone());
           }
@@ -262,7 +315,6 @@ export class SoraAdapter extends SfuAdapter {
     );
 
     if (!sawAudio) {
-      
     }
     if (!sawVideo) {
       this.disableCamera();
@@ -279,7 +331,7 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   enableMicrophone(enabled: boolean) {
-    if (this._sendrecv?.stream){
+    if (this._sendrecv?.stream) {
       this._sendrecv.stream.getAudioTracks().forEach(track => track.kind === "audio" && (track.enabled = enabled));
       this._micShouldBeEnabled = enabled;
       this.emit("mic-state-changed", { enabled: this._micShouldBeEnabled });
@@ -287,9 +339,11 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   get isMicEnabled() {
-    return this._sendrecv?.audio === true
-      && this._sendrecv?.stream?.getAudioTracks()[0]?.enabled === true
-      && this._micShouldBeEnabled;
+    return (
+      this._sendrecv?.audio === true &&
+      this._sendrecv?.stream?.getAudioTracks()[0]?.enabled === true &&
+      this._micShouldBeEnabled
+    );
   }
 
   async enableCamera(track: MediaStreamTrack) {
@@ -302,7 +356,7 @@ export class SoraAdapter extends SfuAdapter {
         this.emitRTCEvent("info", "RTC", () => `Camera track ended`);
         this.disableCamera();
       }
-    })
+    });
   }
 
   async disableCamera() {
@@ -321,7 +375,7 @@ export class SoraAdapter extends SfuAdapter {
         this.emitRTCEvent("info", "RTC", () => `Desktop Share transport track ended`);
         this.disableCamera();
       }
-    })
+    });
   }
 
   async disableShare() {
@@ -369,12 +423,12 @@ export class SoraAdapter extends SfuAdapter {
           [AvatarPart.HEAD]: (remoteClientAvatar.querySelector(".camera") as AElement).object3D,
           [AvatarPart.LEFT]: (remoteClientAvatar.querySelector(".left-controller") as AElement).object3D,
           [AvatarPart.RIGHT]: (remoteClientAvatar.querySelector(".right-controller") as AElement).object3D
-        }
+        };
         this._remoteAvatarObjects.set(clientId, parts);
         if (isNewClient) this.sendSelfAvatarTransform(false);
         clearInterval(intervalId);
       }
-    }
+    };
     intervalId = setInterval(trySetRemoteAvatar, 1000);
   }
 
@@ -426,7 +480,7 @@ export class SoraAdapter extends SfuAdapter {
 
   startRecordStats() {
     this._recordStatsId = setInterval(async () => {
-      (await this._sendrecv?.pc?.getStats())?.forEach((stat) => {
+      (await this._sendrecv?.pc?.getStats())?.forEach(stat => {
         if (stat.type === "outbound-rtp") {
           sendStats.push({
             id: stat.id,
