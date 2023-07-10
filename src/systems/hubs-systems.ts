@@ -151,7 +151,6 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   const sceneEl = AFRAME.scenes[0];
   const aframeSystems = sceneEl.systems;
   const hubsSystems = aframeSystems["hubs-systems"];
-  console.log("test tick");
 
   // TODO does anything actually ever pause the scene?
   if (!sceneEl.isPlaying && !hubsSystems.DOMContentDidLoad) return;
@@ -293,11 +292,15 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
 
   /* Implementation for using bitECS */
   if (APP.usingSfu === SFU.SORA && APP.sora) {
-    avatarIkSystem(world, {
-      hmd: APP.sora._headTransformsBuffer,
-      leftController: APP.sora._leftHandTransformsBuffer,
-      rightController: APP.sora._rightHandTransformsBuffer
-    });
+    avatarIkSystem(
+      world,
+      {
+        hmd: APP.sora._headTransformsBuffer,
+        leftController: APP.sora._leftHandTransformsBuffer,
+        rightController: APP.sora._rightHandTransformsBuffer
+      },
+      APP.sora._avatarEid2ClientId
+    );
   }
   /* End of implementation for using bitECS */
 

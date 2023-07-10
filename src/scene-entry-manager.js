@@ -193,6 +193,7 @@ export default class SceneEntryManager {
     if (!force && this._lastFetchedAvatarId === avatarId) return; // Avoid continually refetching based upon state changing
 
     this._lastFetchedAvatarId = avatarId;
+    if (APP.usingSfu === SFU.SORA && APP.sora) APP.sora.sendSelfAvatarSrc(avatarId);
     const avatarSrc = await getAvatarSrc(avatarId);
 
     this.avatarRig.setAttribute("player-info", { avatarSrc, avatarType: getAvatarType(avatarId) });

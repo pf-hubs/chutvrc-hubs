@@ -355,7 +355,6 @@ const BoneSchema = {
   transform: TransformSchema
 };
 const AvatarSchema = {
-  clientId: "",
   head: Types.eid, // 参照先はBoneComponentTypeがついたentity -> BoneComponent.transform.position.x[AvatarEidByClient.head[avatarEidsByClient[clientId]]] = blablaができる
   leftHand: Types.eid,
   rightHand: Types.eid

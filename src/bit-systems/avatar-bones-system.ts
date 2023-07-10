@@ -83,16 +83,21 @@ export const createBoneEntity = (world: HubsWorld, avatar: Object3D, boneType: B
   addObject3DComponent(world, eid, bone);
 
   addComponent(world, BoneComponent, eid);
-  BoneComponent.boneType[eid] = boneType;
+  BoneComponent.boneType[eid] = boneType; // TypeError: Cannot create property '198' on number '0'
 
   return eid;
 };
 
-export const createAvatarEntity = (world: HubsWorld, clientId: string, boneEids?: Map<BoneType, number>): number => {
+export const createAvatarEntity = (
+  world: HubsWorld,
+  clientId: string,
+  avatarEid2ClientId: Map<number, string>,
+  boneEids?: Map<BoneType, number>
+): number => {
   const eid = addEntity(world);
 
   addComponent(world, AvatarComponent, eid);
-  AvatarComponent.clientId[eid] = clientId;
+  avatarEid2ClientId.set(eid, clientId);
   boneEids?.forEach((bEid, bone) => {
     if (bone === BoneType.HEAD) AvatarComponent.head[eid] = bEid;
     if (bone === BoneType.LEFT_HAND) AvatarComponent.head[eid] = bEid;
@@ -104,7 +109,11 @@ export const createAvatarEntity = (world: HubsWorld, clientId: string, boneEids?
 
 export const avatarQuery = defineQuery([AvatarComponent]);
 
-export const avatarIkSystem = (world: HubsWorld, avatarPoseInputs: InputTransform) => {
+export const avatarIkSystem = (
+  world: HubsWorld,
+  avatarPoseInputs: InputTransform,
+  avatarEid2ClientId: Map<number, string>
+) => {
   // const {
   //   time: { delta, elapsed }
   // } = world;
@@ -112,10 +121,12 @@ export const avatarIkSystem = (world: HubsWorld, avatarPoseInputs: InputTransfor
   const avatarEntityEids = avatarQuery(world);
 
   avatarEntityEids.forEach(avatarEid => {
-    const clientId = AvatarComponent.clientId[avatarEid];
-    assignTransform(world, AvatarComponent.head[avatarEid], avatarPoseInputs.hmd.get(clientId));
-    assignTransform(world, AvatarComponent.leftHand[avatarEid], avatarPoseInputs.hmd.get(clientId));
-    assignTransform(world, AvatarComponent.rightHand[avatarEid], avatarPoseInputs.hmd.get(clientId));
+    const clientId = avatarEid2ClientId.get(avatarEid);
+    if (clientId) {
+      assignTransform(world, AvatarComponent.head[avatarEid], avatarPoseInputs.hmd.get(clientId));
+      assignTransform(world, AvatarComponent.leftHand[avatarEid], avatarPoseInputs.hmd.get(clientId));
+      assignTransform(world, AvatarComponent.rightHand[avatarEid], avatarPoseInputs.hmd.get(clientId));
+    }
 
     // 他のボーンはIK計算をしてから同じことを行う
     // TODO
