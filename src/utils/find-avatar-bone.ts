@@ -6,6 +6,9 @@ export const findAvatarBone = (avatar: Object3D, boneType: BoneType): Object3D |
   avatar.traverse(child => {
     if (!result) {
       switch (boneType) {
+        case BoneType.ROOT:
+          if (child.name.toLowerCase().includes("root")) result = child;
+          break;
         case BoneType.HEAD:
           if (child.name.toLowerCase().includes("head")) result = child;
           break;

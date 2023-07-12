@@ -295,6 +295,7 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
     avatarIkSystem(
       world,
       {
+        rig: APP.sora._rootTransformsBuffer,
         hmd: APP.sora._headTransformsBuffer,
         leftController: APP.sora._leftHandTransformsBuffer,
         rightController: APP.sora._rightHandTransformsBuffer

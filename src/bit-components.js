@@ -351,11 +351,12 @@ const TransformSchema = {
   rotation: QuaternionSchema
 };
 const BoneSchema = {
-  boneType: BoneType.HEAD,
+  boneType: Types.ui8,
   transform: TransformSchema
 };
 const AvatarSchema = {
-  head: Types.eid, // 参照先はBoneComponentTypeがついたentity -> BoneComponent.transform.position.x[AvatarEidByClient.head[avatarEidsByClient[clientId]]] = blablaができる
+  root: Types.eid,
+  head: Types.eid,
   leftHand: Types.eid,
   rightHand: Types.eid
 };

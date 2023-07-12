@@ -11,6 +11,7 @@ type Quaternion = { x: number; y: number; z: number };
 type Transform = { pos: Vector3; rot: Quaternion };
 
 export type InputTransform = {
+  rig: Map<string, Transform>;
   hmd: Map<string, Transform>;
   leftController: Map<string, Transform>;
   rightController: Map<string, Transform>;
@@ -83,7 +84,7 @@ export const createBoneEntity = (world: HubsWorld, avatar: Object3D, boneType: B
   addObject3DComponent(world, eid, bone);
 
   addComponent(world, BoneComponent, eid);
-  BoneComponent.boneType[eid] = boneType; // TypeError: Cannot create property '198' on number '0'
+  BoneComponent.boneType[eid] = boneType;
 
   return eid;
 };
@@ -92,16 +93,17 @@ export const createAvatarEntity = (
   world: HubsWorld,
   clientId: string,
   avatarEid2ClientId: Map<number, string>,
-  boneEids?: Map<BoneType, number>
+  boneEids?: Map<number, number>
 ): number => {
   const eid = addEntity(world);
 
   addComponent(world, AvatarComponent, eid);
   avatarEid2ClientId.set(eid, clientId);
   boneEids?.forEach((bEid, bone) => {
+    if (bone === BoneType.ROOT) AvatarComponent.root[eid] = bEid;
     if (bone === BoneType.HEAD) AvatarComponent.head[eid] = bEid;
-    if (bone === BoneType.LEFT_HAND) AvatarComponent.head[eid] = bEid;
-    if (bone === BoneType.RIGHT_HAND) AvatarComponent.head[eid] = bEid;
+    if (bone === BoneType.LEFT_HAND) AvatarComponent.leftHand[eid] = bEid;
+    if (bone === BoneType.RIGHT_HAND) AvatarComponent.rightHand[eid] = bEid;
   });
 
   return eid;
@@ -123,6 +125,7 @@ export const avatarIkSystem = (
   avatarEntityEids.forEach(avatarEid => {
     const clientId = avatarEid2ClientId.get(avatarEid);
     if (clientId) {
+      assignTransform(world, AvatarComponent.root[avatarEid], avatarPoseInputs.rig.get(clientId));
       assignTransform(world, AvatarComponent.head[avatarEid], avatarPoseInputs.hmd.get(clientId));
       assignTransform(world, AvatarComponent.leftHand[avatarEid], avatarPoseInputs.hmd.get(clientId));
       assignTransform(world, AvatarComponent.rightHand[avatarEid], avatarPoseInputs.hmd.get(clientId));

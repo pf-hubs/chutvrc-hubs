@@ -44,6 +44,7 @@ export class SoraAdapter extends SfuAdapter {
   _recordStatsId: NodeJS.Timer | null;
   /* Implementation for using bitECS */
   _avatarEid2ClientId: Map<number, string>;
+  _rootTransformsBuffer: Map<string, Transform>;
   _headTransformsBuffer: Map<string, Transform>;
   _leftHandTransformsBuffer: Map<string, Transform>;
   _rightHandTransformsBuffer: Map<string, Transform>;
@@ -62,6 +63,7 @@ export class SoraAdapter extends SfuAdapter {
     this._remoteAvatarObjects = new Map<string, AvatarObjects>();
     /* Implementation for using bitECS */
     this._avatarEid2ClientId = new Map<number, string>();
+    this._rootTransformsBuffer = new Map<string, Transform>();
     this._headTransformsBuffer = new Map<string, Transform>();
     this._leftHandTransformsBuffer = new Map<string, Transform>();
     this._rightHandTransformsBuffer = new Map<string, Transform>();
@@ -186,22 +188,24 @@ export class SoraAdapter extends SfuAdapter {
           getAvatarSrc(avatarId).then((avatarSrc: string) => {
             loadModel(avatarSrc).then(gltf => {
               gltf.scene.children[0].position.set(1.88, 0.33, 1.88);
-              // const headEid = createBoneEntity(APP.world, gltf.scene, BoneType.HEAD);
-              // const leftHandEid = createBoneEntity(APP.world, gltf.scene, BoneType.LEFT_HAND);
-              // const rightHandEid = createBoneEntity(APP.world, gltf.scene, BoneType.RIGHT_HAND);
-              // if (headEid && leftHandEid && rightHandEid) {
-              //   const avatarEid = createAvatarEntity(
-              //     APP.world,
-              //     clientId,
-              //     this._avatarEid2ClientId,
-              //     new Map<BoneType, number>([
-              //       [BoneType.HEAD, headEid],
-              //       [BoneType.LEFT_HAND, leftHandEid],
-              //       [BoneType.RIGHT_HAND, rightHandEid]
-              //     ])
-              //   );
-              //   if (avatarEid) this._avatarEid2ClientId.set(avatarEid, clientId);
-              // }
+              const rootEid = createBoneEntity(APP.world, gltf.scene, BoneType.ROOT);
+              const headEid = createBoneEntity(APP.world, gltf.scene, BoneType.HEAD);
+              const leftHandEid = createBoneEntity(APP.world, gltf.scene, BoneType.LEFT_HAND);
+              const rightHandEid = createBoneEntity(APP.world, gltf.scene, BoneType.RIGHT_HAND);
+              if (rootEid && headEid && leftHandEid && rightHandEid) {
+                const avatarEid = createAvatarEntity(
+                  APP.world,
+                  clientId,
+                  this._avatarEid2ClientId,
+                  new Map<BoneType, number>([
+                    [BoneType.ROOT, rootEid],
+                    [BoneType.HEAD, headEid],
+                    [BoneType.LEFT_HAND, leftHandEid],
+                    [BoneType.RIGHT_HAND, rightHandEid]
+                  ])
+                );
+                if (avatarEid) this._avatarEid2ClientId.set(avatarEid, clientId);
+              }
               APP.world.scene.add(gltf.scene);
             });
           });
@@ -222,6 +226,12 @@ export class SoraAdapter extends SfuAdapter {
         }
 
         /* Implementation for using bitECS */
+        if (avatarPart === AvatarPart.RIG) {
+          this._rootTransformsBuffer.set(clientId, {
+            pos: decodePosition(encodedTransform),
+            rot: decodeRotation(encodedTransform)
+          });
+        }
         if (avatarPart === AvatarPart.HEAD) {
           this._headTransformsBuffer.set(clientId, {
             pos: decodePosition(encodedTransform),

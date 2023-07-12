@@ -25,6 +25,7 @@ export const PRIVACY = "https://www.mozilla.org/en-US/privacy/hubs/";
 export const TERMS = "https://www.mozilla.org/en-US/about/legal/terms/hubs/";
 
 export enum BoneType {
+  ROOT,
   HEAD,
   LEFT_HAND,
   RIGHT_HAND
