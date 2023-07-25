@@ -187,7 +187,6 @@ export class SoraAdapter extends SfuAdapter {
         if (clientId !== this._clientId) {
           getAvatarSrc(avatarId).then((avatarSrc: string) => {
             loadModel(avatarSrc).then(gltf => {
-              gltf.scene.children[0].position.set(1.88, 0.33, 1.88);
               const rootEid = createBoneEntity(APP.world, gltf.scene, BoneType.ROOT);
               const headEid = createBoneEntity(APP.world, gltf.scene, BoneType.HEAD);
               const leftHandEid = createBoneEntity(APP.world, gltf.scene, BoneType.LEFT_HAND);
@@ -220,8 +219,7 @@ export class SoraAdapter extends SfuAdapter {
         const avatarPart = event.label.substring(8) as unknown as AvatarPart;
 
         const remoteAvatarObjs = this._remoteAvatarObjects.get(clientId); // encodedTransform.subarray(9): encoded clientId
-        // if (remoteAvatarObjs) {
-        if (remoteAvatarObjs && avatarPart !== AvatarPart.HEAD) {
+        if (remoteAvatarObjs) {
           decodeAndSetAvatarTransform(encodedTransform, remoteAvatarObjs[avatarPart]); // event.label.substring(8): avatar part
         }
 

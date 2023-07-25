@@ -116,9 +116,9 @@ export const avatarIkSystem = (
   avatarPoseInputs: InputTransform,
   avatarEid2ClientId: Map<number, string>
 ) => {
-  // const {
-  //   time: { delta, elapsed }
-  // } = world;
+  const {
+    time: { delta, elapsed }
+  } = world;
 
   const avatarEntityEids = avatarQuery(world);
 
@@ -143,8 +143,9 @@ const assignTransform = (world: HubsWorld, boneEid: number, inputTransform: Tran
   BoneComponent.transform.position.x[boneEid] = inputTransform.pos.x;
   BoneComponent.transform.position.y[boneEid] = inputTransform.pos.y;
   BoneComponent.transform.position.z[boneEid] = inputTransform.pos.z;
-  BoneComponent.transform.rotation.x[boneEid] = inputTransform.rot.x;
-  BoneComponent.transform.rotation.y[boneEid] = inputTransform.rot.y;
-  BoneComponent.transform.rotation.z[boneEid] = inputTransform.rot.z;
+  BoneComponent.transform.rotation.x[boneEid] = -inputTransform.rot.x;
+  BoneComponent.transform.rotation.y[boneEid] = -inputTransform.rot.y;
+  BoneComponent.transform.rotation.z[boneEid] = -inputTransform.rot.z;
   world.eid2obj.get(boneEid)?.rotation?._onChangeCallback();
+  world.eid2obj.get(boneEid)?.updateMatrix();
 };
