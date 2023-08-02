@@ -127,8 +127,8 @@ export const avatarIkSystem = (
     if (clientId) {
       assignTransform(world, AvatarComponent.root[avatarEid], avatarPoseInputs.rig.get(clientId));
       assignTransform(world, AvatarComponent.head[avatarEid], avatarPoseInputs.hmd.get(clientId));
-      // assignTransform(world, AvatarComponent.leftHand[avatarEid], avatarPoseInputs.hmd.get(clientId));
-      // assignTransform(world, AvatarComponent.rightHand[avatarEid], avatarPoseInputs.hmd.get(clientId));
+      assignTransform(world, AvatarComponent.leftHand[avatarEid], avatarPoseInputs.hmd.get(clientId));
+      assignTransform(world, AvatarComponent.rightHand[avatarEid], avatarPoseInputs.hmd.get(clientId));
     }
 
     // 他のボーンはIK計算をしてから同じことを行う
@@ -143,7 +143,7 @@ const assignTransform = (world: HubsWorld, boneEid: number, inputTransform: Tran
   BoneComponent.transform.position.x[boneEid] = inputTransform.pos.x;
   BoneComponent.transform.position.y[boneEid] = inputTransform.pos.y;
   BoneComponent.transform.position.z[boneEid] = inputTransform.pos.z;
-  BoneComponent.transform.rotation.y[boneEid] = inputTransform.rot.x;
+  BoneComponent.transform.rotation.y[boneEid] = inputTransform.rot.x + Math.PI / 2;
   BoneComponent.transform.rotation.x[boneEid] = -inputTransform.rot.y;
   BoneComponent.transform.rotation.z[boneEid] = inputTransform.rot.z;
   world.eid2obj.get(boneEid)?.rotation?._onChangeCallback();

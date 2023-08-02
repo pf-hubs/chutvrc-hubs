@@ -44,6 +44,7 @@ export class SoraAdapter extends SfuAdapter {
   _recordStatsId: NodeJS.Timer | null;
   /* Implementation for using bitECS */
   _avatarEid2ClientId: Map<number, string>;
+  _clientId2avatarId: Map<string, string>;
   _rootTransformsBuffer: Map<string, Transform>;
   _headTransformsBuffer: Map<string, Transform>;
   _leftHandTransformsBuffer: Map<string, Transform>;
@@ -63,6 +64,7 @@ export class SoraAdapter extends SfuAdapter {
     this._remoteAvatarObjects = new Map<string, AvatarObjects>();
     /* Implementation for using bitECS */
     this._avatarEid2ClientId = new Map<number, string>();
+    this._clientId2avatarId = new Map<string, string>();
     this._rootTransformsBuffer = new Map<string, Transform>();
     this._headTransformsBuffer = new Map<string, Transform>();
     this._leftHandTransformsBuffer = new Map<string, Transform>();
@@ -184,6 +186,18 @@ export class SoraAdapter extends SfuAdapter {
     this._sendrecv.on("message", event => {
       if (event.label === "#avatarId") {
         let [clientId, avatarId] = new TextDecoder().decode(new Uint8Array(event.data)).split("|");
+
+        if (this._clientId2avatarId.has(clientId)) {
+          // if avatar id of this client is already recorded
+          if (this._clientId2avatarId.get(clientId) === avatarId) return; // if avatar is not changed, ignore it
+        } else {
+          // if avatar id of this client is not recorded, that means this client is new to this room, so send my avatar id & src to the client
+          this.sendSelfAvatarSrc(window.APP.store.state.profile.avatarId);
+        }
+
+        // if avatar id of this client is already recorded but with different avatar id (existing client but avatar changed),
+        // or avatar id of this client is not recorded (new client to this room),
+        // then load the client's avatar's model
         if (clientId !== this._clientId) {
           getAvatarSrc(avatarId).then((avatarSrc: string) => {
             loadModel(avatarSrc).then(gltf => {
@@ -209,6 +223,9 @@ export class SoraAdapter extends SfuAdapter {
             });
           });
         }
+
+        // Always record/update the client's avatar ID
+        this._clientId2avatarId.set(clientId, avatarId);
       }
 
       if (event.label.includes("#avatar-")) {
