@@ -125,7 +125,10 @@ export const avatarIkSystem = (
   avatarEntityEids.forEach(avatarEid => {
     const clientId = avatarEid2ClientId.get(avatarEid);
     if (clientId) {
-      assignTransform(world, AvatarComponent.root[avatarEid], avatarPoseInputs.rig.get(clientId));
+      assignTransform(world, AvatarComponent.root[avatarEid], avatarPoseInputs.rig.get(clientId), {
+        pos: { x: 0, y: 0, z: 0 },
+        rot: { x: 0, y: Math.PI, z: 0 }
+      });
       assignTransform(world, AvatarComponent.head[avatarEid], avatarPoseInputs.hmd.get(clientId));
       assignTransform(world, AvatarComponent.leftHand[avatarEid], avatarPoseInputs.hmd.get(clientId));
       assignTransform(world, AvatarComponent.rightHand[avatarEid], avatarPoseInputs.hmd.get(clientId));
@@ -138,14 +141,19 @@ export const avatarIkSystem = (
   return world;
 };
 
-const assignTransform = (world: HubsWorld, boneEid: number, inputTransform: Transform | undefined) => {
+const assignTransform = (
+  world: HubsWorld,
+  boneEid: number,
+  inputTransform: Transform | undefined,
+  offset?: Transform
+) => {
   if (!inputTransform) return;
-  BoneComponent.transform.position.x[boneEid] = inputTransform.pos.x;
-  BoneComponent.transform.position.y[boneEid] = inputTransform.pos.y;
-  BoneComponent.transform.position.z[boneEid] = inputTransform.pos.z;
-  BoneComponent.transform.rotation.y[boneEid] = inputTransform.rot.x + Math.PI / 2;
-  BoneComponent.transform.rotation.x[boneEid] = -inputTransform.rot.y;
-  BoneComponent.transform.rotation.z[boneEid] = inputTransform.rot.z;
+  BoneComponent.transform.position.x[boneEid] = inputTransform.pos.x + (offset?.pos.x || 0);
+  BoneComponent.transform.position.y[boneEid] = inputTransform.pos.y + (offset?.pos.y || 0);
+  BoneComponent.transform.position.z[boneEid] = inputTransform.pos.z + (offset?.pos.z || 0);
+  BoneComponent.transform.rotation.y[boneEid] = inputTransform.rot.x + (offset?.rot.y || 0);
+  BoneComponent.transform.rotation.x[boneEid] = inputTransform.rot.y + (offset?.rot.x || 0);
+  BoneComponent.transform.rotation.z[boneEid] = inputTransform.rot.z + (offset?.rot.z || 0);
   world.eid2obj.get(boneEid)?.rotation?._onChangeCallback();
   world.eid2obj.get(boneEid)?.updateMatrix();
 };

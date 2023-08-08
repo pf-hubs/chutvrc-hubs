@@ -140,6 +140,7 @@
     "three-mesh-bvh": "^0.3.7",
     "three-pathfinding": "^1.1.0",
     "three-to-ammo": "github:infinitelee/three-to-ammo",
+    "three-vrm": "github:pf-hubs/three-vrm",
     "troika-three-text": "^0.45.0",
     "use-clipboard-copy": "^0.1.2",
     "uuid": "^3.2.1",
