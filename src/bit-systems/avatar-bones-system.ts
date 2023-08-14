@@ -1,10 +1,11 @@
 import { addComponent, addEntity, defineQuery } from "bitecs";
 import { Object3D } from "three";
 import { BoneType } from "../constants";
-import { findAvatarBone } from "../utils/find-avatar-bone";
+// import { findAvatarBone } from "../utils/map-avatar-bones";
 import { AvatarComponent, BoneComponent } from "../bit-components";
 import { addObject3DComponent } from "../utils/jsx-entity";
 import { HubsWorld } from "../app";
+import { mapAvatarBone } from "../utils/map-avatar-bones";
 
 type Vector3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number };
@@ -17,11 +18,9 @@ export type InputTransform = {
   rightController: Map<string, Transform>;
 };
 
-export const createBoneEntity = (world: HubsWorld, avatar: Object3D, boneType: BoneType): number | null => {
-  const eid = addEntity(world);
-  const bone: Object3D | null = findAvatarBone(avatar, boneType); // boneTypeに合ったボーンのobject3Dをavatarの中で探す
-
+export const createBoneEntity = (world: HubsWorld, bone: Object3D | undefined, boneType?: BoneType): number | null => {
   if (!bone) return null;
+  const eid = addEntity(world);
 
   // position
   Object.defineProperty(bone.position, "eid", { get: () => eid });
@@ -84,7 +83,7 @@ export const createBoneEntity = (world: HubsWorld, avatar: Object3D, boneType: B
   addObject3DComponent(world, eid, bone);
 
   addComponent(world, BoneComponent, eid);
-  BoneComponent.boneType[eid] = boneType;
+  // BoneComponent.boneType[eid] = boneType;
 
   return eid;
 };
@@ -93,20 +92,62 @@ export const createAvatarEntity = (
   world: HubsWorld,
   clientId: string,
   avatarEid2ClientId: Map<number, string>,
-  boneEids?: Map<number, number>
+  boneType2Eid?: Map<number, number>
 ): number => {
   const eid = addEntity(world);
 
   addComponent(world, AvatarComponent, eid);
   avatarEid2ClientId.set(eid, clientId);
-  boneEids?.forEach((bEid, bone) => {
-    if (bone === BoneType.ROOT) AvatarComponent.root[eid] = bEid;
-    if (bone === BoneType.HEAD) AvatarComponent.head[eid] = bEid;
-    if (bone === BoneType.LEFT_HAND) AvatarComponent.leftHand[eid] = bEid;
-    if (bone === BoneType.RIGHT_HAND) AvatarComponent.rightHand[eid] = bEid;
-  });
+
+  if (boneType2Eid) {
+    AvatarComponent.root[eid] = boneType2Eid.get(BoneType.Root) || 0;
+    AvatarComponent.hips[eid] = boneType2Eid.get(BoneType.Hips) || 0;
+    AvatarComponent.spine[eid] = boneType2Eid.get(BoneType.Spine) || 0;
+    AvatarComponent.chest[eid] = boneType2Eid.get(BoneType.Chest) || 0;
+    AvatarComponent.neck[eid] = boneType2Eid.get(BoneType.Neck) || 0;
+    AvatarComponent.head[eid] = boneType2Eid.get(BoneType.Head) || 0;
+    AvatarComponent.leftUpperLeg[eid] = boneType2Eid.get(BoneType.LeftUpperLeg) || 0;
+    AvatarComponent.leftLowerLeg[eid] = boneType2Eid.get(BoneType.LeftLowerLeg) || 0;
+    AvatarComponent.leftFoot[eid] = boneType2Eid.get(BoneType.LeftFoot) || 0;
+    AvatarComponent.rightUpperLeg[eid] = boneType2Eid.get(BoneType.RightUpperLeg) || 0;
+    AvatarComponent.rightLowerLeg[eid] = boneType2Eid.get(BoneType.RightLowerLeg) || 0;
+    AvatarComponent.rightFoot[eid] = boneType2Eid.get(BoneType.RightFoot) || 0;
+    AvatarComponent.leftShoulder[eid] = boneType2Eid.get(BoneType.LeftShoulder) || 0;
+    AvatarComponent.leftUpperArm[eid] = boneType2Eid.get(BoneType.LeftUpperArm) || 0;
+    AvatarComponent.leftLowerArm[eid] = boneType2Eid.get(BoneType.LeftLowerArm) || 0;
+    AvatarComponent.leftHand[eid] = boneType2Eid.get(BoneType.LeftHand) || 0;
+    AvatarComponent.rightShoulder[eid] = boneType2Eid.get(BoneType.RightShoulder) || 0;
+    AvatarComponent.rightUpperArm[eid] = boneType2Eid.get(BoneType.RightUpperArm) || 0;
+    AvatarComponent.rightLowerArm[eid] = boneType2Eid.get(BoneType.RightLowerArm) || 0;
+    AvatarComponent.rightHand[eid] = boneType2Eid.get(BoneType.RightHand) || 0;
+  }
 
   return eid;
+};
+
+export const createAvatarBoneEntities = (
+  world: HubsWorld,
+  avatar: Object3D,
+  clientId: string,
+  avatarEid2ClientId: Map<number, string>
+): number | null => {
+  const avatarBoneMap = mapAvatarBone(avatar);
+  const boneType2Eid = new Map<BoneType, number>();
+
+  var boneEid;
+  for (const boneType of Object.values(BoneType)) {
+    boneEid = createBoneEntity(world, avatarBoneMap.get(boneType as BoneType), boneType as BoneType);
+    if (boneEid) boneType2Eid.set(boneType as BoneType, boneEid);
+  }
+
+  if (boneType2Eid.size > 0) {
+    const avatarEid = createAvatarEntity(APP.world, clientId, avatarEid2ClientId, boneType2Eid);
+    if (avatarEid) {
+      avatarEid2ClientId.set(avatarEid, clientId);
+      return avatarEid;
+    }
+  }
+  return null;
 };
 
 export const avatarQuery = defineQuery([AvatarComponent]);

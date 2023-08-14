@@ -24,74 +24,76 @@ export enum AAModes {
 export const PRIVACY = "https://www.mozilla.org/en-US/privacy/hubs/";
 export const TERMS = "https://www.mozilla.org/en-US/about/legal/terms/hubs/";
 
+// export enum BoneType {
+//   ROOT,
+//   HEAD,
+//   LEFT_HAND,
+//   RIGHT_HAND
+// }
+
 export enum BoneType {
-  ROOT,
-  HEAD,
-  LEFT_HAND,
-  RIGHT_HAND
+  Root,
+  Hips,
+  Spine,
+  Chest,
+  Neck,
+  Head,
+  LeftUpperLeg,
+  LeftLowerLeg,
+  LeftFoot,
+  RightUpperLeg,
+  RightLowerLeg,
+  RightFoot,
+  LeftShoulder,
+  LeftUpperArm,
+  LeftLowerArm,
+  LeftHand,
+  RightShoulder,
+  RightUpperArm,
+  RightLowerArm,
+  RightHand
 }
 
-export enum FullBodyBoneName {
-  Root = "Root",
-  Hips = "Hips",
-  Spine = "Spine",
-  Chest = "Chest",
-  Neck = "Neck",
-  Head = "Head",
-  LeftUpperLeg = "LeftUpperLeg",
-  LeftLowerLeg = "LeftLowerLeg",
-  LeftFoot = "LeftFoot",
-  RightUpperLeg = "RightUpperLeg",
-  RightLowerLeg = "RightLowerLeg",
-  RightFoot = "RightFoot",
-  LeftShoulder = "LeftShoulder",
-  LeftUpperArm = "LeftUpperArm",
-  LeftLowerArm = "LeftLowerArm",
-  LeftHand = "LeftHand",
-  RightShoulder = "RightShoulder",
-  RightUpperArm = "RightUpperArm",
-  RightLowerArm = "RightLowerArm",
-  RightHand = "RightHand"
-}
+// export type BoneTypeName = BoneType | keyof typeof BoneType;
 
 export const boneHierarchy = {
-  name: FullBodyBoneName.Root,
+  name: BoneType[BoneType.Root],
   children: {
-    name: FullBodyBoneName.Hips,
+    name: BoneType[BoneType.Hips],
     children: [
       {
-        name: FullBodyBoneName.Spine,
+        name: BoneType[BoneType.Spine],
         children: {
-          name: FullBodyBoneName.Chest,
+          name: BoneType[BoneType.Chest],
           children: [
             {
-              name: FullBodyBoneName.Neck,
+              name: BoneType[BoneType.Neck],
               children: {
-                name: FullBodyBoneName.Head,
+                name: BoneType[BoneType.Head],
                 children: {}
               }
             },
             {
-              name: FullBodyBoneName.LeftShoulder,
+              name: BoneType[BoneType.LeftShoulder],
               children: {
-                name: FullBodyBoneName.LeftUpperArm,
+                name: BoneType[BoneType.LeftUpperArm],
                 children: {
-                  name: FullBodyBoneName.LeftLowerArm,
+                  name: BoneType[BoneType.LeftLowerArm],
                   children: {
-                    name: FullBodyBoneName.LeftHand,
+                    name: BoneType[BoneType.LeftHand],
                     children: {}
                   }
                 }
               }
             },
             {
-              name: FullBodyBoneName.RightShoulder,
+              name: BoneType[BoneType.RightShoulder],
               children: {
-                name: FullBodyBoneName.RightUpperArm,
+                name: BoneType[BoneType.RightUpperArm],
                 children: {
-                  name: FullBodyBoneName.RightLowerArm,
+                  name: BoneType[BoneType.RightLowerArm],
                   children: {
-                    name: FullBodyBoneName.RightHand,
+                    name: BoneType[BoneType.RightHand],
                     children: {}
                   }
                 }
@@ -101,21 +103,21 @@ export const boneHierarchy = {
         }
       },
       {
-        name: FullBodyBoneName.LeftUpperLeg,
+        name: BoneType[BoneType.LeftUpperLeg],
         children: {
-          name: FullBodyBoneName.LeftLowerLeg,
+          name: BoneType[BoneType.LeftLowerLeg],
           children: {
-            name: FullBodyBoneName.LeftFoot,
+            name: BoneType[BoneType.LeftFoot],
             children: {}
           }
         }
       },
       {
-        name: FullBodyBoneName.RightUpperLeg,
+        name: BoneType[BoneType.RightUpperLeg],
         children: {
-          name: FullBodyBoneName.RightLowerLeg,
+          name: BoneType[BoneType.RightLowerLeg],
           children: {
-            name: FullBodyBoneName.RightFoot,
+            name: BoneType[BoneType.RightFoot],
             children: {}
           }
         }
@@ -132,124 +134,144 @@ const boneNameSideKeywords = {
 // if all direct children are array -> match them all without overlapping with each other
 // else -> match only one of them
 export const boneNameKeywords = {
-  [FullBodyBoneName.Root]: {
+  [BoneType.Root]: {
     side: [],
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["root"]
+    typeWithoutPosition: ["root"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.Hips]: {
+  [BoneType.Hips]: {
     side: [],
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["hips", "bip", "pelvis"]
+    typeWithoutPosition: ["hips", "bip", "pelvis"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.Spine]: {
+  [BoneType.Spine]: {
     side: [],
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["spine"]
+    typeWithoutPosition: ["spine"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.Chest]: {
+  [BoneType.Chest]: {
     side: [],
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["chest", "spine"]
+    typeWithoutPosition: ["chest", "spine"],
+    parentsWithSimilarName: [BoneType.Spine]
   },
-  [FullBodyBoneName.Neck]: {
+  [BoneType.Neck]: {
     side: [],
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["neck"]
+    typeWithoutPosition: ["neck"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.Head]: {
+  [BoneType.Head]: {
     side: [],
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["head"]
+    typeWithoutPosition: ["head"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.LeftUpperLeg]: {
+  [BoneType.LeftUpperLeg]: {
     side: boneNameSideKeywords.left,
     position: ["upper", "up"],
     typeWithPosition: ["leg"],
-    typeWithoutPosition: ["thigh"]
+    typeWithoutPosition: ["thigh"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.LeftLowerLeg]: {
+  [BoneType.LeftLowerLeg]: {
     side: boneNameSideKeywords.left,
     position: ["lower", "low", "fore"],
     typeWithPosition: ["leg"],
-    typeWithoutPosition: ["leg", "calf", "knee"]
+    typeWithoutPosition: ["leg", "calf", "knee"],
+    parentsWithSimilarName: [BoneType.LeftUpperLeg]
   },
-  [FullBodyBoneName.LeftFoot]: {
+  [BoneType.LeftFoot]: {
     side: boneNameSideKeywords.left,
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["foot", "shoe"]
+    typeWithoutPosition: ["foot", "shoe"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.RightUpperLeg]: {
+  [BoneType.RightUpperLeg]: {
     side: boneNameSideKeywords.right,
     position: ["upper", "up"],
     typeWithPosition: ["leg"],
-    typeWithoutPosition: ["thigh"]
+    typeWithoutPosition: ["thigh"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.RightLowerLeg]: {
+  [BoneType.RightLowerLeg]: {
     side: boneNameSideKeywords.right,
     position: ["lower", "low", "fore"],
     typeWithPosition: ["leg"],
-    typeWithoutPosition: ["leg", "calf", "knee"]
+    typeWithoutPosition: ["leg", "calf", "knee"],
+    parentsWithSimilarName: [BoneType.RightUpperLeg]
   },
-  [FullBodyBoneName.RightFoot]: {
+  [BoneType.RightFoot]: {
     side: boneNameSideKeywords.right,
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["foot", "shoe"]
+    typeWithoutPosition: ["foot", "shoe"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.LeftShoulder]: {
+  [BoneType.LeftShoulder]: {
     side: boneNameSideKeywords.left,
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["shoulder", "clavicle"]
+    typeWithoutPosition: ["shoulder", "clavicle"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.LeftUpperArm]: {
+  [BoneType.LeftUpperArm]: {
     side: boneNameSideKeywords.left,
     position: ["upper", "up"],
     typeWithPosition: ["arm"],
-    typeWithoutPosition: ["arm"]
+    typeWithoutPosition: ["arm"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.LeftLowerArm]: {
+  [BoneType.LeftLowerArm]: {
     side: boneNameSideKeywords.left,
     position: ["lower", "low", "fore"],
     typeWithPosition: ["arm"],
-    typeWithoutPosition: ["elbow"]
+    typeWithoutPosition: ["elbow"],
+    parentsWithSimilarName: [BoneType.LeftUpperArm]
   },
-  [FullBodyBoneName.LeftHand]: {
+  [BoneType.LeftHand]: {
     side: boneNameSideKeywords.left,
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["hand", "wrist"]
+    typeWithoutPosition: ["hand", "wrist"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.RightShoulder]: {
+  [BoneType.RightShoulder]: {
     side: boneNameSideKeywords.right,
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["shoulder", "clavicle"]
+    typeWithoutPosition: ["shoulder", "clavicle"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.RightUpperArm]: {
+  [BoneType.RightUpperArm]: {
     side: boneNameSideKeywords.right,
     position: ["upper", "up"],
     typeWithPosition: ["arm"],
-    typeWithoutPosition: ["arm"]
+    typeWithoutPosition: ["arm"],
+    parentsWithSimilarName: []
   },
-  [FullBodyBoneName.RightLowerArm]: {
+  [BoneType.RightLowerArm]: {
     side: boneNameSideKeywords.right,
     position: ["lower", "low", "fore"],
     typeWithPosition: ["arm"],
-    typeWithoutPosition: ["elbow"]
+    typeWithoutPosition: ["elbow"],
+    parentsWithSimilarName: [BoneType.RightUpperArm]
   },
-  [FullBodyBoneName.RightHand]: {
+  [BoneType.RightHand]: {
     side: boneNameSideKeywords.right,
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["hand", "wrist"]
+    typeWithoutPosition: ["hand", "wrist"],
+    parentsWithSimilarName: []
   }
 };

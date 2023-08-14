@@ -6,9 +6,7 @@ import { AElement } from "aframe";
 import { AvatarObjects, AvatarPart, AvatarTransformBuffer, avatarPartTypes } from "./utils/avatar-transform-buffer";
 import { decodeAndSetAvatarTransform, decodePosition, decodeRotation, getAvatarSrc } from "./utils/avatar-utils";
 import { loadModel } from "./components/gltf-model-plus";
-import { createAvatarEntity, createBoneEntity } from "./bit-systems/avatar-bones-system";
-import { BoneType } from "./constants";
-
+import { createAvatarBoneEntities } from "./bit-systems/avatar-bones-system";
 const debug = newDebug("naf-dialog-adapter:debug");
 const sendStats: any[] = [];
 const recvStats: any[] = [];
@@ -201,25 +199,13 @@ export class SoraAdapter extends SfuAdapter {
         if (clientId !== this._clientId) {
           getAvatarSrc(avatarId).then((avatarSrc: string) => {
             loadModel(avatarSrc).then(gltf => {
-              const rootEid = createBoneEntity(APP.world, gltf.scene, BoneType.ROOT);
-              const headEid = createBoneEntity(APP.world, gltf.scene, BoneType.HEAD);
-              const leftHandEid = createBoneEntity(APP.world, gltf.scene, BoneType.LEFT_HAND);
-              const rightHandEid = createBoneEntity(APP.world, gltf.scene, BoneType.RIGHT_HAND);
-              if (rootEid && headEid && leftHandEid && rightHandEid) {
-                const avatarEid = createAvatarEntity(
-                  APP.world,
-                  clientId,
-                  this._avatarEid2ClientId,
-                  new Map<BoneType, number>([
-                    [BoneType.ROOT, rootEid],
-                    [BoneType.HEAD, headEid],
-                    [BoneType.LEFT_HAND, leftHandEid],
-                    [BoneType.RIGHT_HAND, rightHandEid]
-                  ])
-                );
-                if (avatarEid) this._avatarEid2ClientId.set(avatarEid, clientId);
-              }
-              APP.world.scene.add(gltf.scene);
+              var isAvatarBoneEntitiesSuccessfullyCreated = createAvatarBoneEntities(
+                APP.world,
+                gltf.scene,
+                clientId,
+                this._avatarEid2ClientId
+              );
+              if (isAvatarBoneEntitiesSuccessfullyCreated) APP.world.scene.add(gltf.scene);
             });
           });
         }

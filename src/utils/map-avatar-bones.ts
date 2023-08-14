@@ -1,5 +1,5 @@
 import { Object3D } from "three";
-import { BoneType, FullBodyBoneName, boneNameKeywords } from "../constants";
+import { BoneType, boneNameKeywords } from "../constants";
 
 const checkBoneNameMatching = (
   boneObjectName: string,
@@ -8,6 +8,7 @@ const checkBoneNameMatching = (
     position: string[];
     typeWithPosition: string[];
     typeWithoutPosition: string[];
+    parentsWithSimilarName: BoneType[];
   }
 ) => {
   boneObjectName = boneObjectName.toLowerCase();
@@ -39,7 +40,7 @@ const checkBoneNameMatching = (
     }
   }
   if (keywords.side.length > 0) {
-    isSideMatched = keywords.position.some(keyword => boneObjectName.includes(keyword));
+    isSideMatched = keywords.side.some(keyword => boneObjectName.includes(keyword));
   } else {
     isSideMatched = true;
   }
@@ -50,56 +51,29 @@ const checkBoneNameMatching = (
 export const mapAvatarBone = (avatar: Object3D) => {
   let isMappingStarted = false;
   let clonedBoneNameKeywords = { ...boneNameKeywords };
-  let boneNameToObject = new Map<FullBodyBoneName, Object3D>();
+  let boneTypeToObject = new Map<BoneType, Object3D>();
+
+  console.log(avatar);
 
   avatar.traverse(child => {
     if (isMappingStarted) {
       for (const [boneName, keywords] of Object.entries(clonedBoneNameKeywords)) {
         if (checkBoneNameMatching(child.name, keywords)) {
-          boneNameToObject.set(boneName as FullBodyBoneName, child);
-          delete clonedBoneNameKeywords[boneName as FullBodyBoneName];
+          boneTypeToObject.set(parseInt(boneName) as BoneType, child);
+          delete clonedBoneNameKeywords[parseInt(boneName) as BoneType];
+          break;
         }
       }
-    } else if (checkBoneNameMatching(child.name, boneNameKeywords[FullBodyBoneName.Root])) {
+    } else if (checkBoneNameMatching(child.name, boneNameKeywords[BoneType.Root])) {
       isMappingStarted = true;
-      boneNameToObject.set(FullBodyBoneName.Root, child);
-      delete clonedBoneNameKeywords["Root" as FullBodyBoneName];
+      boneTypeToObject.set(BoneType.Root, child);
+      delete clonedBoneNameKeywords[BoneType["Root" as keyof typeof BoneType]];
     }
   });
 
-  return boneNameToObject;
-};
+  console.log("=========");
+  console.log(boneTypeToObject);
+  console.log("=========");
 
-export const findAvatarBone = (avatar: Object3D, boneType: BoneType): Object3D | null => {
-  let result: Object3D | null = null;
-  avatar.traverse(child => {
-    if (!result) {
-      switch (boneType) {
-        case BoneType.ROOT:
-          if (child.name.toLowerCase().includes("root")) result = child;
-          break;
-        case BoneType.HEAD:
-          if (child.name.toLowerCase().includes("head")) result = child;
-          break;
-        case BoneType.LEFT_HAND:
-          if (
-            child.name.toLowerCase().includes("hand") &&
-            (child.name.includes("L") || child.name.toLowerCase().includes("left"))
-          )
-            result = child;
-          break;
-        case BoneType.RIGHT_HAND:
-          if (
-            child.name.toLowerCase().includes("hand") &&
-            (child.name.includes("R") || child.name.toLowerCase().includes("right"))
-          )
-            result = child;
-          break;
-        default:
-          break;
-      }
-    }
-  });
-
-  return result;
+  return boneTypeToObject;
 };

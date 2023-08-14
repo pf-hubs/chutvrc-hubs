@@ -161,12 +161,12 @@ AFRAME.registerComponent("ik-controller", {
     }
 
     // Set middleEye's position to be right in the middle of the left and right eyes.
-    this.middleEyePosition.addVectors(this.leftEye.position, this.rightEye.position);
-    this.middleEyePosition.divideScalar(2);
-    this.middleEyeMatrix.makeTranslation(this.middleEyePosition.x, this.middleEyePosition.y, this.middleEyePosition.z);
-    this.invMiddleEyeToHead = this.middleEyeMatrix.copy(this.middleEyeMatrix).invert();
+    // this.middleEyePosition.addVectors(this.leftEye.position, this.rightEye.position);
+    // this.middleEyePosition.divideScalar(2);
+    // this.middleEyeMatrix.makeTranslation(this.middleEyePosition.x, this.middleEyePosition.y, this.middleEyePosition.z);
+    // this.invMiddleEyeToHead = this.middleEyeMatrix.copy(this.middleEyeMatrix).invert();
 
-    this.invHipsToHeadVector.addVectors(this.chest.position, this.neck.position).add(this.head.position).negate();
+    // this.invHipsToHeadVector.addVectors(this.chest.position, this.neck.position).add(this.head.position).negate();
   },
 
   tick(time, dt) {
@@ -258,16 +258,16 @@ AFRAME.registerComponent("ik-controller", {
       // Take the head orientation computed from the hmd, remove the Y rotation already applied to it by the hips,
       // and apply it to the head
       invHipsQuaternion.copy(avatar.quaternion).invert();
-      head.quaternion.setFromRotationMatrix(headTransform).premultiply(invHipsQuaternion);
+      if (head) head.quaternion.setFromRotationMatrix(headTransform).premultiply(invHipsQuaternion);
 
       avatar.updateMatrix();
-      rootToChest.multiplyMatrices(avatar.matrix, chest.matrix);
+      if (rootToChest && avatar && chest) rootToChest?.multiplyMatrices(avatar.matrix, chest.matrix);
       invRootToChest.copy(rootToChest).invert();
 
-      root.matrixNeedsUpdate = true;
-      neck.matrixNeedsUpdate = true;
-      head.matrixNeedsUpdate = true;
-      chest.matrixNeedsUpdate = true;
+      if (root) root.matrixNeedsUpdate = true;
+      if (neck) neck.matrixNeedsUpdate = true;
+      if (head) head.matrixNeedsUpdate = true;
+      if (chest) chest.matrixNeedsUpdate = true;
     }
 
     const { leftHand, rightHand } = this;

@@ -351,13 +351,29 @@ const TransformSchema = {
   rotation: QuaternionSchema
 };
 const BoneSchema = {
-  boneType: Types.ui8,
+  // boneType: Types.ui8,
   transform: TransformSchema
 };
 const AvatarSchema = {
   root: Types.eid,
+  hips: Types.eid,
+  spine: Types.eid,
+  chest: Types.eid,
+  neck: Types.eid,
   head: Types.eid,
+  leftUpperLeg: Types.eid,
+  leftLowerLeg: Types.eid,
+  leftFoot: Types.eid,
+  rightUpperLeg: Types.eid,
+  rightLowerLeg: Types.eid,
+  rightFoot: Types.eid,
+  leftShoulder: Types.eid,
+  leftUpperArm: Types.eid,
+  leftLowerArm: Types.eid,
   leftHand: Types.eid,
+  rightShoulder: Types.eid,
+  rightUpperArm: Types.eid,
+  rightLowerArm: Types.eid,
   rightHand: Types.eid
 };
 
