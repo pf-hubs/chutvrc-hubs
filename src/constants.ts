@@ -38,6 +38,8 @@ export enum BoneType {
   Chest,
   Neck,
   Head,
+  LeftEye,
+  RightEye,
   LeftUpperLeg,
   LeftLowerLeg,
   LeftFoot,
@@ -55,76 +57,6 @@ export enum BoneType {
 }
 
 // export type BoneTypeName = BoneType | keyof typeof BoneType;
-
-export const boneHierarchy = {
-  name: BoneType[BoneType.Root],
-  children: {
-    name: BoneType[BoneType.Hips],
-    children: [
-      {
-        name: BoneType[BoneType.Spine],
-        children: {
-          name: BoneType[BoneType.Chest],
-          children: [
-            {
-              name: BoneType[BoneType.Neck],
-              children: {
-                name: BoneType[BoneType.Head],
-                children: {}
-              }
-            },
-            {
-              name: BoneType[BoneType.LeftShoulder],
-              children: {
-                name: BoneType[BoneType.LeftUpperArm],
-                children: {
-                  name: BoneType[BoneType.LeftLowerArm],
-                  children: {
-                    name: BoneType[BoneType.LeftHand],
-                    children: {}
-                  }
-                }
-              }
-            },
-            {
-              name: BoneType[BoneType.RightShoulder],
-              children: {
-                name: BoneType[BoneType.RightUpperArm],
-                children: {
-                  name: BoneType[BoneType.RightLowerArm],
-                  children: {
-                    name: BoneType[BoneType.RightHand],
-                    children: {}
-                  }
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        name: BoneType[BoneType.LeftUpperLeg],
-        children: {
-          name: BoneType[BoneType.LeftLowerLeg],
-          children: {
-            name: BoneType[BoneType.LeftFoot],
-            children: {}
-          }
-        }
-      },
-      {
-        name: BoneType[BoneType.RightUpperLeg],
-        children: {
-          name: BoneType[BoneType.RightLowerLeg],
-          children: {
-            name: BoneType[BoneType.RightFoot],
-            children: {}
-          }
-        }
-      }
-    ]
-  }
-};
 
 const boneNameSideKeywords = {
   left: ["left", "_l", "l_", ".l", "l.", " l", "l "],
@@ -174,6 +106,20 @@ export const boneNameKeywords = {
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["head"],
+    parentsWithSimilarName: []
+  },
+  [BoneType.LeftEye]: {
+    side: boneNameSideKeywords.left,
+    position: [],
+    typeWithPosition: [],
+    typeWithoutPosition: ["eye"],
+    parentsWithSimilarName: []
+  },
+  [BoneType.RightEye]: {
+    side: boneNameSideKeywords.right,
+    position: [],
+    typeWithPosition: [],
+    typeWithoutPosition: ["eye"],
     parentsWithSimilarName: []
   },
   [BoneType.LeftUpperLeg]: {

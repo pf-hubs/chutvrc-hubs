@@ -53,8 +53,6 @@ export const mapAvatarBone = (avatar: Object3D) => {
   let clonedBoneNameKeywords = { ...boneNameKeywords };
   let boneTypeToObject = new Map<BoneType, Object3D>();
 
-  console.log(avatar);
-
   avatar.traverse(child => {
     if (isMappingStarted) {
       for (const [boneName, keywords] of Object.entries(clonedBoneNameKeywords)) {
@@ -70,10 +68,6 @@ export const mapAvatarBone = (avatar: Object3D) => {
       delete clonedBoneNameKeywords[BoneType["Root" as keyof typeof BoneType]];
     }
   });
-
-  console.log("=========");
-  console.log(boneTypeToObject);
-  console.log("=========");
 
   return boneTypeToObject;
 };

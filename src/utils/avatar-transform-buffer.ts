@@ -15,7 +15,7 @@ export const avatarPartTypes = [AvatarPart.RIG, AvatarPart.HEAD, AvatarPart.LEFT
 export type Transform = {
   position: Vector3;
   rotation: Euler;
-}
+};
 
 export type AvatarObjects = {
   [part in AvatarPart]: Object3D;
@@ -23,11 +23,11 @@ export type AvatarObjects = {
 
 type AvatarTransforms = {
   [part in AvatarPart]: Transform;
-}
+};
 
 type AvatarEncodedTransforms = {
   [part in AvatarPart]: Uint8Array;
-}
+};
 
 export class AvatarTransformBuffer {
   _encodedClientId: Uint8Array;
@@ -42,36 +42,40 @@ export class AvatarTransformBuffer {
       [AvatarPart.HEAD]: head.object3D,
       [AvatarPart.LEFT]: left.object3D,
       [AvatarPart.RIGHT]: right.object3D
-    }
+    };
     this._lastAvatarTransform = {
       [AvatarPart.RIG]: {
         position: rig.object3D.position.clone(),
-        rotation: rig.object3D.rotation.clone(),
+        rotation: rig.object3D.rotation.clone()
       },
       [AvatarPart.HEAD]: {
         position: head.object3D.position.clone(),
-        rotation: head.object3D.rotation.clone(),
+        rotation: head.object3D.rotation.clone()
       },
       [AvatarPart.LEFT]: {
         position: left.object3D.position.clone(),
-        rotation: left.object3D.rotation.clone(),
+        rotation: left.object3D.rotation.clone()
       },
       [AvatarPart.RIGHT]: {
         position: right.object3D.position.clone(),
-        rotation: right.object3D.rotation.clone(),
+        rotation: right.object3D.rotation.clone()
       }
-    }
+    };
     this._encodedAvatarTransform = {
       [AvatarPart.RIG]: new Uint8Array(45),
       [AvatarPart.HEAD]: new Uint8Array(45),
       [AvatarPart.LEFT]: new Uint8Array(45),
       [AvatarPart.RIGHT]: new Uint8Array(45)
-    }
+    };
   }
 
   // return true if updated, false if not
   updateAvatarTransform(part: AvatarPart) {
-    if (!this.isPositionUpdated(this._avatarObj[part].position, this._lastAvatarTransform[part].position) && !this.isRotationUpdated(this._avatarObj[part].rotation, this._lastAvatarTransform[part].rotation)) return false;
+    if (
+      !this.isPositionUpdated(this._avatarObj[part].position, this._lastAvatarTransform[part].position) &&
+      !this.isRotationUpdated(this._avatarObj[part].rotation, this._lastAvatarTransform[part].rotation)
+    )
+      return false;
     this._lastAvatarTransform[part].position.copy(this._avatarObj[part].position);
     this._lastAvatarTransform[part].rotation.copy(this._avatarObj[part].rotation);
     return true;
@@ -81,7 +85,9 @@ export class AvatarTransformBuffer {
     if (this._encodedAvatarTransform[part]) {
       this._encodedAvatarTransform[part].set(encodeAvatarTransform(this._avatarObj[part], this._encodedClientId));
     } else {
-      this._encodedAvatarTransform[part] = new Uint8Array(encodeAvatarTransform(this._avatarObj[part], this._encodedClientId));
+      this._encodedAvatarTransform[part] = new Uint8Array(
+        encodeAvatarTransform(this._avatarObj[part], this._encodedClientId)
+      );
     }
     return this._encodedAvatarTransform[part];
   }
