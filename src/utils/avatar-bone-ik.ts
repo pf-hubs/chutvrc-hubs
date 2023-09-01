@@ -40,14 +40,13 @@ const alignBoneWithTarget = (joint: Object3D, effector: Object3D, target: Vector
 
   quarternion.setFromAxisAngle(axis, deltaAngle);
   joint.quaternion.multiply(quarternion);
-
-  joint.updateMatrixWorld(true);
+  joint.rotation._onChangeCallback();
   joint.updateMatrix();
 };
 
-const alignBoneWithEffectorOrientation = (joint: Object3D, effector: Object3D) => {
-  joint.rotation.y = effector.rotation.y;
-  joint.updateMatrixWorld(true);
+const alignBoneVerticalOrientation = (joint: Object3D, orientation: number) => {
+  joint.rotation.y = orientation;
+  joint.rotation._onChangeCallback();
   joint.updateMatrix();
 };
 
@@ -60,99 +59,105 @@ export const avatarBoneIk = (
 ) => {
   const rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
   const rootInput = poseInputs.rig?.get(clientId);
-  if (rootBone && rootInput) {
-    rootBone.position.set(rootInput.pos.x, rootInput.pos.y, rootInput.pos.z);
-    rootBone.rotation.set(rootInput.rot.y, rootInput.rot.x, rootInput.rot.z);
-    rootBone.rotation._onChangeCallback();
-    rootBone.updateMatrix();
-  }
+  if (!rootBone || !rootInput) return;
+
+  rootBone.position.set(rootInput.pos.x, rootInput.pos.y, rootInput.pos.z);
+
+  rootBone.rotation.set(rootInput.rot.y, rootInput.rot.x, rootInput.rot.z);
+  rootBone.rotation._onChangeCallback();
+  rootBone.updateMatrix();
 
   const rootPos = new Vector3();
   const rootRot = new Quaternion();
   rootBone?.getWorldPosition(rootPos);
   rootBone?.getWorldQuaternion(rootRot);
+
   let joint: Object3D | undefined;
   let effector: Object3D | undefined;
 
   for (var i = 0; i < defaultIKConfig.iteration; i++) {
     defaultIKConfig.chainConfigs.forEach(chainConfig => {
-      effector = world.eid2obj.get(chainConfig.effectorBoneAsAvatarProp[avatarEid]); // get bone Object3D by chainConfig.effectorBoneName
+      effector = world.eid2obj.get(chainConfig.effectorBoneAsAvatarProp[avatarEid]);
 
       chainConfig.jointConfigs.forEach(jointConfig => {
         joint = world.eid2obj.get(jointConfig.boneAsAvatarProp[avatarEid]);
         let rawPos;
         const inputPos = new Vector3();
+        let followHeadVerticalRotation = true;
         if (joint && effector) {
           switch (chainConfig.effectorBoneName) {
             case BoneType.Head:
               rawPos = poseInputs.hmd?.get(clientId)?.pos;
+              followHeadVerticalRotation = false;
               break;
             case BoneType.LeftHand:
               rawPos = poseInputs.leftController?.get(clientId)?.pos;
               if (rawPos?.x == 0 && rawPos?.y == 0 && rawPos?.z == 0) {
                 rawPos = { x: -0.5, y: 0.9, z: 0.1 };
+                // followHeadVerticalRotation = false; // if VR controller exists
               }
               break;
             case BoneType.RightHand:
               rawPos = poseInputs.rightController?.get(clientId)?.pos;
               if (rawPos?.x == 0 && rawPos?.y == 0 && rawPos?.z == 0) {
                 rawPos = { x: 0.5, y: 0.9, z: 0.1 };
+                // followHeadVerticalRotation = false; // if VR controller exists
               }
               break;
             case BoneType.LeftFoot:
               rawPos = { x: 0.05, y: 0, z: 0 };
+              // followHeadVerticalRotation = false; // if VR tracker exists
               break;
             case BoneType.RightFoot:
               rawPos = { x: -0.05, y: 0, z: 0 };
+              // followHeadVerticalRotation = false; // if VR tracker exists
               break;
             default:
               break;
           }
-          if (rawPos && rootInput && rootBone) {
-            inputPos.set(rawPos?.x, rawPos?.y, rawPos?.z);
+          if (rawPos) {
+            inputPos.set(rawPos.x, rawPos.y, rawPos.z);
+            const headRot = poseInputs.hmd?.get(clientId)?.rot;
             alignBoneWithTarget(
               joint,
               effector,
-              inputPos.applyAxisAngle(rootBone.up, rootInput.rot.x - Math.PI).add(rootPos)
+              inputPos
+                .applyAxisAngle(
+                  rootBone.up,
+                  rootInput.rot.x - Math.PI + (headRot && followHeadVerticalRotation ? headRot.x : 0)
+                )
+                .add(rootPos)
             );
-            // TODO: rotate root if head rotate too much ( > 45 degrees )
           }
         }
       });
 
-      let targetRot;
-      if (effector) {
-        switch (chainConfig.effectorBoneName) {
-          case BoneType.Head:
-            targetRot = poseInputs.hmd?.get(clientId)?.rot;
-            break;
-          case BoneType.LeftHand:
-            targetRot = poseInputs.leftController?.get(clientId)?.rot;
-            break;
-          case BoneType.RightHand:
-            targetRot = poseInputs.rightController?.get(clientId)?.rot;
-            break;
-          case BoneType.LeftFoot:
-            targetRot = { x: 0, y: 0, z: 0 };
-            break;
-          case BoneType.RightFoot:
-            targetRot = { x: 0, y: 0, z: 0 };
-            break;
-          default:
-            break;
-        }
-        if (targetRot) {
-          effector.rotation.set(targetRot.y, targetRot.x, targetRot.z);
-          effector.updateMatrixWorld(true);
-          effector.updateMatrix();
-        }
+      let targetRot = { x: 0, y: 0, z: 0 };
+      switch (chainConfig.effectorBoneName) {
+        case BoneType.Head:
+          targetRot = poseInputs.hmd?.get(clientId)?.rot || { x: 0, y: 0, z: 0 };
+          break;
+        case BoneType.LeftHand:
+          targetRot = poseInputs.leftController?.get(clientId)?.rot || { x: 0, y: 0, z: 0 };
+          break;
+        case BoneType.RightHand:
+          targetRot = poseInputs.rightController?.get(clientId)?.rot || { x: 0, y: 0, z: 0 };
+          break;
+        default:
+          break;
+      }
+
+      if (chainConfig.effectorFollowTargetRotation && effector && targetRot) {
+        effector.rotation.set(targetRot.y, targetRot.x, targetRot.z);
+        effector.rotation._onChangeCallback();
+        effector.updateMatrix();
       }
 
       chainConfig.jointConfigs.forEach(jointConfig => {
-        if (jointConfig.followTargetRotation) {
+        if (targetRot && jointConfig.followTargetRotation) {
           joint = world.eid2obj.get(jointConfig.boneAsAvatarProp[avatarEid]);
-          if (joint && effector) {
-            alignBoneWithEffectorOrientation(joint, effector);
+          if (joint) {
+            alignBoneVerticalOrientation(joint, targetRot.x || effector?.rotation?.y || 0);
           }
         }
       });
@@ -200,7 +205,8 @@ const defaultIKConfig = {
         }
       ],
       effectorBoneName: BoneType.Head,
-      effectorBoneAsAvatarProp: AvatarComponent.head
+      effectorBoneAsAvatarProp: AvatarComponent.head,
+      effectorFollowTargetRotation: false
     },
     // Left Shoulder -> Hand
     {
@@ -231,7 +237,8 @@ const defaultIKConfig = {
         }
       ],
       effectorBoneName: BoneType.LeftHand,
-      effectorBoneAsAvatarProp: AvatarComponent.leftHand
+      effectorBoneAsAvatarProp: AvatarComponent.leftHand,
+      effectorFollowTargetRotation: true
     },
     // Right Shoulder -> Hand
     {
@@ -262,7 +269,8 @@ const defaultIKConfig = {
         }
       ],
       effectorBoneName: BoneType.RightHand,
-      effectorBoneAsAvatarProp: AvatarComponent.rightHand
+      effectorBoneAsAvatarProp: AvatarComponent.rightHand,
+      effectorFollowTargetRotation: true
     },
     // Left Leg
     {
@@ -293,7 +301,8 @@ const defaultIKConfig = {
         }
       ],
       effectorBoneName: BoneType.LeftFoot,
-      effectorBoneAsAvatarProp: AvatarComponent.leftFoot
+      effectorBoneAsAvatarProp: AvatarComponent.leftFoot,
+      effectorFollowTargetRotation: false
     },
     // Right Leg
     {
@@ -324,7 +333,8 @@ const defaultIKConfig = {
         }
       ],
       effectorBoneName: BoneType.RightFoot,
-      effectorBoneAsAvatarProp: AvatarComponent.rightFoot
+      effectorBoneAsAvatarProp: AvatarComponent.rightFoot,
+      effectorFollowTargetRotation: false
     }
   ]
 };
