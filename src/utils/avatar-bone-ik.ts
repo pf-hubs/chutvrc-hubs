@@ -63,7 +63,11 @@ export const avatarBoneIk = (
 
   rootBone.position.set(rootInput.pos.x, rootInput.pos.y, rootInput.pos.z);
 
-  rootBone.rotation.set(rootInput.rot.y, rootInput.rot.x, rootInput.rot.z);
+  rootBone.rotation.set(
+    rootInput.rot.y,
+    rootInput.rot.x + (poseInputs.hmd?.get(clientId)?.rot.x || 0),
+    rootInput.rot.z
+  );
   rootBone.rotation._onChangeCallback();
   rootBone.updateMatrix();
 
@@ -93,14 +97,14 @@ export const avatarBoneIk = (
             case BoneType.LeftHand:
               rawPos = poseInputs.leftController?.get(clientId)?.pos;
               if (rawPos?.x == 0 && rawPos?.y == 0 && rawPos?.z == 0) {
-                rawPos = { x: -0.5, y: 0.9, z: 0.1 };
+                rawPos = { x: 0.5, y: 0.9, z: 0.1 };
                 // followHeadVerticalRotation = false; // if VR controller exists
               }
               break;
             case BoneType.RightHand:
               rawPos = poseInputs.rightController?.get(clientId)?.pos;
               if (rawPos?.x == 0 && rawPos?.y == 0 && rawPos?.z == 0) {
-                rawPos = { x: 0.5, y: 0.9, z: 0.1 };
+                rawPos = { x: -0.5, y: 0.9, z: 0.1 };
                 // followHeadVerticalRotation = false; // if VR controller exists
               }
               break;
@@ -147,20 +151,15 @@ export const avatarBoneIk = (
           break;
       }
 
-      if (chainConfig.effectorFollowTargetRotation && effector && targetRot) {
-        effector.rotation.set(targetRot.y, targetRot.x, targetRot.z);
+      if (effector && targetRot) {
+        effector.rotation.set(
+          targetRot.y,
+          chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.x,
+          targetRot.z
+        );
         effector.rotation._onChangeCallback();
         effector.updateMatrix();
       }
-
-      chainConfig.jointConfigs.forEach(jointConfig => {
-        if (targetRot && jointConfig.followTargetRotation) {
-          joint = world.eid2obj.get(jointConfig.boneAsAvatarProp[avatarEid]);
-          if (joint) {
-            alignBoneVerticalOrientation(joint, targetRot.x || effector?.rotation?.y || 0);
-          }
-        }
-      });
     });
   }
 };
