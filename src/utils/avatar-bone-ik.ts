@@ -45,7 +45,19 @@ const alignBoneWithTarget = (joint: Object3D, effector: Object3D, target: Vector
   joint.updateMatrix();
 };
 
-export const avatarBoneIk = (world: HubsWorld, avatarEid: number, poseInputs: InputTransform, clientId: string) => {
+const alignBoneWithEffectorOrientation = (joint: Object3D, effector: Object3D) => {
+  joint.rotation.y = effector.rotation.y;
+  joint.updateMatrixWorld(true);
+  joint.updateMatrix();
+};
+
+export const avatarBoneIk = (
+  world: HubsWorld,
+  avatarEid: number,
+  poseInputs: InputTransform,
+  clientId: string,
+  elapsed?: number
+) => {
   const rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
   const rootInput = poseInputs.rig?.get(clientId);
   if (rootBone && rootInput) {
@@ -56,45 +68,92 @@ export const avatarBoneIk = (world: HubsWorld, avatarEid: number, poseInputs: In
   }
 
   const rootPos = new Vector3();
+  const rootRot = new Quaternion();
   rootBone?.getWorldPosition(rootPos);
+  rootBone?.getWorldQuaternion(rootRot);
   let joint: Object3D | undefined;
   let effector: Object3D | undefined;
 
   for (var i = 0; i < defaultIKConfig.iteration; i++) {
     defaultIKConfig.chainConfigs.forEach(chainConfig => {
+      effector = world.eid2obj.get(chainConfig.effectorBoneAsAvatarProp[avatarEid]); // get bone Object3D by chainConfig.effectorBoneName
+
       chainConfig.jointConfigs.forEach(jointConfig => {
         joint = world.eid2obj.get(jointConfig.boneAsAvatarProp[avatarEid]);
-        effector = world.eid2obj.get(chainConfig.effectorBoneAsAvatarProp[avatarEid]); // get bone Object3D by chainConfig.effectorBoneName
-        let rawInput;
-        const input = new Vector3();
+        let rawPos;
+        const inputPos = new Vector3();
         if (joint && effector) {
           switch (chainConfig.effectorBoneName) {
             case BoneType.Head:
-              rawInput = poseInputs.hmd?.get(clientId)?.pos;
+              rawPos = poseInputs.hmd?.get(clientId)?.pos;
               break;
             case BoneType.LeftHand:
-              rawInput = poseInputs.leftController?.get(clientId)?.pos;
-              if (rawInput?.x == 0 && rawInput?.y == 0 && rawInput?.z == 0) {
-                rawInput = { x: 0.2, y: 0.9, z: 0.1 };
+              rawPos = poseInputs.leftController?.get(clientId)?.pos;
+              if (rawPos?.x == 0 && rawPos?.y == 0 && rawPos?.z == 0) {
+                rawPos = { x: -0.5, y: 0.9, z: 0.1 };
               }
               break;
             case BoneType.RightHand:
-              rawInput = poseInputs.rightController?.get(clientId)?.pos;
-              if (rawInput?.x == 0 && rawInput?.y == 0 && rawInput?.z == 0) {
-                rawInput = { x: -0.2, y: 0.9, z: -0.1 };
+              rawPos = poseInputs.rightController?.get(clientId)?.pos;
+              if (rawPos?.x == 0 && rawPos?.y == 0 && rawPos?.z == 0) {
+                rawPos = { x: 0.5, y: 0.9, z: 0.1 };
               }
               break;
             case BoneType.LeftFoot:
-              rawInput = { x: 0.05, y: 0, z: 0 };
+              rawPos = { x: 0.05, y: 0, z: 0 };
               break;
             case BoneType.RightFoot:
-              rawInput = { x: -0.05, y: 0, z: 0 };
+              rawPos = { x: -0.05, y: 0, z: 0 };
               break;
             default:
               break;
           }
-          if (rawInput) input.set(rawInput?.x, rawInput?.y, rawInput?.z).add(rootPos);
-          alignBoneWithTarget(joint, effector, input);
+          if (rawPos && rootInput && rootBone) {
+            inputPos.set(rawPos?.x, rawPos?.y, rawPos?.z);
+            alignBoneWithTarget(
+              joint,
+              effector,
+              inputPos.applyAxisAngle(rootBone.up, rootInput.rot.x - Math.PI).add(rootPos)
+            );
+            // TODO: rotate root if head rotate too much ( > 45 degrees )
+          }
+        }
+      });
+
+      let targetRot;
+      if (effector) {
+        switch (chainConfig.effectorBoneName) {
+          case BoneType.Head:
+            targetRot = poseInputs.hmd?.get(clientId)?.rot;
+            break;
+          case BoneType.LeftHand:
+            targetRot = poseInputs.leftController?.get(clientId)?.rot;
+            break;
+          case BoneType.RightHand:
+            targetRot = poseInputs.rightController?.get(clientId)?.rot;
+            break;
+          case BoneType.LeftFoot:
+            targetRot = { x: 0, y: 0, z: 0 };
+            break;
+          case BoneType.RightFoot:
+            targetRot = { x: 0, y: 0, z: 0 };
+            break;
+          default:
+            break;
+        }
+        if (targetRot) {
+          effector.rotation.set(targetRot.y, targetRot.x, targetRot.z);
+          effector.updateMatrixWorld(true);
+          effector.updateMatrix();
+        }
+      }
+
+      chainConfig.jointConfigs.forEach(jointConfig => {
+        if (jointConfig.followTargetRotation) {
+          joint = world.eid2obj.get(jointConfig.boneAsAvatarProp[avatarEid]);
+          if (joint && effector) {
+            alignBoneWithEffectorOrientation(joint, effector);
+          }
         }
       });
     });
@@ -112,28 +171,32 @@ const defaultIKConfig = {
           boneAsAvatarProp: AvatarComponent.neck,
           order: "XYZ",
           rotationMin: new Vector3(-Math.PI, -Math.PI, -Math.PI),
-          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI)
+          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI),
+          followTargetRotation: false
         },
         {
           boneName: BoneType.Chest,
           boneAsAvatarProp: AvatarComponent.chest,
           order: "XYZ",
           rotationMin: new Vector3(-Math.PI, -Math.PI, -Math.PI),
-          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI)
+          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI),
+          followTargetRotation: false
         },
         {
           boneName: BoneType.Spine,
           boneAsAvatarProp: AvatarComponent.spine,
           order: "XYZ",
           rotationMin: new Vector3(-Math.PI, -Math.PI, -Math.PI),
-          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI)
+          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI),
+          followTargetRotation: false
         },
         {
           boneName: BoneType.Hips,
           boneAsAvatarProp: AvatarComponent.hips,
           order: "XYZ",
           rotationMin: new Vector3(-Math.PI, -Math.PI, -Math.PI),
-          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI)
+          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI),
+          followTargetRotation: true
         }
       ],
       effectorBoneName: BoneType.Head,
@@ -147,21 +210,24 @@ const defaultIKConfig = {
           boneAsAvatarProp: AvatarComponent.leftLowerArm,
           order: "YZX",
           rotationMin: new Vector3(0, -Math.PI, 0),
-          rotationMax: new Vector3(0, -(0.1 / 180) * Math.PI, 0)
+          rotationMax: new Vector3(0, -(0.1 / 180) * Math.PI, 0),
+          followTargetRotation: false
         },
         {
           boneName: BoneType.LeftUpperArm,
           boneAsAvatarProp: AvatarComponent.leftUpperArm,
           order: "ZXY",
           rotationMin: new Vector3(-Math.PI / 2, -Math.PI, -Math.PI),
-          rotationMax: new Vector3(Math.PI / 2, Math.PI, Math.PI)
+          rotationMax: new Vector3(Math.PI / 2, Math.PI, Math.PI),
+          followTargetRotation: false
         },
         {
           boneName: BoneType.LeftShoulder,
           boneAsAvatarProp: AvatarComponent.leftShoulder,
           order: "ZXY",
           rotationMin: new Vector3(0, -(45 / 180) * Math.PI, -(45 / 180) * Math.PI),
-          rotationMax: new Vector3(0, (45 / 180) * Math.PI, 0)
+          rotationMax: new Vector3(0, (45 / 180) * Math.PI, 0),
+          followTargetRotation: false
         }
       ],
       effectorBoneName: BoneType.LeftHand,
@@ -175,21 +241,24 @@ const defaultIKConfig = {
           boneAsAvatarProp: AvatarComponent.rightLowerArm,
           order: "YZX",
           rotationMin: new Vector3(0, (0.1 / 180) * Math.PI, 0),
-          rotationMax: new Vector3(0, Math.PI, 0)
+          rotationMax: new Vector3(0, Math.PI, 0),
+          followTargetRotation: false
         },
         {
           boneName: BoneType.RightUpperArm,
           boneAsAvatarProp: AvatarComponent.rightUpperArm,
           order: "ZXY",
           rotationMin: new Vector3(-Math.PI / 2, -Math.PI, -Math.PI),
-          rotationMax: new Vector3(Math.PI / 2, Math.PI, Math.PI)
+          rotationMax: new Vector3(Math.PI / 2, Math.PI, Math.PI),
+          followTargetRotation: false
         },
         {
           boneName: BoneType.RightShoulder,
           boneAsAvatarProp: AvatarComponent.rightShoulder,
           order: "ZXY",
           rotationMin: new Vector3(0, -(45 / 180) * Math.PI, 0),
-          rotationMax: new Vector3(0, (45 / 180) * Math.PI, (45 / 180) * Math.PI)
+          rotationMax: new Vector3(0, (45 / 180) * Math.PI, (45 / 180) * Math.PI),
+          followTargetRotation: false
         }
       ],
       effectorBoneName: BoneType.RightHand,
@@ -203,21 +272,24 @@ const defaultIKConfig = {
           boneAsAvatarProp: AvatarComponent.leftLowerLeg,
           order: "XYZ",
           rotationMin: new Vector3(-Math.PI, 0, 0),
-          rotationMax: new Vector3(0, 0, 0)
+          rotationMax: new Vector3(0, 0, 0),
+          followTargetRotation: false
         },
         {
           boneName: BoneType.LeftUpperLeg,
           boneAsAvatarProp: AvatarComponent.leftUpperLeg,
           order: "XYZ",
           rotationMin: new Vector3(-Math.PI, -Math.PI, -Math.PI),
-          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI)
+          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI),
+          followTargetRotation: false
         },
         {
           boneName: BoneType.Hips,
           boneAsAvatarProp: AvatarComponent.hips,
           order: "XYZ",
           rotationMin: new Vector3(-Math.PI, -Math.PI, -Math.PI),
-          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI)
+          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI),
+          followTargetRotation: false
         }
       ],
       effectorBoneName: BoneType.LeftFoot,
@@ -231,21 +303,24 @@ const defaultIKConfig = {
           boneAsAvatarProp: AvatarComponent.rightLowerLeg,
           order: "XYZ",
           rotationMin: new Vector3(-Math.PI, 0, 0),
-          rotationMax: new Vector3(0, 0, 0)
+          rotationMax: new Vector3(0, 0, 0),
+          followTargetRotation: false
         },
         {
           boneName: BoneType.RightUpperLeg,
           boneAsAvatarProp: AvatarComponent.rightUpperLeg,
           order: "XYZ",
           rotationMin: new Vector3(-Math.PI, -Math.PI, -Math.PI),
-          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI)
+          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI),
+          followTargetRotation: false
         },
         {
           boneName: BoneType.Hips,
           boneAsAvatarProp: AvatarComponent.hips,
           order: "XYZ",
           rotationMin: new Vector3(-Math.PI, -Math.PI, -Math.PI),
-          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI)
+          rotationMax: new Vector3(Math.PI, Math.PI, Math.PI),
+          followTargetRotation: false
         }
       ],
       effectorBoneName: BoneType.RightFoot,
