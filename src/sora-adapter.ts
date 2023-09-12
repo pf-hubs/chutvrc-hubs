@@ -6,7 +6,7 @@ import { AElement } from "aframe";
 import { AvatarObjects, AvatarPart, AvatarTransformBuffer, avatarPartTypes } from "./utils/avatar-transform-buffer";
 import { decodeAndSetAvatarTransform, decodePosition, decodeRotation, getAvatarSrc } from "./utils/avatar-utils";
 import { loadModel } from "./components/gltf-model-plus";
-import { createAvatarBoneEntities } from "./bit-systems/avatar-bones-system";
+import { createAvatarBoneEntities, removeAvatarEntityAndModel } from "./bit-systems/avatar-bones-system";
 const debug = newDebug("naf-dialog-adapter:debug");
 const sendStats: any[] = [];
 const recvStats: any[] = [];
@@ -42,6 +42,7 @@ export class SoraAdapter extends SfuAdapter {
   _recordStatsId: NodeJS.Timer | null;
   /* Implementation for using bitECS */
   _avatarEid2ClientId: Map<number, string>;
+  _clientId2AvatarEid: Map<string, number>;
   _clientId2avatarId: Map<string, string>;
   _rootTransformsBuffer: Map<string, Transform>;
   _headTransformsBuffer: Map<string, Transform>;
@@ -62,6 +63,7 @@ export class SoraAdapter extends SfuAdapter {
     this._remoteAvatarObjects = new Map<string, AvatarObjects>();
     /* Implementation for using bitECS */
     this._avatarEid2ClientId = new Map<number, string>();
+    this._clientId2AvatarEid = new Map<string, number>();
     this._clientId2avatarId = new Map<string, string>();
     this._rootTransformsBuffer = new Map<string, Transform>();
     this._headTransformsBuffer = new Map<string, Transform>();
@@ -110,6 +112,7 @@ export class SoraAdapter extends SfuAdapter {
     this._clientId = clientId;
     this._sendrecv = sora.sendrecv(channelId, metadata, options);
     this._sendrecv.on("notify", event => {
+      console.log(event.event_type);
       if (event.event_type === "connection.created") {
         if (event.client_id === this._clientId) {
           this.startRecordStats();
@@ -140,6 +143,9 @@ export class SoraAdapter extends SfuAdapter {
       if (event.event_type === "connection.updated") {
         this.emit("stream_updated", event.client_id, "audio");
         this.emit("stream_updated", event.client_id, "video");
+      }
+      if (event.event_type === "connection.destroyed" && event.client_id) {
+        removeAvatarEntityAndModel(APP.world, this._clientId2AvatarEid.get(event.client_id));
       }
     });
     this._sendrecv.on("track", event => {
@@ -203,7 +209,8 @@ export class SoraAdapter extends SfuAdapter {
                 APP.world,
                 gltf.scene,
                 clientId,
-                this._avatarEid2ClientId
+                this._avatarEid2ClientId,
+                this._clientId2AvatarEid
               );
               if (isAvatarBoneEntitiesSuccessfullyCreated) APP.world.scene.add(gltf.scene);
             });

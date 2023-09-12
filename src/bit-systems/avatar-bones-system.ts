@@ -1,11 +1,11 @@
-import { addComponent, addEntity, defineQuery } from "bitecs";
+import { addComponent, addEntity, defineQuery, removeEntity } from "bitecs";
 import { Object3D, Quaternion, Vector3 } from "three";
 import { BoneType } from "../constants";
 import { AvatarComponent, BoneComponent } from "../bit-components";
 import { addObject3DComponent } from "../utils/jsx-entity";
 import { HubsWorld } from "../app";
 import { mapAvatarBone } from "../utils/map-avatar-bones";
-import { avatarBoneIk } from "../utils/avatar-bone-ik";
+import { AvatarIk } from "../utils/avatar-ik";
 
 type Vector3Type = { x: number; y: number; z: number };
 type QuaternionType = { x: number; y: number; z: number };
@@ -166,11 +166,13 @@ export const createAvatarBoneEntities = (
   world: HubsWorld,
   avatar: Object3D,
   clientId: string,
-  avatarEid2ClientId: Map<number, string>
+  avatarEid2ClientId: Map<number, string>,
+  clientId2AvatarEid: Map<string, number>
 ): number | null => {
   const avatarBoneMap = mapAvatarBone(avatar);
   const boneType2Eid = new Map<BoneType, number>();
   const avatarRoot = avatarBoneMap.get(BoneType.Root);
+  // TODO: check avatar's orientation by relative positions between hands, etc. Then rotate the avatar if necessary.
 
   var boneEid;
   for (const boneType of Object.values(BoneType)) {
@@ -182,12 +184,15 @@ export const createAvatarBoneEntities = (
     const avatarEid = createAvatarEntity(APP.world, clientId, avatarEid2ClientId, boneType2Eid);
     if (avatarEid) {
       avatarEid2ClientId.set(avatarEid, clientId);
-      let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
-      let neckPos = avatarBoneMap.get(BoneType.Neck)?.position;
-      let headPos = avatarBoneMap.get(BoneType.Head)?.position;
-      if (chestPos && neckPos && headPos) {
-        invHipsToHeadVector.addVectors(chestPos, neckPos).add(headPos).negate();
-      }
+      clientId2AvatarEid.set(clientId, avatarEid);
+      APP.world.eid2obj.set(avatarEid, avatar);
+      APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid));
+      // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
+      // let neckPos = avatarBoneMap.get(BoneType.Neck)?.position;
+      // let headPos = avatarBoneMap.get(BoneType.Head)?.position;
+      // if (chestPos && neckPos && headPos) {
+      //   invHipsToHeadVector.addVectors(chestPos, neckPos).add(headPos).negate();
+      // }
       return avatarEid;
     }
   }
@@ -196,69 +201,46 @@ export const createAvatarBoneEntities = (
 
 export const avatarQuery = defineQuery([AvatarComponent]);
 
-let invHipsToHeadVector = new Vector3();
+// let invHipsToHeadVector = new Vector3();
 
 export const avatarIkSystem = (
   world: HubsWorld,
   avatarPoseInputs: InputTransform,
   avatarEid2ClientId: Map<number, string>
 ) => {
-  const {
-    time: { delta, elapsed }
-  } = world;
-  const avatarEntityEids = avatarQuery(world);
-
-  avatarEntityEids.forEach(avatarEid => {
-    const clientId = avatarEid2ClientId.get(avatarEid);
-    if (clientId) avatarBoneIk(world, avatarEid, avatarPoseInputs, clientId);
+  avatarQuery(world).forEach(avatarEid => {
+    APP.world.eid2Ik.get(avatarEid)?.updateAvatarBoneIk(avatarEid, avatarPoseInputs, avatarEid2ClientId.get(avatarEid));
   });
 
   return world;
 };
 
-/*
-const assignTransform = (
-  world: HubsWorld,
-  boneEid: number,
-  inputTransform: Transform | undefined,
-  isDebug?: boolean,
-  offset?: Transform
-) => {
-  if (!inputTransform) return;
-  world.eid2obj
-    .get(boneEid)
-    ?.position.set(
-      inputTransform.pos.x + (offset?.pos.x || 0),
-      inputTransform.pos.y + (offset?.pos.y || 0),
-      inputTransform.pos.z + (offset?.pos.z || 0)
-    );
-  world.eid2obj
-    .get(boneEid)
-    ?.rotation.set(
-      inputTransform.rot.y + (offset?.rot.x || 0),
-      inputTransform.rot.x + (offset?.rot.y || 0),
-      inputTransform.rot.z + (offset?.rot.z || 0)
-    );
-  // BoneComponent.transform.position.x[boneEid] = inputTransform.pos.x + (offset?.pos.x || 0);
-  // BoneComponent.transform.position.y[boneEid] = inputTransform.pos.y + (offset?.pos.y || 0);
-  // BoneComponent.transform.position.z[boneEid] = inputTransform.pos.z + (offset?.pos.z || 0);
-  // BoneComponent.transform.rotation.y[boneEid] = inputTransform.rot.x + (offset?.rot.y || 0);
-  // BoneComponent.transform.rotation.x[boneEid] = inputTransform.rot.y + (offset?.rot.x || 0);
-  // BoneComponent.transform.rotation.z[boneEid] = inputTransform.rot.z + (offset?.rot.z || 0);
-  world.eid2obj.get(boneEid)?.rotation?._onChangeCallback();
-  world.eid2obj.get(boneEid)?.updateMatrix();
+export const removeAvatarEntityAndModel = (world: HubsWorld, avatarEid: number | undefined) => {
+  console.log(avatarEid);
+  if (!avatarEid) return;
+  const model = world.eid2obj.get(avatarEid);
+  console.log(model);
+  if (model) world.scene.remove(model);
 
-  if (isDebug) {
-    let worldPos = new Vector3();
-    let worldRot = new Quaternion();
-    let worldScale = new Vector3();
-
-    world.eid2obj.get(boneEid)?.matrixWorld.decompose(worldPos, worldRot, worldScale);
-    console.log("-----" + world.eid2obj.get(boneEid)?.name + "-----");
-    console.log(world.eid2obj.get(boneEid)?.position);
-    console.log(world.eid2obj.get(boneEid)?.rotation);
-    console.log(worldPos);
-    console.log(worldRot);
-  }
+  removeEntity(world, AvatarComponent.root[avatarEid]);
+  removeEntity(world, AvatarComponent.hips[avatarEid]);
+  removeEntity(world, AvatarComponent.spine[avatarEid]);
+  removeEntity(world, AvatarComponent.chest[avatarEid]);
+  removeEntity(world, AvatarComponent.neck[avatarEid]);
+  removeEntity(world, AvatarComponent.head[avatarEid]);
+  removeEntity(world, AvatarComponent.leftUpperLeg[avatarEid]);
+  removeEntity(world, AvatarComponent.leftLowerLeg[avatarEid]);
+  removeEntity(world, AvatarComponent.leftFoot[avatarEid]);
+  removeEntity(world, AvatarComponent.rightUpperLeg[avatarEid]);
+  removeEntity(world, AvatarComponent.rightLowerLeg[avatarEid]);
+  removeEntity(world, AvatarComponent.rightFoot[avatarEid]);
+  removeEntity(world, AvatarComponent.leftShoulder[avatarEid]);
+  removeEntity(world, AvatarComponent.leftUpperArm[avatarEid]);
+  removeEntity(world, AvatarComponent.leftLowerArm[avatarEid]);
+  removeEntity(world, AvatarComponent.leftHand[avatarEid]);
+  removeEntity(world, AvatarComponent.rightShoulder[avatarEid]);
+  removeEntity(world, AvatarComponent.rightUpperArm[avatarEid]);
+  removeEntity(world, AvatarComponent.rightLowerArm[avatarEid]);
+  removeEntity(world, AvatarComponent.rightHand[avatarEid]);
+  removeEntity(world, avatarEid);
 };
-*/

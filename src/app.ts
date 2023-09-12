@@ -33,6 +33,7 @@ import { SfuAdapter } from "./sfu-adapter";
 import { DialogAdapter } from "./naf-dialog-adapter";
 import { addObject3DComponent } from "./utils/jsx-entity";
 import { ElOrEid } from "./utils/bit-utils";
+import { AvatarIk } from "./utils/avatar-ik";
 
 declare global {
   interface Window {
@@ -55,6 +56,7 @@ export interface HubsWorld extends IWorld {
   nid2eid: Map<number, number>;
   eid2obj: Map<number, Object3D>;
   eid2mat: Map<number, Material>;
+  eid2Ik: Map<number, AvatarIk>;
   time: { delta: number; elapsed: number; tick: number };
 }
 
@@ -130,6 +132,7 @@ export class App {
     // TODO: Create accessor / update methods for these maps / set
     this.world.eid2obj = new Map();
     this.world.eid2mat = new Map();
+    this.world.eid2Ik = new Map();
 
     this.world.nid2eid = new Map();
     this.world.deletedNids = new Set();

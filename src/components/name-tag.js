@@ -1,3 +1,4 @@
+// TODO: set nametag visibility and position depending on not aframe components but avatars loaded by BitECS
 import anime from "animejs";
 import MovingAverage from "moving-average";
 import { getThemeColor } from "../utils/theme";

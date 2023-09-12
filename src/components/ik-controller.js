@@ -1,6 +1,7 @@
 import { defineQuery } from "bitecs";
 import { CameraTool } from "../bit-components";
 import { waitForDOMContentLoaded } from "../utils/async-utils";
+
 const { Vector3, Quaternion, Matrix4, Euler } = THREE;
 
 function quaternionAlmostEquals(epsilon, u, v) {
@@ -131,6 +132,14 @@ AFRAME.registerComponent("ik-controller", {
 
   update(oldData) {
     this.avatar = this.el.object3D;
+    // const boneType2Obj = mapAvatarBone(this.avatar);
+    // this.leftEye = boneType2Obj[BoneType.LeftEye];
+    // this.rightEye = boneType2Obj[BoneType.RightEye];
+    // this.head = boneType2Obj[BoneType.Head];
+    // this.neck = boneType2Obj[BoneType.Neck];
+    // this.leftHand = boneType2Obj[BoneType.LeftHand];
+    // this.rightHand = boneType2Obj[BoneType.RightHand];
+    // this.chest = boneType2Obj[BoneType.Chest];
 
     if (this.data.leftEye !== oldData.leftEye) {
       this.leftEye = this.el.object3D.getObjectByName(this.data.leftEye);
@@ -161,12 +170,20 @@ AFRAME.registerComponent("ik-controller", {
     }
 
     // Set middleEye's position to be right in the middle of the left and right eyes.
-    // this.middleEyePosition.addVectors(this.leftEye.position, this.rightEye.position);
-    // this.middleEyePosition.divideScalar(2);
-    // this.middleEyeMatrix.makeTranslation(this.middleEyePosition.x, this.middleEyePosition.y, this.middleEyePosition.z);
-    // this.invMiddleEyeToHead = this.middleEyeMatrix.copy(this.middleEyeMatrix).invert();
+    if (this.leftEye && this.rightEye) {
+      this.middleEyePosition.addVectors(this.leftEye.position, this.rightEye.position);
+      this.middleEyePosition.divideScalar(2);
+      this.middleEyeMatrix.makeTranslation(
+        this.middleEyePosition.x,
+        this.middleEyePosition.y,
+        this.middleEyePosition.z
+      );
+      this.invMiddleEyeToHead = this.middleEyeMatrix.copy(this.middleEyeMatrix).invert();
+    }
 
-    // this.invHipsToHeadVector.addVectors(this.chest.position, this.neck.position).add(this.head.position).negate();
+    if (this.head && this.neck && this.chest) {
+      this.invHipsToHeadVector.addVectors(this.chest.position, this.neck.position).add(this.head.position).negate();
+    }
   },
 
   tick(time, dt) {
@@ -268,6 +285,17 @@ AFRAME.registerComponent("ik-controller", {
       if (neck) neck.matrixNeedsUpdate = true;
       if (head) head.matrixNeedsUpdate = true;
       if (chest) chest.matrixNeedsUpdate = true;
+
+      // const worldPos = new Vector3();
+      // const worldRot = new Quaternion();
+      // const worldScale = new Vector3();
+      // head.matrixWorld.decompose(worldPos, worldRot, worldScale);
+      // console.log("=========");
+      // console.log(head.position);
+      // console.log(head.matrixWorld);
+      // console.log(worldPos);
+      // console.log(worldRot);
+      // console.log("=========");
     }
 
     const { leftHand, rightHand } = this;
