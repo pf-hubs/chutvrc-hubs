@@ -185,8 +185,12 @@ export const createAvatarBoneEntities = (
     if (avatarEid) {
       avatarEid2ClientId.set(avatarEid, clientId);
       clientId2AvatarEid.set(clientId, avatarEid);
-      APP.world.eid2obj.set(avatarEid, avatar);
-      APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid));
+      addObject3DComponent(world, avatarEid, avatar);
+
+      const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
+      const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
+      APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid, rightHandX - leftHandX > 0));
+
       // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
       // let neckPos = avatarBoneMap.get(BoneType.Neck)?.position;
       // let headPos = avatarBoneMap.get(BoneType.Head)?.position;
@@ -216,10 +220,8 @@ export const avatarIkSystem = (
 };
 
 export const removeAvatarEntityAndModel = (world: HubsWorld, avatarEid: number | undefined) => {
-  console.log(avatarEid);
   if (!avatarEid) return;
   const model = world.eid2obj.get(avatarEid);
-  console.log(model);
   if (model) world.scene.remove(model);
 
   removeEntity(world, AvatarComponent.root[avatarEid]);

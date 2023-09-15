@@ -50,6 +50,7 @@ const alignBoneWithTarget = (joint: Object3D, effector: Object3D, target: Vector
 
 export class AvatarIk {
   private world: HubsWorld;
+  private isFlippedY: boolean;
   private rootBone: Object3D | undefined;
   private rootPos: Vector3;
   private rootRot: Quaternion;
@@ -57,8 +58,9 @@ export class AvatarIk {
   private currentJoint: Object3D | undefined;
   private currentInputPosition: Vector3;
 
-  constructor(world: HubsWorld, avatarEid: number) {
+  constructor(world: HubsWorld, avatarEid: number, isFlippedY: boolean) {
     this.world = world;
+    this.isFlippedY = isFlippedY;
     this.rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
     this.rootPos = new Vector3();
     this.rootRot = new Quaternion();
@@ -84,7 +86,11 @@ export class AvatarIk {
 
   private updateRootBone(rootBone: Object3D, rootInput: any, hmdRot?: any) {
     rootBone.position.set(rootInput.pos.x, rootInput.pos.y, rootInput.pos.z);
-    rootBone.rotation.set(rootInput.rot.y, rootInput.rot.x + (hmdRot?.x || 0), rootInput.rot.z);
+    rootBone.rotation.set(
+      this.isFlippedY ? rootInput.rot.y : -rootInput.rot.y,
+      rootInput.rot.x + (hmdRot?.x || 0) + (this.isFlippedY ? 0 : Math.PI),
+      rootInput.rot.z
+    );
     rootBone.rotation._onChangeCallback();
     rootBone.updateMatrix();
   }
@@ -134,7 +140,11 @@ export class AvatarIk {
     }
 
     if (effector) {
-      effector.rotation.set(targetRot.y, chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.x, targetRot.z);
+      effector.rotation.set(
+        this.isFlippedY ? targetRot.y : -targetRot.y,
+        chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.x,
+        targetRot.z
+      );
       effector.rotation._onChangeCallback();
       effector.updateMatrix();
     }
