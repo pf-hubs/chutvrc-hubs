@@ -138,6 +138,7 @@ import "./components/avatar-audio-source";
 import "./components/avatar-inspect-collider";
 import "./components/video-texture-target";
 import "./components/mirror";
+import "./components/test-movement";
 
 import ReactDOM from "react-dom";
 import React from "react";
@@ -661,6 +662,7 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
           APP.usingSfu = SFU.DIALOG;
           APP.sfu = APP.dialog;
           listenSfuConnection(scene);
+          registerNetworkSchemas();
           APP.sfu.connect({
             serverUrl: `wss://${hub.host}:4443`,
             roomId: hub.hub_id,
@@ -676,6 +678,7 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
           APP.usingSfu = SFU.SORA;
           APP.sfu = APP.sora;
           listenSfuConnection(scene);
+          registerNetworkSchemas();
           APP.sfu.connect({
             clientId: data.session_id,
             channelId: data.sora_channel_id,
@@ -980,7 +983,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  registerNetworkSchemas();
+  // registerNetworkSchemas();
 
   remountUI({
     authChannel,

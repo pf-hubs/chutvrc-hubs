@@ -1635,6 +1635,30 @@ class UIRoot extends Component {
                             APP.sfu.downloadRecordedStats();
                           }}
                         />
+                        <ToolbarButton
+                          icon={<DocumentIcon />}
+                          label={"Test"}
+                          preset="accent5"
+                          onClick={() => {
+                            let blob = new Blob([JSON.stringify(APP.audioTimestamps)], { type: "text/json" });
+                            let link = document.createElement("a");
+                            document.body.appendChild(link);
+                            link.href = window.URL.createObjectURL(blob);
+                            link.setAttribute("download", "audio_" + APP.usingSfu.toString() + ".json");
+                            link.click();
+                            document.body.removeChild(link);
+                            APP.audioTimestamps = [];
+
+                            blob = new Blob([JSON.stringify(APP.transformTimestamps)], { type: "text/json" });
+                            link = document.createElement("a");
+                            document.body.appendChild(link);
+                            link.href = window.URL.createObjectURL(blob);
+                            link.setAttribute("download", "transform_" + APP.usingSfu.toString() + ".json");
+                            link.click();
+                            document.body.removeChild(link);
+                            APP.transformTimestamps = [];
+                          }}
+                        />
                       </>
                     )}
                     {!isLockedDownDemo && (

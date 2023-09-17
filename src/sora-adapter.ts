@@ -247,6 +247,8 @@ export class SoraAdapter extends SfuAdapter {
           });
         }
         if (avatarPart === AvatarPart.LEFT) {
+          // @ts-ignore
+          APP.transformTimestamps.push([decodePosition(encodedTransform), Date.now()]);
           this._leftHandTransformsBuffer.set(clientId, {
             pos: decodePosition(encodedTransform),
             rot: decodeRotation(encodedTransform)
@@ -474,6 +476,7 @@ export class SoraAdapter extends SfuAdapter {
     const trySetRemoteAvatar = () => {
       const remoteClientAvatar = document.querySelector(`[client-id="${clientId}"]`);
       if (remoteClientAvatar && clientId) {
+        console.log(remoteClientAvatar.querySelector(".left-controller"));
         const parts: AvatarObjects = {
           [AvatarPart.RIG]: (remoteClientAvatar as AElement).object3D,
           [AvatarPart.HEAD]: (remoteClientAvatar.querySelector(".camera") as AElement).object3D,
