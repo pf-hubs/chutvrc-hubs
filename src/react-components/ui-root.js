@@ -1637,7 +1637,7 @@ class UIRoot extends Component {
                         />
                         <ToolbarButton
                           icon={<DocumentIcon />}
-                          label={"Test"}
+                          label={"Remote Sync Test"}
                           preset="accent5"
                           onClick={() => {
                             let blob = new Blob([JSON.stringify(APP.audioTimestamps)], { type: "text/json" });
@@ -1654,6 +1654,30 @@ class UIRoot extends Component {
                             document.body.appendChild(link);
                             link.href = window.URL.createObjectURL(blob);
                             link.setAttribute("download", "transform_" + APP.usingSfu.toString() + ".json");
+                            link.click();
+                            document.body.removeChild(link);
+                            APP.transformTimestamps = [];
+                          }}
+                        />
+                        <ToolbarButton
+                          icon={<DocumentIcon />}
+                          label={"Local Sync Test"}
+                          preset="accent5"
+                          onClick={() => {
+                            let blob = new Blob([JSON.stringify(APP.localAudioTimestamps)], { type: "text/json" });
+                            let link = document.createElement("a");
+                            document.body.appendChild(link);
+                            link.href = window.URL.createObjectURL(blob);
+                            link.setAttribute("download", "local_audio_" + APP.usingSfu.toString() + ".json");
+                            link.click();
+                            document.body.removeChild(link);
+                            APP.audioTimestamps = [];
+
+                            blob = new Blob([JSON.stringify(APP.localTransformTimestamps)], { type: "text/json" });
+                            link = document.createElement("a");
+                            document.body.appendChild(link);
+                            link.href = window.URL.createObjectURL(blob);
+                            link.setAttribute("download", "local_transform_" + APP.usingSfu.toString() + ".json");
                             link.click();
                             document.body.removeChild(link);
                             APP.transformTimestamps = [];

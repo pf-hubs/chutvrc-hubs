@@ -12,6 +12,7 @@ AFRAME.registerComponent("test-movement", {
     const cnt = elapsedTime * 0.001;
     if (cnt / Math.PI < 1) {
       this.el.object3D.position.set(-1, 1 + Math.sin(cnt * 2), Math.cos(cnt * 2));
+      APP.localTransformTimestamps.push([this.el.object3D.position, Date.now()]);
     }
     // console.log(this.el.object3D.position);
     if (cnt / (Math.PI * 2) > 1) {

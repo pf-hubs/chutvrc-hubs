@@ -115,6 +115,8 @@ export class App {
   dialog = dialogAdapter;
   sora = soraAdapter;
 
+  localAudioTimestamps = [];
+  localTransformTimestamps = [];
   audioTimestamps = [];
   transformTimestamps = [];
 
