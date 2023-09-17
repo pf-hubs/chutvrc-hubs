@@ -138,7 +138,6 @@ import "./components/avatar-audio-source";
 import "./components/avatar-inspect-collider";
 import "./components/video-texture-target";
 import "./components/mirror";
-import "./components/test-movement";
 
 import ReactDOM from "react-dom";
 import React from "react";

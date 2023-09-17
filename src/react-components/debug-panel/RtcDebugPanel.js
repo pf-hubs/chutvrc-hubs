@@ -7,10 +7,6 @@ import { Button } from "../input/Button.js";
 import styles from "./RtcDebugPanel.scss";
 import { FormattedMessage } from "react-intl";
 import { AudioDebugPanel } from "./AudioDebugPanel";
-import { SFU } from "../../available-sfu";
-
-const sendStats = [];
-const recvStats = [];
 
 const isMobile = AFRAME.utils.device.isMobile();
 
@@ -659,7 +655,6 @@ export default class RtcDebugPanel extends Component {
 
   createProducers(producers = [], stats) {
     return producers.map(producer => {
-      if (this.state.isRecording) sendStats.push(stats[producer.id]);
       return (
         <TrackStatsPanel
           key={producer.id}
@@ -692,7 +687,6 @@ export default class RtcDebugPanel extends Component {
     const components = [];
     for (const [, reducedConsumer] of Object.entries(reducedConsumers)) {
       const consumerPanels = reducedConsumer.consumers.map(consumer => {
-        if (this.state.isRecording) recvStats.push(stats[consumer.id]);
         return (
           <TrackStatsPanel
             key={consumer.id}

@@ -1627,62 +1627,6 @@ class UIRoot extends Component {
                             initialPresence={getPresenceProfileForSession(this.props.presences, this.props.sessionId)}
                           />
                         )}
-                        <ToolbarButton
-                          icon={<DocumentIcon />}
-                          label={"Stats"}
-                          preset="accent5"
-                          onClick={() => {
-                            APP.sfu.downloadRecordedStats();
-                          }}
-                        />
-                        <ToolbarButton
-                          icon={<DocumentIcon />}
-                          label={"Remote Sync Test"}
-                          preset="accent5"
-                          onClick={() => {
-                            let blob = new Blob([JSON.stringify(APP.audioTimestamps)], { type: "text/json" });
-                            let link = document.createElement("a");
-                            document.body.appendChild(link);
-                            link.href = window.URL.createObjectURL(blob);
-                            link.setAttribute("download", "audio_" + APP.usingSfu.toString() + ".json");
-                            link.click();
-                            document.body.removeChild(link);
-                            APP.audioTimestamps = [];
-
-                            blob = new Blob([JSON.stringify(APP.transformTimestamps)], { type: "text/json" });
-                            link = document.createElement("a");
-                            document.body.appendChild(link);
-                            link.href = window.URL.createObjectURL(blob);
-                            link.setAttribute("download", "transform_" + APP.usingSfu.toString() + ".json");
-                            link.click();
-                            document.body.removeChild(link);
-                            APP.transformTimestamps = [];
-                          }}
-                        />
-                        <ToolbarButton
-                          icon={<DocumentIcon />}
-                          label={"Local Sync Test"}
-                          preset="accent5"
-                          onClick={() => {
-                            let blob = new Blob([JSON.stringify(APP.localAudioTimestamps)], { type: "text/json" });
-                            let link = document.createElement("a");
-                            document.body.appendChild(link);
-                            link.href = window.URL.createObjectURL(blob);
-                            link.setAttribute("download", "local_audio_" + APP.usingSfu.toString() + ".json");
-                            link.click();
-                            document.body.removeChild(link);
-                            APP.audioTimestamps = [];
-
-                            blob = new Blob([JSON.stringify(APP.localTransformTimestamps)], { type: "text/json" });
-                            link = document.createElement("a");
-                            document.body.appendChild(link);
-                            link.href = window.URL.createObjectURL(blob);
-                            link.setAttribute("download", "local_transform_" + APP.usingSfu.toString() + ".json");
-                            link.click();
-                            document.body.removeChild(link);
-                            APP.transformTimestamps = [];
-                          }}
-                        />
                       </>
                     )}
                     {!isLockedDownDemo && (

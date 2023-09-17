@@ -115,11 +115,6 @@ export class App {
   dialog = dialogAdapter;
   sora = soraAdapter;
 
-  localAudioTimestamps = [];
-  localTransformTimestamps = [];
-  audioTimestamps = [];
-  transformTimestamps = [];
-
   RENDER_ORDER = {
     HUD_BACKGROUND: 1,
     HUD_ICONS: 2,

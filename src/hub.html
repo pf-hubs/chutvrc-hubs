@@ -95,7 +95,7 @@
                         <a-entity class="inspect-pivot" inspect-pivot-offset-from-camera></a-entity>
                     </a-entity>
 
-                    <a-entity class="left-controller" test-receive-movement></a-entity>
+                    <a-entity class="left-controller"></a-entity>
 
                     <a-entity class="right-controller"></a-entity>
 
@@ -797,12 +797,12 @@
             </a-entity>
 
 
-            <a-entity id="player-left-controller" class="left-controller" hand-left test-movement hand-controls2="left"
+            <a-entity id="player-left-controller" class="left-controller" hand-left hand-controls2="left"
                 teleporter="start: /actions/leftHand/startTeleport; confirm: /actions/leftHand/stopTeleport;"
                 body-helper="type: kinematic; emitCollisionEvents: false; disableCollision: true; collisionFilterGroup: 8; collisionFilterMask: 3; activationState: disable_deactivation; scaleAutoUpdate: false;"
                 shape-helper="type: box; fit: manual; halfExtents: 0.03 0.04 0.05; offset: 0 0 -0.04" set-yxz-order>
             </a-entity>
-            <!-- <a-entity id="player-left-controller" class="left-controller" hand-left test-movement
+            <!-- <a-entity id="player-left-controller" class="left-controller" hand-left
                 track-pose="path: /actions/leftHand/matrix" visibility-by-path="path: /actions/leftHand/matrix"
                 hand-controls2="left"
                 teleporter="start: /actions/leftHand/startTeleport; confirm: /actions/leftHand/stopTeleport;"

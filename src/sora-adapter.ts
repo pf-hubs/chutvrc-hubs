@@ -8,8 +8,6 @@ import { decodeAndSetAvatarTransform, decodePosition, decodeRotation, getAvatarS
 import { loadModel } from "./components/gltf-model-plus";
 import { createAvatarBoneEntities, removeAvatarEntityAndModel } from "./bit-systems/avatar-bones-system";
 const debug = newDebug("naf-dialog-adapter:debug");
-const sendStats: any[] = [];
-const recvStats: any[] = [];
 
 type ConnectProps = {
   clientId: string;
@@ -39,7 +37,6 @@ export class SoraAdapter extends SfuAdapter {
   _scene: Element | null;
   _remoteAvatarObjects: Map<string, AvatarObjects>;
   _selfAvatarTransformBuffer: AvatarTransformBuffer;
-  _recordStatsId: NodeJS.Timer | null;
   /* Implementation for using bitECS */
   _avatarEid2ClientId: Map<number, string>;
   _clientId2AvatarEid: Map<string, number>;
@@ -114,10 +111,6 @@ export class SoraAdapter extends SfuAdapter {
     this._sendrecv.on("notify", event => {
       console.log(event.event_type);
       if (event.event_type === "connection.created") {
-        if (event.client_id === this._clientId) {
-          this.startRecordStats();
-        }
-
         event.data?.forEach(c => {
           // clients entering this room earlier
           if (c.client_id && c.connection_id && !this._clientStreamIdPair.has(c.client_id)) {
@@ -247,8 +240,6 @@ export class SoraAdapter extends SfuAdapter {
           });
         }
         if (avatarPart === AvatarPart.LEFT) {
-          // @ts-ignore
-          APP.transformTimestamps.push([decodePosition(encodedTransform), Date.now()]);
           this._leftHandTransformsBuffer.set(clientId, {
             pos: decodePosition(encodedTransform),
             rot: decodeRotation(encodedTransform)
@@ -539,50 +530,5 @@ export class SoraAdapter extends SfuAdapter {
     if (requests && Object.keys(requests).length === 0) {
       this._pendingMediaRequests.delete(clientId);
     }
-  }
-
-  startRecordStats() {
-    this._recordStatsId = setInterval(async () => {
-      (await this._sendrecv?.pc?.getStats())?.forEach(stat => {
-        if (stat.type === "outbound-rtp") {
-          sendStats.push({
-            id: stat.id,
-            kind: stat.kind,
-            timestamp: stat.timestamp,
-            bytes: stat.bytesSent
-          });
-        }
-        if (stat.type === "inbound-rtp") {
-          recvStats.push({
-            id: stat.id,
-            kind: stat.kind,
-            timestamp: stat.timestamp,
-            bytes: stat.bytesReceived
-          });
-        }
-      });
-      if (sendStats.length > 10000) sendStats.shift();
-      if (recvStats.length > 10000) recvStats.shift();
-    }, 3000);
-  }
-
-  downloadRecordedStats() {
-    const currentTimestamp = Date.now();
-
-    const sendStatsBlob = new Blob([JSON.stringify(sendStats)], { type: "text/json" });
-    const sendStatslink = document.createElement("a");
-    document.body.appendChild(sendStatslink);
-    sendStatslink.href = window.URL.createObjectURL(sendStatsBlob);
-    sendStatslink.setAttribute("download", "sendStats_sora_" + currentTimestamp + ".json");
-    sendStatslink.click();
-    document.body.removeChild(sendStatslink);
-
-    const recvStatsBlob = new Blob([JSON.stringify(recvStats)], { type: "text/json" });
-    const recvStatsLink = document.createElement("a");
-    document.body.appendChild(recvStatsLink);
-    recvStatsLink.href = window.URL.createObjectURL(recvStatsBlob);
-    recvStatsLink.setAttribute("download", "recvStats_sora_" + currentTimestamp + ".json");
-    recvStatsLink.click();
-    document.body.removeChild(recvStatsLink);
   }
 }
