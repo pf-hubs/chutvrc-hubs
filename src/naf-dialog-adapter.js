@@ -444,7 +444,7 @@ export class DialogAdapter extends SfuAdapter {
     this._protoo.removeAllListeners();
     const serverParams = await APP.hubChannel.getHost();
     const { host, port } = serverParams;
-    const newServerUrl = `wss://${host}:${port}`;
+    const newServerUrl = `wss://${host}:4443`;
     if (this._serverUrl === newServerUrl) {
       console.error("Reconnect to dialog failed.");
       this.emit(SFU_CONNECTION_ERROR_FATAL);

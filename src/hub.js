@@ -543,6 +543,18 @@ function onConnectionError(entryManager, connectError) {
   entryManager.exitScene();
 }
 
+function listenSfuConnection(scene) {
+  APP.sfu.on(SFU_CONNECTION_CONNECTED, () => {
+    scene.emit("didConnectToSfu");
+  });
+  APP.sfu.on(SFU_CONNECTION_ERROR_FATAL, () => {
+    // TODO: Change the wording of the connect error to match dialog connection error
+    // TODO: Tell the user that dialog is broken, but don't completely end the experience
+    remountUI({ roomUnavailableReason: ExitReason.connectError });
+    APP.entryManager.exitScene();
+  });
+}
+
 // TODO: Find a home for this
 // TODO: Naming. Is this an "event bus"?
 const events = emitter();
@@ -573,7 +585,8 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
 
   const hub = data.hubs[0];
 
-  console.log(`Dialog host: ${hub.host}:${hub.port}`);
+  // console.log(`Dialog host: ${hub.host}:${hub.port}`);
+  console.log(`Dialog host: ${hub.host}`);
 
   remountUI({
     messageDispatch: messageDispatch,
@@ -647,8 +660,9 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
         case 1:
           APP.usingSfu = SFU.DIALOG;
           APP.sfu = APP.dialog;
+          listenSfuConnection(scene);
           APP.sfu.connect({
-            serverUrl: `wss://${hub.host}:${hub.port}`,
+            serverUrl: `wss://${hub.host}:4443`,
             roomId: hub.hub_id,
             serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
             scene,
@@ -661,6 +675,7 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
         default:
           APP.usingSfu = SFU.SORA;
           APP.sfu = APP.sora;
+          listenSfuConnection(scene);
           APP.sfu.connect({
             clientId: data.session_id,
             channelId: data.sora_channel_id,
@@ -799,6 +814,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const entryManager = new SceneEntryManager(hubChannel, authChannel, history);
   window.APP.entryManager = entryManager;
 
+  /*
   APP.sfu.on(SFU_CONNECTION_CONNECTED, () => {
     scene.emit("didConnectToSfu");
   });
@@ -808,6 +824,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     remountUI({ roomUnavailableReason: ExitReason.connectError });
     APP.entryManager.exitScene();
   });
+  */
 
   const audioSystem = scene.systems["hubs-systems"].audioSystem;
   APP.mediaDevicesManager = new MediaDevicesManager(scene, store, audioSystem);
