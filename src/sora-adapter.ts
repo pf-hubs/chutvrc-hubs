@@ -248,7 +248,7 @@ export class SoraAdapter extends SfuAdapter {
         }
         if (avatarPart === AvatarPart.LEFT) {
           // @ts-ignore
-          APP.transformTimestamps.push([decodePosition(encodedTransform), Date.now()]);
+          APP.transformTimestamps.push([decodePosition(encodedTransform).z, Date.now()]);
           this._leftHandTransformsBuffer.set(clientId, {
             pos: decodePosition(encodedTransform),
             rot: decodeRotation(encodedTransform)
