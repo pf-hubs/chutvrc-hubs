@@ -71,7 +71,12 @@ export class AvatarIk {
     if (!this.rootBone || !clientId) return;
     this.rootInput = poseInputs.rig?.get(clientId);
     if (this.rootInput) {
-      this.updateRootBone(this.rootBone, this.rootInput, poseInputs.hmd?.get(clientId)?.rot);
+      this.updateRootBone(
+        this.rootBone,
+        this.rootInput,
+        poseInputs.hmd?.get(clientId)?.rot,
+        AvatarComponent.leftFoot[avatarEid] === 0 && AvatarComponent.rightFoot[avatarEid] === 0
+      );
     }
 
     this.rootBone.getWorldPosition(this.rootPos);
@@ -84,10 +89,10 @@ export class AvatarIk {
     }
   }
 
-  private updateRootBone(rootBone: Object3D, rootInput: any, hmdRot?: any) {
-    rootBone.position.set(rootInput.pos.x, rootInput.pos.y, rootInput.pos.z);
+  private updateRootBone(rootBone: Object3D, rootInput: any, hmdRot?: any, noLegs = false) {
+    rootBone.position.set(rootInput.pos.x, rootInput.pos.y + noLegs ? 1 : 0, rootInput.pos.z);
     rootBone.rotation.set(
-      this.isFlippedY ? rootInput.rot.y : -rootInput.rot.y,
+      rootInput.rot.y,
       rootInput.rot.x + (hmdRot?.x || 0) + (this.isFlippedY ? 0 : Math.PI),
       rootInput.rot.z
     );
