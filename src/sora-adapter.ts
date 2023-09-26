@@ -109,7 +109,6 @@ export class SoraAdapter extends SfuAdapter {
     this._clientId = clientId;
     this._sendrecv = sora.sendrecv(channelId, metadata, options);
     this._sendrecv.on("notify", event => {
-      console.log(event.event_type);
       if (event.event_type === "connection.created") {
         event.data?.forEach(c => {
           // clients entering this room earlier
@@ -467,7 +466,6 @@ export class SoraAdapter extends SfuAdapter {
     const trySetRemoteAvatar = () => {
       const remoteClientAvatar = document.querySelector(`[client-id="${clientId}"]`);
       if (remoteClientAvatar && clientId) {
-        console.log(remoteClientAvatar.querySelector(".left-controller"));
         const parts: AvatarObjects = {
           [AvatarPart.RIG]: (remoteClientAvatar as AElement).object3D,
           [AvatarPart.HEAD]: (remoteClientAvatar.querySelector(".camera") as AElement).object3D,

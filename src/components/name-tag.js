@@ -9,6 +9,7 @@ import { createPlaneBufferGeometry, setMatrixWorld } from "../utils/three-utils"
 import { textureLoader } from "../utils/media-utils";
 
 import handRaisedIconSrc from "../assets/hud/hand-raised.png";
+import { AvatarComponent } from "../bit-components";
 
 const DEBUG = qsTruthy("debug");
 const NAMETAG_BACKGROUND_PADDING = 0.05;
@@ -120,12 +121,14 @@ AFRAME.registerComponent("name-tag", {
     const worldPos = new THREE.Vector3();
     const mat = new THREE.Matrix4();
     return function (t) {
-      if (!this.isAvatarReady) {
-        this.nametag.visible = false;
-        return;
-      }
+      console.log("this.isAvatarReady : " + this.isAvatarReady);
+      console.log("this.nametag.visible : " + this.nametag.visible);
+      // if (!this.isAvatarReady) {
+      //   this.nametag.visible = false;
+      //   return;
+      // }
       this.wasTalking = this.isTalking;
-      this.isTalking = this.audioAnalyzer.avatarIsTalking;
+      this.isTalking = this.audioAnalyzer?.avatarIsTalking || false;
 
       if (this.shouldBeVisible) {
         this.nametag.visible = true;
@@ -156,11 +159,18 @@ AFRAME.registerComponent("name-tag", {
         this.modBadge.visible = this.isOwner && !this.isRecording;
         this.handRaised.visible = this.isHandRaised;
 
-        this.neck.getWorldPosition(worldPos);
-        worldPos.setY(this.nametagElPosY + this.ikRoot.position.y);
-        mat.copy(this.nametag.matrixWorld);
-        mat.setPosition(worldPos);
-        setMatrixWorld(this.nametag, mat);
+        if (!this.neck && this.ikRoot) {
+          this.neck = APP.world.eid2obj.get(
+            AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
+          );
+        }
+        if (this.ikRoot) {
+          this.neck?.getWorldPosition(worldPos);
+          worldPos.setY(this.nametagElPosY + this.ikRoot.position.y);
+          mat.copy(this.nametag.matrixWorld);
+          mat.setPosition(worldPos);
+          setMatrixWorld(this.nametag, mat);
+        }
       } else {
         this.nametag.visible = false;
       }
@@ -180,6 +190,7 @@ AFRAME.registerComponent("name-tag", {
     this.el.sceneEl.addEventListener("presence_updated", this.onPresenceUpdated);
     window.APP.store.addEventListener("statechanged", this.onStateChanged);
     this.el.sceneEl.systems["hubs-systems"].nameTagSystem.register(this);
+    this.onModelIkFirstTick();
   },
 
   pause() {
@@ -244,17 +255,22 @@ AFRAME.registerComponent("name-tag", {
   onModelLoading() {
     this.model = null;
     this.isAvatarReady = false;
+    console.log("onModelLoading");
   },
 
   onModelLoaded({ detail: { model } }) {
     this.model = model;
+    console.log("onModelLoaded");
   },
 
   async onModelIkFirstTick() {
     await nextTick();
     this.ikRoot = findAncestorWithComponent(this.el, "ik-root").object3D;
-    this.neck = this.ikRoot.el.querySelector(".Neck").object3D;
-    this.audioAnalyzer = this.ikRoot.el.querySelector(".AvatarRoot").components["networked-audio-analyser"];
+    // this.neck = this.ikRoot.el.querySelector(".Neck").object3D;
+    this.neck = APP.world.eid2obj.get(
+      AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
+    );
+    this.audioAnalyzer = this.ikRoot.el.querySelector(".model").components["networked-audio-analyser"];
 
     this.updateAvatarModelAABB();
     const tmpVector = new THREE.Vector3();
@@ -265,6 +281,7 @@ AFRAME.registerComponent("name-tag", {
     this.nametagElPosY = this.nametagHeight + (this.isHandRaised ? NAMETAG_OFFSET : 0);
     this.nametagText.el.components["text"].getSize(this.size);
     this.size.x = Math.max(this.size.x, NAMETAG_MIN_WIDTH);
+    console.log("onModelIkFirstTick");
     this.isAvatarReady = true;
 
     this.updateDisplayName();
