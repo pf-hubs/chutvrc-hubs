@@ -50,7 +50,6 @@ const alignBoneWithTarget = (joint: Object3D, effector: Object3D, target: Vector
 
 export class AvatarIk {
   private world: HubsWorld;
-  // private isVR: boolean;
   private isFlippedY: boolean;
   private hipsBone: Object3D | undefined;
   private rootBone: Object3D | undefined;
@@ -62,7 +61,6 @@ export class AvatarIk {
 
   constructor(world: HubsWorld, avatarEid: number, isFlippedY: boolean) {
     this.world = world;
-    // this.isVR = world.scene.is("vr-mode");
     this.isFlippedY = isFlippedY;
     this.rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
     this.hipsBone = world.eid2obj.get(AvatarComponent.hips[avatarEid]);
@@ -100,9 +98,9 @@ export class AvatarIk {
     this.rootBone?.rotation._onChangeCallback();
     this.rootBone?.updateMatrix();
 
-    // if (this.hipsBone && hmdTransform) {
-    //   this.hipsBone.position.set(hmdTransform.pos.x, this.hipsBone.position.y, hmdTransform.pos.z);
-    // }
+    if (this.hipsBone && hmdTransform) {
+      this.hipsBone.position.set(hmdTransform.pos.x, this.hipsBone.position.y, hmdTransform.pos.z);
+    }
   }
 
   private updateEffectorAndJoint(avatarEid: number, poseInputs: InputTransform, clientId: string, chainConfig: any) {
@@ -172,6 +170,9 @@ export class AvatarIk {
     switch (effectorBoneName) {
       case BoneType.Head:
         rawPos = poseInputs.hmd?.get(clientId)?.pos;
+        if (this.isFlippedY && rawPos) {
+          rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+        }
         followHeadVerticalRotation = false;
         break;
       case BoneType.LeftHand:
@@ -205,12 +206,32 @@ export class AvatarIk {
         }
         break;
       case BoneType.LeftFoot:
-        rawPos = { x: 0.05, y: 0, z: 0 };
-        // followHeadVerticalRotation = false;
+        var head = poseInputs.hmd?.get(clientId)?.pos;
+        if (head) {
+          rawPos = {
+            x: ((this.isFlippedY ? -head.x : head.x) || 0) + (this.isFlippedY ? 0.05 : -0.05),
+            y: 0,
+            z: (this.isFlippedY ? -head.z : head.z) || 0
+          };
+        } else {
+          rawPos = { x: this.isFlippedY ? 0.05 : -0.05, y: 0, z: 0 };
+        }
+        // TODO: walk / run animation when foot moves with hmd
+        // TODO: IK when tracker for foot exists (in such case: followHeadVerticalRotation = false)
         break;
       case BoneType.RightFoot:
-        rawPos = { x: -0.05, y: 0, z: 0 };
-        // followHeadVerticalRotation = false;
+        var head = poseInputs.hmd?.get(clientId)?.pos;
+        if (head) {
+          rawPos = {
+            x: ((this.isFlippedY ? -head.x : head.x) || 0) + (this.isFlippedY ? -0.05 : 0.05),
+            y: 0,
+            z: (this.isFlippedY ? -head.z : head.z) || 0
+          };
+        } else {
+          rawPos = { x: this.isFlippedY ? -0.05 : 0.05, y: 0, z: 0 };
+        }
+        // TODO: walk / run animation when foot moves with hmd
+        // TODO: IK when tracker for foot exists (in such case: followHeadVerticalRotation = false)
         break;
       default:
         break;
