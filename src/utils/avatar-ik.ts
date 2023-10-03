@@ -50,7 +50,9 @@ const alignBoneWithTarget = (joint: Object3D, effector: Object3D, target: Vector
 
 export class AvatarIk {
   private world: HubsWorld;
+  // private isVR: boolean;
   private isFlippedY: boolean;
+  private hipsBone: Object3D | undefined;
   private rootBone: Object3D | undefined;
   private rootPos: Vector3;
   private rootRot: Quaternion;
@@ -60,8 +62,10 @@ export class AvatarIk {
 
   constructor(world: HubsWorld, avatarEid: number, isFlippedY: boolean) {
     this.world = world;
+    // this.isVR = world.scene.is("vr-mode");
     this.isFlippedY = isFlippedY;
     this.rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
+    this.hipsBone = world.eid2obj.get(AvatarComponent.hips[avatarEid]);
     this.rootPos = new Vector3();
     this.rootRot = new Quaternion();
     this.currentInputPosition = new Vector3();
@@ -70,14 +74,10 @@ export class AvatarIk {
   updateAvatarBoneIk(avatarEid: number, poseInputs: InputTransform, clientId = "") {
     if (!this.rootBone || !clientId) return;
     this.rootInput = poseInputs.rig?.get(clientId);
-    if (this.rootInput) {
-      this.updateRootBone(
-        this.rootBone,
-        this.rootInput,
-        poseInputs.hmd?.get(clientId)?.rot,
-        AvatarComponent.leftFoot[avatarEid] === 0 && AvatarComponent.rightFoot[avatarEid] === 0
-      );
-    }
+    this.updateRootHipsBone(
+      poseInputs.hmd?.get(clientId),
+      AvatarComponent.leftFoot[avatarEid] === 0 && AvatarComponent.rightFoot[avatarEid] === 0
+    );
 
     this.rootBone.getWorldPosition(this.rootPos);
     this.rootBone.getWorldQuaternion(this.rootRot);
@@ -89,15 +89,20 @@ export class AvatarIk {
     }
   }
 
-  private updateRootBone(rootBone: Object3D, rootInput: any, hmdRot?: any, noLegs = false) {
-    rootBone.position.set(rootInput.pos.x, rootInput.pos.y + noLegs ? 1 : 0, rootInput.pos.z);
-    rootBone.rotation.set(
-      rootInput.rot.y,
-      rootInput.rot.x + (hmdRot?.x || 0) + (this.isFlippedY ? 0 : Math.PI),
-      rootInput.rot.z
+  private updateRootHipsBone(hmdTransform: Transform | undefined, noLegs = false) {
+    if (!this.rootInput) return;
+    this.rootBone?.position.set(this.rootInput.pos.x, this.rootInput.pos.y + (noLegs ? 1 : 0), this.rootInput.pos.z);
+    this.rootBone?.rotation.set(
+      this.rootInput.rot.y,
+      this.rootInput.rot.x + (hmdTransform?.rot.x || 0) + (this.isFlippedY ? 0 : Math.PI),
+      this.rootInput.rot.z
     );
-    rootBone.rotation._onChangeCallback();
-    rootBone.updateMatrix();
+    this.rootBone?.rotation._onChangeCallback();
+    this.rootBone?.updateMatrix();
+
+    // if (this.hipsBone && hmdTransform) {
+    //   this.hipsBone.position.set(hmdTransform.pos.x, this.hipsBone.position.y, hmdTransform.pos.z);
+    // }
   }
 
   private updateEffectorAndJoint(avatarEid: number, poseInputs: InputTransform, clientId: string, chainConfig: any) {
@@ -145,11 +150,17 @@ export class AvatarIk {
     }
 
     if (effector) {
+      // if (chainConfig.effectorBoneName === BoneType.Head) {
+      //   effector.rotation.set(this.isFlippedY ? targetRot.y : -targetRot.y, 0, targetRot.z);
+      // } else {
+      //   effector.rotation.set(targetRot.x, this.isFlippedY ? targetRot.y : -targetRot.y, targetRot.z);
+      // }
       effector.rotation.set(
         this.isFlippedY ? targetRot.y : -targetRot.y,
         chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.x,
         targetRot.z
       );
+
       effector.rotation._onChangeCallback();
       effector.updateMatrix();
     }
@@ -165,16 +176,32 @@ export class AvatarIk {
         break;
       case BoneType.LeftHand:
         rawPos = poseInputs.leftController?.get(clientId)?.pos;
-        if (rawPos?.x == 0 && rawPos?.y == 0 && rawPos?.z == 0) {
-          rawPos = { x: 0.5, y: 0.9, z: 0.1 };
-          // followHeadVerticalRotation = false; // if VR controller exists
+        if (rawPos) {
+          if (rawPos.x == 0 && rawPos.y == 0 && rawPos.z == 0) {
+            // if VR controller doesn't exist
+            rawPos = { x: 0.5, y: 0.9, z: 0.1 };
+          } else {
+            // if VR controller exists
+            followHeadVerticalRotation = false;
+            if (this.isFlippedY) {
+              rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+            }
+          }
         }
         break;
       case BoneType.RightHand:
         rawPos = poseInputs.rightController?.get(clientId)?.pos;
-        if (rawPos?.x == 0 && rawPos?.y == 0 && rawPos?.z == 0) {
-          rawPos = { x: -0.5, y: 0.9, z: 0.1 };
-          // followHeadVerticalRotation = false; // if VR controller exists
+        if (rawPos) {
+          if (rawPos.x == 0 && rawPos.y == 0 && rawPos.z == 0) {
+            // if VR controller doesn't exist
+            rawPos = { x: -0.5, y: 0.9, z: 0.1 };
+          } else {
+            // if VR controller exists
+            followHeadVerticalRotation = false;
+            if (this.isFlippedY) {
+              rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+            }
+          }
         }
         break;
       case BoneType.LeftFoot:
