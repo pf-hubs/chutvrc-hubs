@@ -189,7 +189,7 @@ export const createAvatarBoneEntities = (
 
       const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
       const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
-      APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid, rightHandX - leftHandX > 0));
+      APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid));
 
       // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
       // let neckPos = avatarBoneMap.get(BoneType.Neck)?.position;
@@ -213,7 +213,9 @@ export const avatarIkSystem = (
   avatarEid2ClientId: Map<number, string>
 ) => {
   avatarQuery(world).forEach(avatarEid => {
-    APP.world.eid2Ik.get(avatarEid)?.updateAvatarBoneIk(avatarEid, avatarPoseInputs, avatarEid2ClientId.get(avatarEid));
+    APP.world.eid2Ik
+      .get(avatarEid)
+      ?.updateAvatarBoneIk(avatarEid, avatarPoseInputs, avatarEid2ClientId.get(avatarEid), world.time.delta);
   });
 
   return world;

@@ -52,29 +52,42 @@ export class AvatarIk {
   private world: HubsWorld;
   private isFlippedY: boolean;
   private hipsBone: Object3D | undefined;
+  private hips2HeadDist: number;
   private rootBone: Object3D | undefined;
   private rootPos: Vector3;
   private rootRot: Quaternion;
   private rootInput: Transform | undefined;
   private currentJoint: Object3D | undefined;
   private currentInputPosition: Vector3;
+  private isWalking: boolean;
 
-  constructor(world: HubsWorld, avatarEid: number, isFlippedY: boolean) {
+  constructor(world: HubsWorld, avatarEid: number) {
+    const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
+    const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
+
     this.world = world;
-    this.isFlippedY = isFlippedY;
-    this.rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
+    this.isFlippedY = rightHandX - leftHandX > 0;
     this.hipsBone = world.eid2obj.get(AvatarComponent.hips[avatarEid]);
+    this.rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
     this.rootPos = new Vector3();
     this.rootRot = new Quaternion();
     this.currentInputPosition = new Vector3();
+    this.isWalking = false;
+
+    let headPos = new Vector3();
+    APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.getWorldPosition(headPos);
+    let hipsPos = new Vector3();
+    this.hipsBone?.getWorldPosition(hipsPos);
+    this.hips2HeadDist = hipsPos && headPos ? headPos.y - hipsPos.y : 0;
   }
 
-  updateAvatarBoneIk(avatarEid: number, poseInputs: InputTransform, clientId = "") {
+  updateAvatarBoneIk(avatarEid: number, poseInputs: InputTransform, clientId = "", deltaTime = 0) {
     if (!this.rootBone || !clientId) return;
     this.rootInput = poseInputs.rig?.get(clientId);
     this.updateRootHipsBone(
       poseInputs.hmd?.get(clientId),
-      AvatarComponent.leftFoot[avatarEid] === 0 && AvatarComponent.rightFoot[avatarEid] === 0
+      AvatarComponent.leftFoot[avatarEid] === 0 && AvatarComponent.rightFoot[avatarEid] === 0,
+      deltaTime
     );
 
     this.rootBone.getWorldPosition(this.rootPos);
@@ -87,7 +100,7 @@ export class AvatarIk {
     }
   }
 
-  private updateRootHipsBone(hmdTransform: Transform | undefined, noLegs = false) {
+  private updateRootHipsBone(hmdTransform: Transform | undefined, noLegs = false, deltaTime = 0) {
     if (!this.rootInput) return;
     this.rootBone?.position.set(this.rootInput.pos.x, this.rootInput.pos.y + (noLegs ? 1 : 0), this.rootInput.pos.z);
     this.rootBone?.rotation.set(
@@ -99,7 +112,23 @@ export class AvatarIk {
     this.rootBone?.updateMatrix();
 
     if (this.hipsBone && hmdTransform) {
-      this.hipsBone.position.set(hmdTransform.pos.x, this.hipsBone.position.y, hmdTransform.pos.z);
+      const isHipsFarFromHead =
+        Math.abs(hmdTransform.pos.x - this.hipsBone.position.x) > 0.2 ||
+        Math.abs(hmdTransform.pos.z - this.hipsBone.position.z) > 0.2;
+      let hipsBonePosX = this.hipsBone.position.x;
+      let hipsBonePosZ = this.hipsBone.position.z;
+      if (this.isWalking) {
+        if (isHipsFarFromHead) {
+          hipsBonePosX = this.hipsBone.position.x + (hmdTransform.pos.x - this.hipsBone.position.x) * deltaTime * 0.005;
+          hipsBonePosZ = this.hipsBone.position.z + (hmdTransform.pos.z - this.hipsBone.position.z) * deltaTime * 0.005;
+        } else {
+          this.isWalking = false;
+        }
+      } else if (isHipsFarFromHead) {
+        this.isWalking = true;
+        console.log("Start walking");
+      }
+      this.hipsBone.position.set(hipsBonePosX, hmdTransform.pos.y - this.hips2HeadDist * 2, hipsBonePosZ);
     }
   }
 
@@ -206,12 +235,12 @@ export class AvatarIk {
         }
         break;
       case BoneType.LeftFoot:
-        var head = poseInputs.hmd?.get(clientId)?.pos;
-        if (head) {
+        var hipsPos = this.hipsBone?.position;
+        if (hipsPos) {
           rawPos = {
-            x: ((this.isFlippedY ? -head.x : head.x) || 0) + (this.isFlippedY ? 0.05 : -0.05),
+            x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + (this.isFlippedY ? 0.05 : -0.05),
             y: 0,
-            z: (this.isFlippedY ? -head.z : head.z) || 0
+            z: (this.isFlippedY ? -hipsPos.z : hipsPos.z) || 0
           };
         } else {
           rawPos = { x: this.isFlippedY ? 0.05 : -0.05, y: 0, z: 0 };
@@ -220,12 +249,12 @@ export class AvatarIk {
         // TODO: IK when tracker for foot exists (in such case: followHeadVerticalRotation = false)
         break;
       case BoneType.RightFoot:
-        var head = poseInputs.hmd?.get(clientId)?.pos;
-        if (head) {
+        var hipsPos = this.hipsBone?.position;
+        if (hipsPos) {
           rawPos = {
-            x: ((this.isFlippedY ? -head.x : head.x) || 0) + (this.isFlippedY ? -0.05 : 0.05),
+            x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + (this.isFlippedY ? -0.05 : 0.05),
             y: 0,
-            z: (this.isFlippedY ? -head.z : head.z) || 0
+            z: (this.isFlippedY ? -hipsPos.z : hipsPos.z) || 0
           };
         } else {
           rawPos = { x: this.isFlippedY ? -0.05 : 0.05, y: 0, z: 0 };
