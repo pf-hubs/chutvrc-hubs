@@ -102,7 +102,8 @@ export class AvatarIk {
 
   private updateRootHipsBone(hmdTransform: Transform | undefined, noLegs = false, deltaTime = 0) {
     if (!this.rootInput) return;
-    this.rootBone?.position.set(this.rootInput.pos.x, this.rootInput.pos.y + (noLegs ? 1 : 0), this.rootInput.pos.z);
+    this.rootBone?.position.set(this.rootInput.pos.x, this.rootInput.pos.y, this.rootInput.pos.z);
+    // this.rootBone?.position.set(this.rootInput.pos.x, this.rootInput.pos.y + (noLegs ? 1 : 0), this.rootInput.pos.z);
     this.rootBone?.rotation.set(
       this.rootInput.rot.y,
       this.rootInput.rot.x + (hmdTransform?.rot.x || 0) + (this.isFlippedY ? 0 : Math.PI),
@@ -126,7 +127,6 @@ export class AvatarIk {
         }
       } else if (isHipsFarFromHead) {
         this.isWalking = true;
-        console.log("Start walking");
       }
       this.hipsBone.position.set(hipsBonePosX, hmdTransform.pos.y - this.hips2HeadDist * 2, hipsBonePosZ);
     }

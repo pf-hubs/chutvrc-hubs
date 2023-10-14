@@ -121,8 +121,8 @@ AFRAME.registerComponent("name-tag", {
     const worldPos = new THREE.Vector3();
     const mat = new THREE.Matrix4();
     return function (t) {
-      console.log("this.isAvatarReady : " + this.isAvatarReady);
-      console.log("this.nametag.visible : " + this.nametag.visible);
+      // console.log("this.isAvatarReady : " + this.isAvatarReady);
+      // console.log("this.nametag.visible : " + this.nametag.visible);
       // if (!this.isAvatarReady) {
       //   this.nametag.visible = false;
       //   return;
@@ -166,7 +166,8 @@ AFRAME.registerComponent("name-tag", {
         }
         if (this.ikRoot) {
           this.neck?.getWorldPosition(worldPos);
-          worldPos.setY(this.nametagElPosY + this.ikRoot.position.y);
+          // worldPos.setY(this.nametagElPosY + this.ikRoot.position.y);
+          worldPos.setY(this.nametagElPosY + this.ikRoot.position.y + 2);
           mat.copy(this.nametag.matrixWorld);
           mat.setPosition(worldPos);
           setMatrixWorld(this.nametag, mat);
@@ -180,23 +181,25 @@ AFRAME.registerComponent("name-tag", {
         this.avatarAABBHelper.matrixNeedsUpdate = true;
         this.avatarAABBHelper.updateMatrixWorld(true);
       }
+
+      // console.log(this.nametag.position);
     };
   })(),
 
   play() {
     this.el.parentEl.addEventListener("model-loading", this.onModelLoading);
     this.el.parentEl.addEventListener("model-loaded", this.onModelLoaded);
-    this.el.parentEl.addEventListener("ik-first-tick", this.onModelIkFirstTick);
+    // this.el.parentEl.addEventListener("ik-first-tick", this.onModelIkFirstTick);
     this.el.sceneEl.addEventListener("presence_updated", this.onPresenceUpdated);
     window.APP.store.addEventListener("statechanged", this.onStateChanged);
     this.el.sceneEl.systems["hubs-systems"].nameTagSystem.register(this);
-    this.onModelIkFirstTick();
+    this.onModelIkFirstTick(); // TODO: call after client enter room & model loaded
   },
 
   pause() {
     this.el.parentEl.removeEventListener("model-loading", this.onModelLoading);
     this.el.parentEl.removeEventListener("model-loaded", this.onModelLoaded);
-    this.el.parentEl.removeEventListener("ik-first-tick", this.onModelIkFirstTick);
+    // this.el.parentEl.removeEventListener("ik-first-tick", this.onModelIkFirstTick);
     this.el.sceneEl.removeEventListener("presence_updated", this.onPresenceUpdated);
     window.APP.store.removeEventListener("statechanged", this.onStateChanged);
     this.el.sceneEl.systems["hubs-systems"].nameTagSystem.unregister(this);
@@ -255,17 +258,16 @@ AFRAME.registerComponent("name-tag", {
   onModelLoading() {
     this.model = null;
     this.isAvatarReady = false;
-    console.log("onModelLoading");
   },
 
   onModelLoaded({ detail: { model } }) {
     this.model = model;
-    console.log("onModelLoaded");
   },
 
   async onModelIkFirstTick() {
     await nextTick();
     this.ikRoot = findAncestorWithComponent(this.el, "ik-root").object3D;
+    this.ikRoot.el.object3D.visible = true;
     // this.neck = this.ikRoot.el.querySelector(".Neck").object3D;
     this.neck = APP.world.eid2obj.get(
       AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
@@ -281,7 +283,6 @@ AFRAME.registerComponent("name-tag", {
     this.nametagElPosY = this.nametagHeight + (this.isHandRaised ? NAMETAG_OFFSET : 0);
     this.nametagText.el.components["text"].getSize(this.size);
     this.size.x = Math.max(this.size.x, NAMETAG_MIN_WIDTH);
-    console.log("onModelIkFirstTick");
     this.isAvatarReady = true;
 
     this.updateDisplayName();

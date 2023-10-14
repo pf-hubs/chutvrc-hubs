@@ -5,6 +5,7 @@ import defaultAvatar from "../assets/models/DefaultAvatar.glb";
 import { MediaDevicesEvents } from "../utils/media-devices-utils";
 import { createHeadlessModelForSkinnedMesh } from "../utils/three-utils";
 import { Layers } from "../camera-layers";
+import { SFU } from "../available-sfu";
 
 function ensureAvatarNodes(json) {
   const { nodes } = json;
@@ -155,7 +156,8 @@ AFRAME.registerComponent("player-info", {
 
   applyProperties(e) {
     const modelEl = this.el.querySelector(".model");
-    if (this.data.avatarSrc && modelEl) {
+    // if (APP.usingSfu === SFU.DIALOG && this.data.avatarSrc && modelEl) {
+    if (modelEl.components["gltf-model-plus"] && this.data.avatarSrc && modelEl) {
       modelEl.components["gltf-model-plus"].jsonPreprocessor = ensureAvatarNodes;
       modelEl.setAttribute("gltf-model-plus", "src", this.data.avatarSrc);
     }
