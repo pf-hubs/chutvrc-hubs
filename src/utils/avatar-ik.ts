@@ -83,6 +83,15 @@ export class AvatarIk {
 
   updateAvatarBoneIk(avatarEid: number, poseInputs: InputTransform, clientId = "", deltaTime = 0) {
     if (!this.rootBone || !clientId) return;
+    if (
+      !(
+        poseInputs.hmd?.get(clientId) &&
+        poseInputs.leftController?.get(clientId) &&
+        poseInputs.rightController?.get(clientId)
+      )
+    )
+      return;
+    console.log(poseInputs);
     this.rootInput = poseInputs.rig?.get(clientId);
     this.updateRootHipsBone(
       poseInputs.hmd?.get(clientId),
