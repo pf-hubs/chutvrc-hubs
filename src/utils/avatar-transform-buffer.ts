@@ -2,6 +2,7 @@ import { AElement } from "aframe";
 import { Euler, Object3D, Vector3 } from "three";
 import { floatToUInt8, radToUInt8 } from "./uint8-parser";
 import { encodeAvatarTransform } from "./avatar-utils";
+import { InputTransform } from "../bit-systems/avatar-bones-system";
 
 export enum AvatarPart {
   RIG = "RIG",
@@ -29,10 +30,18 @@ type AvatarEncodedTransforms = {
   [part in AvatarPart]: Uint8Array;
 };
 
+const avatarTypeToStr = {
+  [AvatarPart.RIG]: "rig",
+  [AvatarPart.HEAD]: "hmd",
+  [AvatarPart.LEFT]: "leftController",
+  [AvatarPart.RIGHT]: "rightController"
+};
+
 export class AvatarTransformBuffer {
   _encodedClientId: Uint8Array;
   _avatarObj: AvatarObjects;
   _lastAvatarTransform: AvatarTransforms;
+  _avatarInputTransform: InputTransform;
   _encodedAvatarTransform: AvatarEncodedTransforms;
 
   constructor(clientId: string, rig: AElement, head: AElement, left: AElement, right: AElement) {
@@ -61,6 +70,12 @@ export class AvatarTransformBuffer {
         rotation: right.object3D.rotation.clone()
       }
     };
+    this._avatarInputTransform = {
+      rig: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
+      hmd: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
+      leftController: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
+      rightController: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } }
+    };
     this._encodedAvatarTransform = {
       [AvatarPart.RIG]: new Uint8Array(45),
       [AvatarPart.HEAD]: new Uint8Array(45),
@@ -78,6 +93,11 @@ export class AvatarTransformBuffer {
       return false;
     this._lastAvatarTransform[part].position.copy(this._avatarObj[part].position);
     this._lastAvatarTransform[part].rotation.copy(this._avatarObj[part].rotation);
+    // @ts-ignore
+    this._avatarInputTransform[avatarTypeToStr[part]] = {
+      pos: this._avatarObj[part].position,
+      rot: this._avatarObj[part].rotation
+    };
     return true;
   }
 

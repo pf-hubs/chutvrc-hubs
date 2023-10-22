@@ -3,6 +3,8 @@ import nextTick from "./utils/next-tick";
 import { hackyMobileSafariTest } from "./utils/detect-touchscreen";
 import { SignInMessages } from "./react-components/auth/SignInModal";
 import { createNetworkedEntity } from "./utils/create-networked-entity";
+import { loadModel } from "./components/gltf-model-plus";
+import { createSelfAvatarBoneEntities } from "./bit-systems/avatar-bones-system";
 
 const isBotMode = qsTruthy("bot");
 const isMobile = AFRAME.utils.device.isMobile();
@@ -195,6 +197,12 @@ export default class SceneEntryManager {
     this._lastFetchedAvatarId = avatarId;
     if (APP.usingSfu === SFU.SORA && APP.sora) APP.sora.sendSelfAvatarSrc(avatarId);
     const avatarSrc = await getAvatarSrc(avatarId);
+
+    loadModel(avatarSrc).then(gltf => {
+      if (createSelfAvatarBoneEntities(APP.world, gltf.scene)) {
+        APP.world.scene.add(gltf.scene);
+      }
+    });
 
     this.avatarRig.setAttribute("player-info", { avatarSrc, avatarType: getAvatarType(avatarId) });
   };

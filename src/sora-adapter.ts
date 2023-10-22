@@ -141,12 +141,9 @@ export class SoraAdapter extends SfuAdapter {
       }
     });
     this._sendrecv.on("track", event => {
-      // console.log("track");
       const stream = event.streams[0];
       if (!stream) return;
-      // console.log(stream.id);
       if (!this._remoteMediaStreams.has(stream.id)) {
-        // console.log("_remoteMediaStreams.set");
         this._remoteMediaStreams.set(stream.id, stream);
       }
     });
@@ -487,6 +484,27 @@ export class SoraAdapter extends SfuAdapter {
         const arrToSend = this._selfAvatarTransformBuffer.getEncodedAvatarTransform(part);
         this._sendrecv?.sendMessage("#avatar-" + AvatarPart[part], new Uint8Array(arrToSend));
       }
+
+      /* Implementation for using bitECS */
+      if (part === AvatarPart.RIG) {
+        this._rootTransformsBuffer.set(this._clientId, this._selfAvatarTransformBuffer._avatarInputTransform.rig);
+      }
+      if (part === AvatarPart.HEAD) {
+        this._rootTransformsBuffer.set(this._clientId, this._selfAvatarTransformBuffer._avatarInputTransform.hmd);
+      }
+      if (part === AvatarPart.LEFT) {
+        this._rootTransformsBuffer.set(
+          this._clientId,
+          this._selfAvatarTransformBuffer._avatarInputTransform.leftController
+        );
+      }
+      if (part === AvatarPart.RIGHT) {
+        this._rootTransformsBuffer.set(
+          this._clientId,
+          this._selfAvatarTransformBuffer._avatarInputTransform.rightController
+        );
+      }
+      /* End of implementation for using bitECS */
     });
   }
 

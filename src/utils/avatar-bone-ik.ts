@@ -2,7 +2,7 @@ import { Object3D, Quaternion, Vector3 } from "three";
 import { BoneType } from "../constants";
 import { HubsWorld } from "../app";
 import { AvatarComponent } from "../bit-components";
-import { InputTransform } from "../bit-systems/avatar-bones-system";
+import { InputTransformById } from "../bit-systems/avatar-bones-system";
 
 // Ref: https://scrapbox.io/ke456memo/%2327_pixiv%2Fthree-vrm%E3%81%A7VRM%E3%81%AB%E5%AF%BE%E5%BF%9C%E3%81%97%E3%81%9FIK%E3%82%92%E5%AE%9F%E8%A3%85%E3%81%99%E3%82%8B
 const alignBoneWithTarget = (joint: Object3D, effector: Object3D, target: Vector3) => {
@@ -53,7 +53,7 @@ const alignBoneVerticalOrientation = (joint: Object3D, orientation: number) => {
 export const avatarBoneIk = (
   world: HubsWorld,
   avatarEid: number,
-  poseInputs: InputTransform,
+  poseInputs: InputTransformById,
   clientId: string,
   elapsed?: number
 ) => {

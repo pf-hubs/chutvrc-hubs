@@ -11,11 +11,18 @@ type Vector3Type = { x: number; y: number; z: number };
 type QuaternionType = { x: number; y: number; z: number };
 type Transform = { pos: Vector3Type; rot: QuaternionType };
 
-export type InputTransform = {
+export type InputTransformById = {
   rig: Map<string, Transform>;
   hmd: Map<string, Transform>;
   leftController: Map<string, Transform>;
   rightController: Map<string, Transform>;
+};
+
+export type InputTransform = {
+  rig: Transform;
+  hmd: Transform;
+  leftController: Transform;
+  rightController: Transform;
 };
 
 /*
@@ -127,39 +134,70 @@ export const createBoneEntity = (
 
 export const createAvatarEntity = (
   world: HubsWorld,
-  clientId: string,
-  avatarEid2ClientId: Map<number, string>,
-  boneType2Eid?: Map<number, number>
+  boneType2Eid: Map<number, number>,
+  clientId?: string,
+  avatarEid2ClientId?: Map<number, string>
 ): number => {
   const eid = addEntity(world);
 
   addComponent(world, AvatarComponent, eid);
-  avatarEid2ClientId.set(eid, clientId);
+  if (clientId && avatarEid2ClientId) avatarEid2ClientId.set(eid, clientId);
 
-  if (boneType2Eid) {
-    AvatarComponent.root[eid] = boneType2Eid.get(BoneType.Root) || 0;
-    AvatarComponent.hips[eid] = boneType2Eid.get(BoneType.Hips) || 0;
-    AvatarComponent.spine[eid] = boneType2Eid.get(BoneType.Spine) || 0;
-    AvatarComponent.chest[eid] = boneType2Eid.get(BoneType.Chest) || 0;
-    AvatarComponent.neck[eid] = boneType2Eid.get(BoneType.Neck) || 0;
-    AvatarComponent.head[eid] = boneType2Eid.get(BoneType.Head) || 0;
-    AvatarComponent.leftUpperLeg[eid] = boneType2Eid.get(BoneType.LeftUpperLeg) || 0;
-    AvatarComponent.leftLowerLeg[eid] = boneType2Eid.get(BoneType.LeftLowerLeg) || 0;
-    AvatarComponent.leftFoot[eid] = boneType2Eid.get(BoneType.LeftFoot) || 0;
-    AvatarComponent.rightUpperLeg[eid] = boneType2Eid.get(BoneType.RightUpperLeg) || 0;
-    AvatarComponent.rightLowerLeg[eid] = boneType2Eid.get(BoneType.RightLowerLeg) || 0;
-    AvatarComponent.rightFoot[eid] = boneType2Eid.get(BoneType.RightFoot) || 0;
-    AvatarComponent.leftShoulder[eid] = boneType2Eid.get(BoneType.LeftShoulder) || 0;
-    AvatarComponent.leftUpperArm[eid] = boneType2Eid.get(BoneType.LeftUpperArm) || 0;
-    AvatarComponent.leftLowerArm[eid] = boneType2Eid.get(BoneType.LeftLowerArm) || 0;
-    AvatarComponent.leftHand[eid] = boneType2Eid.get(BoneType.LeftHand) || 0;
-    AvatarComponent.rightShoulder[eid] = boneType2Eid.get(BoneType.RightShoulder) || 0;
-    AvatarComponent.rightUpperArm[eid] = boneType2Eid.get(BoneType.RightUpperArm) || 0;
-    AvatarComponent.rightLowerArm[eid] = boneType2Eid.get(BoneType.RightLowerArm) || 0;
-    AvatarComponent.rightHand[eid] = boneType2Eid.get(BoneType.RightHand) || 0;
-  }
+  AvatarComponent.root[eid] = boneType2Eid.get(BoneType.Root) || 0;
+  AvatarComponent.hips[eid] = boneType2Eid.get(BoneType.Hips) || 0;
+  AvatarComponent.spine[eid] = boneType2Eid.get(BoneType.Spine) || 0;
+  AvatarComponent.chest[eid] = boneType2Eid.get(BoneType.Chest) || 0;
+  AvatarComponent.neck[eid] = boneType2Eid.get(BoneType.Neck) || 0;
+  AvatarComponent.head[eid] = boneType2Eid.get(BoneType.Head) || 0;
+  AvatarComponent.leftUpperLeg[eid] = boneType2Eid.get(BoneType.LeftUpperLeg) || 0;
+  AvatarComponent.leftLowerLeg[eid] = boneType2Eid.get(BoneType.LeftLowerLeg) || 0;
+  AvatarComponent.leftFoot[eid] = boneType2Eid.get(BoneType.LeftFoot) || 0;
+  AvatarComponent.rightUpperLeg[eid] = boneType2Eid.get(BoneType.RightUpperLeg) || 0;
+  AvatarComponent.rightLowerLeg[eid] = boneType2Eid.get(BoneType.RightLowerLeg) || 0;
+  AvatarComponent.rightFoot[eid] = boneType2Eid.get(BoneType.RightFoot) || 0;
+  AvatarComponent.leftShoulder[eid] = boneType2Eid.get(BoneType.LeftShoulder) || 0;
+  AvatarComponent.leftUpperArm[eid] = boneType2Eid.get(BoneType.LeftUpperArm) || 0;
+  AvatarComponent.leftLowerArm[eid] = boneType2Eid.get(BoneType.LeftLowerArm) || 0;
+  AvatarComponent.leftHand[eid] = boneType2Eid.get(BoneType.LeftHand) || 0;
+  AvatarComponent.rightShoulder[eid] = boneType2Eid.get(BoneType.RightShoulder) || 0;
+  AvatarComponent.rightUpperArm[eid] = boneType2Eid.get(BoneType.RightUpperArm) || 0;
+  AvatarComponent.rightLowerArm[eid] = boneType2Eid.get(BoneType.RightLowerArm) || 0;
+  AvatarComponent.rightHand[eid] = boneType2Eid.get(BoneType.RightHand) || 0;
 
   return eid;
+};
+
+export const createSelfAvatarBoneEntities = (world: HubsWorld, avatar: Object3D) => {
+  const avatarBoneMap = mapAvatarBone(avatar);
+  const boneType2Eid = new Map<BoneType, number>();
+  const avatarRoot = avatarBoneMap.get(BoneType.Root);
+  // TODO: check avatar's orientation by relative positions between hands, etc. Then rotate the avatar if necessary.
+
+  var boneEid;
+  for (const boneType of Object.values(BoneType)) {
+    boneEid = createBoneEntity(world, avatarBoneMap.get(boneType as BoneType), avatarRoot, boneType as BoneType);
+    if (boneEid) boneType2Eid.set(boneType as BoneType, boneEid);
+  }
+
+  if (boneType2Eid.size > 0) {
+    const avatarEid = createAvatarEntity(APP.world, boneType2Eid);
+    if (avatarEid) {
+      addObject3DComponent(world, avatarEid, avatar);
+
+      // const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
+      // const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
+      APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid));
+
+      // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
+      // let neckPos = avatarBoneMap.get(BoneType.Neck)?.position;
+      // let headPos = avatarBoneMap.get(BoneType.Head)?.position;
+      // if (chestPos && neckPos && headPos) {
+      //   invHipsToHeadVector.addVectors(chestPos, neckPos).add(headPos).negate();
+      // }
+      return avatarEid;
+    }
+  }
+  return null;
 };
 
 export const createAvatarBoneEntities = (
@@ -181,14 +219,14 @@ export const createAvatarBoneEntities = (
   }
 
   if (boneType2Eid.size > 0) {
-    const avatarEid = createAvatarEntity(APP.world, clientId, avatarEid2ClientId, boneType2Eid);
+    const avatarEid = createAvatarEntity(APP.world, boneType2Eid, clientId, avatarEid2ClientId);
     if (avatarEid) {
       avatarEid2ClientId.set(avatarEid, clientId);
       clientId2AvatarEid.set(clientId, avatarEid);
       addObject3DComponent(world, avatarEid, avatar);
 
-      const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
-      const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
+      // const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
+      // const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
       APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid));
 
       // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
@@ -209,13 +247,13 @@ export const avatarQuery = defineQuery([AvatarComponent]);
 
 export const avatarIkSystem = (
   world: HubsWorld,
-  avatarPoseInputs: InputTransform,
+  avatarPoseInputs: InputTransformById,
   avatarEid2ClientId: Map<number, string>
 ) => {
   avatarQuery(world).forEach(avatarEid => {
     APP.world.eid2Ik
       .get(avatarEid)
-      ?.updateAvatarBoneIk(avatarEid, avatarPoseInputs, avatarEid2ClientId.get(avatarEid), world.time.delta);
+      ?.updateAvatarBoneIkById(avatarEid, avatarPoseInputs, avatarEid2ClientId.get(avatarEid), world.time.delta);
   });
 
   return world;

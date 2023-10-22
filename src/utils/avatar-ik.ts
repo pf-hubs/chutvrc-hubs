@@ -2,7 +2,12 @@ import { Object3D, Quaternion, Vector3 } from "three";
 import { BoneType } from "../constants";
 import { HubsWorld } from "../app";
 import { AvatarComponent } from "../bit-components";
-import { InputTransform } from "../bit-systems/avatar-bones-system";
+import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-system";
+
+const DummyInputTransform = {
+  pos: { x: 0, y: 0, z: 0 },
+  rot: { x: 0, y: 0, z: 0 }
+};
 
 type Vector3Type = { x: number; y: number; z: number };
 type QuaternionType = { x: number; y: number; z: number };
@@ -60,6 +65,7 @@ export class AvatarIk {
   private currentJoint: Object3D | undefined;
   private currentInputPosition: Vector3;
   private isWalking: boolean;
+  private isInputReady: boolean;
 
   constructor(world: HubsWorld, avatarEid: number) {
     const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
@@ -73,6 +79,7 @@ export class AvatarIk {
     this.rootRot = new Quaternion();
     this.currentInputPosition = new Vector3();
     this.isWalking = false;
+    this.isInputReady = false;
 
     let headPos = new Vector3();
     APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.getWorldPosition(headPos);
@@ -81,20 +88,25 @@ export class AvatarIk {
     this.hips2HeadDist = hipsPos && headPos ? headPos.y - hipsPos.y : 0;
   }
 
-  updateAvatarBoneIk(avatarEid: number, poseInputs: InputTransform, clientId = "", deltaTime = 0) {
-    if (!this.rootBone || !clientId) return;
-    if (
-      !(
-        poseInputs.hmd?.get(clientId) &&
-        poseInputs.leftController?.get(clientId) &&
-        poseInputs.rightController?.get(clientId)
-      )
-    )
-      return;
-    console.log(poseInputs);
-    this.rootInput = poseInputs.rig?.get(clientId);
+  updateAvatarBoneIkById(avatarEid: number, poseInputs: InputTransformById, clientId = "", deltaTime = 0) {
+    const poseInput: InputTransform = {
+      rig: poseInputs.rig?.get(clientId) || DummyInputTransform,
+      hmd: poseInputs.hmd?.get(clientId) || DummyInputTransform,
+      leftController: poseInputs.leftController?.get(clientId) || DummyInputTransform,
+      rightController: poseInputs.rightController?.get(clientId) || DummyInputTransform
+    };
+    this.updateAvatarBoneIk(avatarEid, poseInput, deltaTime);
+  }
+
+  updateAvatarBoneIk(avatarEid: number, poseInput: InputTransform, deltaTime = 0) {
+    if (!this.rootBone || !poseInput) return;
+    this.isInputReady = true;
+    // TODO: emit event so that name tag can initialize its position
+    if (!this.isInputReady) return;
+
+    this.rootInput = poseInput.rig;
     this.updateRootHipsBone(
-      poseInputs.hmd?.get(clientId),
+      poseInput.hmd,
       AvatarComponent.leftFoot[avatarEid] === 0 && AvatarComponent.rightFoot[avatarEid] === 0,
       deltaTime
     );
@@ -104,7 +116,7 @@ export class AvatarIk {
 
     for (let i = 0; i < defaultIKConfig.iteration; i++) {
       defaultIKConfig.chainConfigs.forEach(chainConfig => {
-        this.updateEffectorAndJoint(avatarEid, poseInputs, clientId, chainConfig);
+        this.updateEffectorAndJoint(avatarEid, poseInput, chainConfig);
       });
     }
   }
@@ -141,7 +153,7 @@ export class AvatarIk {
     }
   }
 
-  private updateEffectorAndJoint(avatarEid: number, poseInputs: InputTransform, clientId: string, chainConfig: any) {
+  private updateEffectorAndJoint(avatarEid: number, poseInput: InputTransform, chainConfig: any) {
     const effector = this.world.eid2obj.get(chainConfig.effectorBoneAsAvatarProp[avatarEid]);
 
     let targetRot = { x: 0, y: 0, z: 0 };
@@ -149,11 +161,7 @@ export class AvatarIk {
     chainConfig.jointConfigs.forEach((jointConfig: any) => {
       this.currentJoint = this.world.eid2obj.get(jointConfig.boneAsAvatarProp[avatarEid]);
       if (this.currentInputPosition && this.currentJoint && effector) {
-        const followHeadVerticalRotation = this.getEffectorInputPosition(
-          chainConfig.effectorBoneName,
-          poseInputs,
-          clientId
-        );
+        const followHeadVerticalRotation = this.getEffectorInputPosition(chainConfig.effectorBoneName, poseInput);
         if (this.currentInputPosition && this.rootBone && this.rootInput) {
           alignBoneWithTarget(
             this.currentJoint,
@@ -161,9 +169,7 @@ export class AvatarIk {
             this.currentInputPosition
               .applyAxisAngle(
                 this.rootBone.up,
-                this.rootInput.rot.x -
-                  Math.PI +
-                  (followHeadVerticalRotation ? poseInputs.hmd?.get(clientId)?.rot?.x || 0 : 0)
+                this.rootInput.rot.x - Math.PI + (followHeadVerticalRotation ? poseInput.hmd?.rot?.x || 0 : 0)
               )
               .add(this.rootPos)
           );
@@ -173,13 +179,13 @@ export class AvatarIk {
 
     switch (chainConfig.effectorBoneName) {
       case BoneType.Head:
-        targetRot = poseInputs.hmd?.get(clientId)?.rot || targetRot;
+        targetRot = poseInput.hmd?.rot || targetRot;
         break;
       case BoneType.LeftHand:
-        targetRot = poseInputs.leftController?.get(clientId)?.rot || targetRot;
+        targetRot = poseInput.leftController?.rot || targetRot;
         break;
       case BoneType.RightHand:
-        targetRot = poseInputs.rightController?.get(clientId)?.rot || targetRot;
+        targetRot = poseInput.rightController?.rot || targetRot;
         break;
       default:
         break;
@@ -202,19 +208,19 @@ export class AvatarIk {
     }
   }
 
-  private getEffectorInputPosition(effectorBoneName: any, poseInputs: InputTransform, clientId: string) {
+  private getEffectorInputPosition(effectorBoneName: any, poseInput: InputTransform) {
     let rawPos;
     let followHeadVerticalRotation = true;
     switch (effectorBoneName) {
       case BoneType.Head:
-        rawPos = poseInputs.hmd?.get(clientId)?.pos;
+        rawPos = poseInput.hmd?.pos;
         if (this.isFlippedY && rawPos) {
           rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
         }
         followHeadVerticalRotation = false;
         break;
       case BoneType.LeftHand:
-        rawPos = poseInputs.leftController?.get(clientId)?.pos;
+        rawPos = poseInput.leftController?.pos;
         if (rawPos) {
           if (rawPos.x == 0 && rawPos.y == 0 && rawPos.z == 0) {
             // if VR controller doesn't exist
@@ -229,7 +235,7 @@ export class AvatarIk {
         }
         break;
       case BoneType.RightHand:
-        rawPos = poseInputs.rightController?.get(clientId)?.pos;
+        rawPos = poseInput.rightController?.pos;
         if (rawPos) {
           if (rawPos.x == 0 && rawPos.y == 0 && rawPos.z == 0) {
             // if VR controller doesn't exist
@@ -280,10 +286,6 @@ export class AvatarIk {
     return followHeadVerticalRotation;
   }
 }
-
-// Usage
-// const optimizer = new AvatarBoneIKOptimizer(world);
-// optimizer.updateAvatarBoneIk(avatarEid, poseInputs, clientId);
 
 const defaultIKConfig = {
   iteration: 3,

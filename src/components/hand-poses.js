@@ -28,6 +28,7 @@ AFRAME.registerComponent("hand-pose", {
     const mixerEl = findAncestorWithComponent(this.el, "animation-mixer");
     const suffix = this.id == "left" ? "_L" : "_R";
     this.mixer = mixerEl && mixerEl.components["animation-mixer"].mixer;
+    /*
     if (!this.mixer || !this.mixer.clipAction(POSES.open + suffix)) {
       console.warn("Avatar does not an 'allOpen' animation, disabling hand animations");
       this.el.removeAttribute("hand-pose");
@@ -51,6 +52,7 @@ AFRAME.registerComponent("hand-pose", {
       return getNetworkedAvatar(el.parentEl);
     };
     this.networkedAvatar = getNetworkedAvatar(this.el);
+    */
   },
 
   tick() {
