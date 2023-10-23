@@ -155,6 +155,7 @@ export class AvatarIk {
 
   private updateEffectorAndJoint(avatarEid: number, poseInput: InputTransform, chainConfig: any) {
     const effector = this.world.eid2obj.get(chainConfig.effectorBoneAsAvatarProp[avatarEid]);
+    if (!effector) return;
 
     let targetRot = { x: 0, y: 0, z: 0 };
 
@@ -177,35 +178,40 @@ export class AvatarIk {
       }
     });
 
+    var isFollowingHeadRot = true;
     switch (chainConfig.effectorBoneName) {
       case BoneType.Head:
         targetRot = poseInput.hmd?.rot || targetRot;
         break;
       case BoneType.LeftHand:
         targetRot = poseInput.leftController?.rot || targetRot;
+        isFollowingHeadRot = false;
         break;
       case BoneType.RightHand:
         targetRot = poseInput.rightController?.rot || targetRot;
+        isFollowingHeadRot = false;
         break;
       default:
         break;
     }
 
-    if (effector) {
-      // if (chainConfig.effectorBoneName === BoneType.Head) {
-      //   effector.rotation.set(this.isFlippedY ? targetRot.y : -targetRot.y, 0, targetRot.z);
-      // } else {
-      //   effector.rotation.set(targetRot.x, this.isFlippedY ? targetRot.y : -targetRot.y, targetRot.z);
-      // }
+    // if (chainConfig.effectorBoneName === BoneType.Head) {
+    //   effector.rotation.set(this.isFlippedY ? targetRot.y : -targetRot.y, 0, targetRot.z);
+    // } else {
+    //   effector.rotation.set(targetRot.x, this.isFlippedY ? targetRot.y : -targetRot.y, targetRot.z);
+    // }
+    if (isFollowingHeadRot) {
       effector.rotation.set(
         this.isFlippedY ? targetRot.y : -targetRot.y,
         chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.x,
         targetRot.z
       );
-
-      effector.rotation._onChangeCallback();
-      effector.updateMatrix();
+    } else {
+      effector.rotation.set(targetRot.x, targetRot.y, targetRot.z);
     }
+
+    effector.rotation._onChangeCallback();
+    effector.updateMatrix();
   }
 
   private getEffectorInputPosition(effectorBoneName: any, poseInput: InputTransform) {
