@@ -490,16 +490,16 @@ export class SoraAdapter extends SfuAdapter {
         this._rootTransformsBuffer.set(this._clientId, this._selfAvatarTransformBuffer._avatarInputTransform.rig);
       }
       if (part === AvatarPart.HEAD) {
-        this._rootTransformsBuffer.set(this._clientId, this._selfAvatarTransformBuffer._avatarInputTransform.hmd);
+        this._headTransformsBuffer.set(this._clientId, this._selfAvatarTransformBuffer._avatarInputTransform.hmd);
       }
       if (part === AvatarPart.LEFT) {
-        this._rootTransformsBuffer.set(
+        this._leftHandTransformsBuffer.set(
           this._clientId,
           this._selfAvatarTransformBuffer._avatarInputTransform.leftController
         );
       }
       if (part === AvatarPart.RIGHT) {
-        this._rootTransformsBuffer.set(
+        this._rightHandTransformsBuffer.set(
           this._clientId,
           this._selfAvatarTransformBuffer._avatarInputTransform.rightController
         );
