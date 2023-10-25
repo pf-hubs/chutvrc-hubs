@@ -4,6 +4,9 @@ import { HubsWorld } from "../app";
 import { AvatarComponent } from "../bit-components";
 import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-system";
 
+const FULL_BODY_HEAD_OFFSET = 0.25;
+const FULL_BODY_HIPS_TO_HEAD_DIST_SCALE = 1.5;
+
 const HAND_ROTATIONS = {
   left: new Quaternion().setFromEuler(new Euler(-Math.PI / 2, Math.PI / 2, 0)),
   right: new Quaternion().setFromEuler(new Euler(-Math.PI / 2, -Math.PI / 2, 0))
@@ -173,7 +176,11 @@ export class AvatarIk {
       } else if (isHipsFarFromHead) {
         this.isWalking = true;
       }
-      this.hipsBone.position.set(hipsBonePosX, hmdTransform.pos.y - this.hips2HeadDist * 2, hipsBonePosZ);
+      this.hipsBone.position.set(
+        hipsBonePosX,
+        hmdTransform.pos.y - this.hips2HeadDist * FULL_BODY_HIPS_TO_HEAD_DIST_SCALE,
+        hipsBonePosZ + FULL_BODY_HEAD_OFFSET * 0.01
+      );
     }
   }
 
@@ -258,7 +265,7 @@ export class AvatarIk {
       case BoneType.Head:
         rawPos = poseInput.hmd?.pos;
         if (this.isFlippedY && rawPos) {
-          rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+          rawPos = { x: -rawPos.x, y: rawPos.y, z: -(rawPos.z + FULL_BODY_HEAD_OFFSET) };
         }
         followHeadVerticalRotation = false;
         break;
