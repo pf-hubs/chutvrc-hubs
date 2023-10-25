@@ -4,8 +4,9 @@ import { HubsWorld } from "../app";
 import { AvatarComponent } from "../bit-components";
 import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-system";
 
-const FULL_BODY_HEAD_OFFSET = 0.25;
-const FULL_BODY_HIPS_TO_HEAD_DIST_SCALE = 1.5;
+const FULL_BODY_HEAD_OFFSET = 0.3;
+const FULL_BODY_HIPS_TO_HEAD_DIST_SCALE = 1.75;
+const VECTOR_UP = new Vector3(0, 1, 0);
 
 const HAND_ROTATIONS = {
   left: new Quaternion().setFromEuler(new Euler(-Math.PI / 2, Math.PI / 2, 0)),
@@ -93,6 +94,8 @@ export class AvatarIk {
   private currentInputPosition: Vector3;
   private isWalking: boolean;
   private isInputReady: boolean;
+  private isSelfAvatar: boolean;
+  private headEffectorOffset: Vector3;
 
   constructor(world: HubsWorld, avatarEid: number) {
     const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
@@ -107,6 +110,8 @@ export class AvatarIk {
     this.currentInputPosition = new Vector3();
     this.isWalking = false;
     this.isInputReady = false;
+    this.isSelfAvatar = false;
+    this.headEffectorOffset = new Vector3(0, 0, 0);
 
     let headPos = new Vector3();
     APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.getWorldPosition(headPos);
@@ -122,6 +127,7 @@ export class AvatarIk {
       leftController: poseInputs.leftController?.get(clientId) || DummyInputTransform,
       rightController: poseInputs.rightController?.get(clientId) || DummyInputTransform
     };
+    this.isSelfAvatar = clientId === APP.sfu._clientId;
     this.updateAvatarBoneIk(avatarEid, poseInput, deltaTime);
   }
 
@@ -150,8 +156,15 @@ export class AvatarIk {
 
   private updateRootHipsBone(hmdTransform: Transform | undefined, noLegs = false, deltaTime = 0) {
     if (!this.rootInput) return;
-    this.rootBone?.position.set(this.rootInput.pos.x, this.rootInput.pos.y, this.rootInput.pos.z);
     // this.rootBone?.position.set(this.rootInput.pos.x, this.rootInput.pos.y + (noLegs ? 1 : 0), this.rootInput.pos.z);
+    this.rootBone?.position.set(
+      this.rootInput.pos.x,
+      this.rootInput.pos.y,
+      this.rootInput.pos.z /* + (this.isSelfAvatar ? FULL_BODY_HEAD_OFFSET * (this.isFlippedY ? 0.01 : -0.01) : 0)*/
+    );
+    if (this.isSelfAvatar) {
+      this.rootBone?.position.add(this.headEffectorOffset.clone().multiplyScalar(this.isFlippedY ? 0.01 : -0.01));
+    }
     this.rootBone?.rotation.set(
       this.rootInput.rot.y,
       this.rootInput.rot.x + (hmdTransform?.rot.x || 0) + (this.isFlippedY ? 0 : Math.PI),
@@ -179,7 +192,7 @@ export class AvatarIk {
       this.hipsBone.position.set(
         hipsBonePosX,
         hmdTransform.pos.y - this.hips2HeadDist * FULL_BODY_HIPS_TO_HEAD_DIST_SCALE,
-        hipsBonePosZ + FULL_BODY_HEAD_OFFSET * 0.01
+        hipsBonePosZ
       );
     }
   }
@@ -195,6 +208,13 @@ export class AvatarIk {
         this.currentJoint = this.world.eid2obj.get(jointConfig.boneAsAvatarProp[avatarEid]);
         if (this.currentInputPosition && this.currentJoint && effector) {
           const followHeadVerticalRotation = this.getEffectorInputPosition(chainConfig.effectorBoneName, poseInput);
+          const isSelfHead = this.isSelfAvatar && chainConfig.effectorBoneName === BoneType.Head;
+          if (isSelfHead) {
+            effector.getWorldDirection(this.headEffectorOffset);
+            this.headEffectorOffset
+              .projectOnPlane(VECTOR_UP)
+              .multiplyScalar(FULL_BODY_HEAD_OFFSET * (this.isFlippedY ? 1 : -1));
+          }
           if (this.currentInputPosition && this.rootBone && this.rootInput) {
             alignBoneWithTarget(
               this.currentJoint,
@@ -204,7 +224,7 @@ export class AvatarIk {
                   this.rootBone.up,
                   this.rootInput.rot.x - Math.PI + (followHeadVerticalRotation ? poseInput.hmd?.rot?.x || 0 : 0)
                 )
-                .add(this.rootPos),
+                .add(isSelfHead ? this.rootPos.clone().add(this.headEffectorOffset) : this.rootPos),
               jointConfig.rotationMin,
               jointConfig.rotationMax
             );
@@ -219,9 +239,6 @@ export class AvatarIk {
         targetRot = poseInput.hmd?.rot || targetRot;
         break;
       case BoneType.LeftHand:
-        // if (poseInput.leftController) {
-        //   console.log(poseInput.leftController.rot);
-        // }
         targetRot = poseInput.leftController?.rot || targetRot;
         isHand = true;
         break;
@@ -267,11 +284,11 @@ export class AvatarIk {
     let followHeadVerticalRotation = true;
     switch (effectorBoneName) {
       case BoneType.Head:
-        rawPos = poseInput.hmd?.pos;
-        if (this.isFlippedY && rawPos) {
-          rawPos = { x: -rawPos.x, y: rawPos.y, z: -(rawPos.z + FULL_BODY_HEAD_OFFSET) };
-        }
         followHeadVerticalRotation = false;
+        rawPos = poseInput.hmd?.pos;
+        if (rawPos && this.isFlippedY) {
+          rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+        }
         break;
       case BoneType.LeftHand:
         rawPos = poseInput.leftController?.pos;
