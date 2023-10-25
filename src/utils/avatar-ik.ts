@@ -1,8 +1,18 @@
-import { Object3D, Quaternion, Vector3 } from "three";
+import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
 import { BoneType } from "../constants";
 import { HubsWorld } from "../app";
 import { AvatarComponent } from "../bit-components";
 import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-system";
+
+const HAND_ROTATIONS = {
+  left: new Quaternion().setFromEuler(new Euler(-Math.PI / 2, Math.PI / 2, 0)),
+  right: new Quaternion().setFromEuler(new Euler(-Math.PI / 2, -Math.PI / 2, 0))
+};
+
+const HAND_ROTATIONS_MATRIX = {
+  left: new Matrix4().makeRotationFromEuler(new Euler(-Math.PI / 2, Math.PI / 2, 0)),
+  right: new Matrix4().makeRotationFromEuler(new Euler(-Math.PI / 2, -Math.PI / 2, 0))
+};
 
 const DummyInputTransform = {
   pos: { x: 0, y: 0, z: 0 },
@@ -14,7 +24,14 @@ type QuaternionType = { x: number; y: number; z: number };
 type Transform = { pos: Vector3Type; rot: QuaternionType };
 
 // Ref: https://scrapbox.io/ke456memo/%2327_pixiv%2Fthree-vrm%E3%81%A7VRM%E3%81%AB%E5%AF%BE%E5%BF%9C%E3%81%97%E3%81%9FIK%E3%82%92%E5%AE%9F%E8%A3%85%E3%81%99%E3%82%8B
-const alignBoneWithTarget = (joint: Object3D, effector: Object3D, target: Vector3) => {
+const alignBoneWithTarget = (
+  joint: Object3D,
+  effector: Object3D,
+  target: Vector3,
+  rotationMin: Vector3,
+  rotationMax: Vector3,
+  order: string
+) => {
   let bonePosition = new Vector3();
   let boneQuaternionInverse = new Quaternion();
   let effectorPosition = new Vector3();
@@ -48,9 +65,17 @@ const alignBoneWithTarget = (joint: Object3D, effector: Object3D, target: Vector
   axis.normalize();
 
   quarternion.setFromAxisAngle(axis, deltaAngle);
+
   joint.quaternion.multiply(quarternion);
+  let euler = new Euler().setFromQuaternion(joint.quaternion);
+  euler.x = Math.max(rotationMin.x, Math.min(rotationMax.x, euler.x));
+  euler.y = Math.max(rotationMin.y, Math.min(rotationMax.y, euler.y));
+  euler.z = Math.max(rotationMin.z, Math.min(rotationMax.z, euler.z));
+  joint.quaternion.setFromEuler(euler);
+
   joint.rotation._onChangeCallback();
   joint.updateMatrix();
+  joint.updateMatrixWorld(true);
 };
 
 export class AvatarIk {
@@ -159,6 +184,7 @@ export class AvatarIk {
 
     let targetRot = { x: 0, y: 0, z: 0 };
 
+    var appliedAngle;
     chainConfig.jointConfigs.forEach((jointConfig: any) => {
       this.currentJoint = this.world.eid2obj.get(jointConfig.boneAsAvatarProp[avatarEid]);
       if (this.currentInputPosition && this.currentJoint && effector) {
@@ -172,42 +198,43 @@ export class AvatarIk {
                 this.rootBone.up,
                 this.rootInput.rot.x - Math.PI + (followHeadVerticalRotation ? poseInput.hmd?.rot?.x || 0 : 0)
               )
-              .add(this.rootPos)
+              .add(this.rootPos),
+            jointConfig.rotationMin,
+            jointConfig.rotationMax,
+            jointConfig.order
           );
         }
       }
     });
 
-    var isFollowingHeadRot = true;
+    var isHand = false;
     switch (chainConfig.effectorBoneName) {
       case BoneType.Head:
         targetRot = poseInput.hmd?.rot || targetRot;
         break;
       case BoneType.LeftHand:
+        // if (poseInput.leftController) {
+        //   console.log(poseInput.leftController.rot);
+        // }
         targetRot = poseInput.leftController?.rot || targetRot;
-        isFollowingHeadRot = false;
+        isHand = true;
         break;
       case BoneType.RightHand:
         targetRot = poseInput.rightController?.rot || targetRot;
-        isFollowingHeadRot = false;
+        isHand = true;
         break;
       default:
         break;
     }
 
-    // if (chainConfig.effectorBoneName === BoneType.Head) {
-    //   effector.rotation.set(this.isFlippedY ? targetRot.y : -targetRot.y, 0, targetRot.z);
-    // } else {
-    //   effector.rotation.set(targetRot.x, this.isFlippedY ? targetRot.y : -targetRot.y, targetRot.z);
-    // }
-    if (isFollowingHeadRot) {
+    if (!isHand) {
       effector.rotation.set(
         this.isFlippedY ? targetRot.y : -targetRot.y,
         chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.x,
         targetRot.z
       );
-    } else {
-      effector.rotation.set(targetRot.x, targetRot.y, targetRot.z);
+    } else if (this.rootBone) {
+      effector.rotation.set(targetRot.x, targetRot.y, targetRot.z, "YZX");
     }
 
     effector.rotation._onChangeCallback();
