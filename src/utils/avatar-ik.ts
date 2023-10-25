@@ -190,27 +190,28 @@ export class AvatarIk {
 
     let targetRot = { x: 0, y: 0, z: 0 };
 
-    var appliedAngle;
-    chainConfig.jointConfigs.forEach((jointConfig: any) => {
-      this.currentJoint = this.world.eid2obj.get(jointConfig.boneAsAvatarProp[avatarEid]);
-      if (this.currentInputPosition && this.currentJoint && effector) {
-        const followHeadVerticalRotation = this.getEffectorInputPosition(chainConfig.effectorBoneName, poseInput);
-        if (this.currentInputPosition && this.rootBone && this.rootInput) {
-          alignBoneWithTarget(
-            this.currentJoint,
-            effector,
-            this.currentInputPosition
-              .applyAxisAngle(
-                this.rootBone.up,
-                this.rootInput.rot.x - Math.PI + (followHeadVerticalRotation ? poseInput.hmd?.rot?.x || 0 : 0)
-              )
-              .add(this.rootPos),
-            jointConfig.rotationMin,
-            jointConfig.rotationMax
-          );
+    for (let _ = 0; _ < 2; _++) {
+      chainConfig.jointConfigs.forEach((jointConfig: any) => {
+        this.currentJoint = this.world.eid2obj.get(jointConfig.boneAsAvatarProp[avatarEid]);
+        if (this.currentInputPosition && this.currentJoint && effector) {
+          const followHeadVerticalRotation = this.getEffectorInputPosition(chainConfig.effectorBoneName, poseInput);
+          if (this.currentInputPosition && this.rootBone && this.rootInput) {
+            alignBoneWithTarget(
+              this.currentJoint,
+              effector,
+              this.currentInputPosition
+                .applyAxisAngle(
+                  this.rootBone.up,
+                  this.rootInput.rot.x - Math.PI + (followHeadVerticalRotation ? poseInput.hmd?.rot?.x || 0 : 0)
+                )
+                .add(this.rootPos),
+              jointConfig.rotationMin,
+              jointConfig.rotationMax
+            );
+          }
         }
-      }
-    });
+      });
+    }
 
     var isHand = false;
     switch (chainConfig.effectorBoneName) {
@@ -240,7 +241,9 @@ export class AvatarIk {
       );
     } else if (this.rootBone) {
       // effector.rotation.set(targetRot.x, targetRot.y, targetRot.z, "YZX");
+      effector.rotation.set(0, 0, 0);
 
+      /*
       const lastJoint = this.world.eid2obj.get(AvatarComponent.spine[avatarEid]);
       if (!lastJoint) return;
       const handMatrix = effector.matrix;
@@ -252,6 +255,7 @@ export class AvatarIk {
       handMatrix.multiplyMatrices(invRootToChest, controllerMatrix);
       handMatrix.multiply(HAND_ROTATIONS_MATRIX.left);
       effector.rotation.setFromRotationMatrix(handMatrix);
+      */
     }
 
     effector.rotation._onChangeCallback();
