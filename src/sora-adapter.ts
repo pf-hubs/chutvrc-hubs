@@ -480,29 +480,42 @@ export class SoraAdapter extends SfuAdapter {
   sendSelfAvatarTransform(checkUpdatedRequired: boolean) {
     if (!this._selfAvatarTransformBuffer) return;
     avatarPartTypes.forEach(part => {
-      if (!checkUpdatedRequired || this._selfAvatarTransformBuffer?.updateAvatarTransform(part)) {
-        const arrToSend = this._selfAvatarTransformBuffer.getEncodedAvatarTransform(part);
-        this._sendrecv?.sendMessage("#avatar-" + AvatarPart[part], new Uint8Array(arrToSend));
-      }
+      if (checkUpdatedRequired && !this._selfAvatarTransformBuffer?.updateAvatarTransform(part)) return;
 
+      const arrToSend = this._selfAvatarTransformBuffer.getEncodedAvatarTransform(part);
+      this._sendrecv?.sendMessage("#avatar-" + AvatarPart[part], new Uint8Array(arrToSend));
+      const decodedTransform = {
+        pos: decodePosition(arrToSend),
+        rot: decodeRotation(arrToSend)
+      };
       /* Implementation for using bitECS */
       if (part === AvatarPart.RIG) {
-        this._rootTransformsBuffer.set(this._clientId, this._selfAvatarTransformBuffer._avatarInputTransform.rig);
+        // this._rootTransformsBuffer.set(
+        //   this._clientId,
+        //   this._selfAvatarTransformBuffer._avatarInputTransform[AvatarPart.RIG]
+        // );
+        this._rootTransformsBuffer.set(this._clientId, decodedTransform);
       }
       if (part === AvatarPart.HEAD) {
-        this._headTransformsBuffer.set(this._clientId, this._selfAvatarTransformBuffer._avatarInputTransform.hmd);
+        // this._headTransformsBuffer.set(
+        //   this._clientId,
+        //   this._selfAvatarTransformBuffer._avatarInputTransform[AvatarPart.HEAD]
+        // );
+        this._headTransformsBuffer.set(this._clientId, decodedTransform);
       }
       if (part === AvatarPart.LEFT) {
-        this._leftHandTransformsBuffer.set(
-          this._clientId,
-          this._selfAvatarTransformBuffer._avatarInputTransform.leftController
-        );
+        // this._leftHandTransformsBuffer.set(
+        //   this._clientId,
+        //   this._selfAvatarTransformBuffer._avatarInputTransform[AvatarPart.LEFT]
+        // );
+        this._leftHandTransformsBuffer.set(this._clientId, decodedTransform);
       }
       if (part === AvatarPart.RIGHT) {
-        this._rightHandTransformsBuffer.set(
-          this._clientId,
-          this._selfAvatarTransformBuffer._avatarInputTransform.rightController
-        );
+        // this._rightHandTransformsBuffer.set(
+        //   this._clientId,
+        //   this._selfAvatarTransformBuffer._avatarInputTransform[AvatarPart.RIGHT]
+        // );
+        this._rightHandTransformsBuffer.set(this._clientId, decodedTransform);
       }
       /* End of implementation for using bitECS */
     });

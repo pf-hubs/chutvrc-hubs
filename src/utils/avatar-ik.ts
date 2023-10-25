@@ -29,8 +29,7 @@ const alignBoneWithTarget = (
   effector: Object3D,
   target: Vector3,
   rotationMin: Vector3,
-  rotationMax: Vector3,
-  order: string
+  rotationMax: Vector3
 ) => {
   let bonePosition = new Vector3();
   let boneQuaternionInverse = new Quaternion();
@@ -200,8 +199,7 @@ export class AvatarIk {
               )
               .add(this.rootPos),
             jointConfig.rotationMin,
-            jointConfig.rotationMax,
-            jointConfig.order
+            jointConfig.rotationMax
           );
         }
       }
@@ -234,7 +232,19 @@ export class AvatarIk {
         targetRot.z
       );
     } else if (this.rootBone) {
-      effector.rotation.set(targetRot.x, targetRot.y, targetRot.z, "YZX");
+      // effector.rotation.set(targetRot.x, targetRot.y, targetRot.z, "YZX");
+
+      const lastJoint = this.world.eid2obj.get(AvatarComponent.spine[avatarEid]);
+      if (!lastJoint) return;
+      const handMatrix = effector.matrix;
+      const rootToChest = new Matrix4();
+      const invRootToChest = new Matrix4();
+      rootToChest.multiplyMatrices(this.rootBone.matrix, lastJoint.matrix);
+      invRootToChest.copy(rootToChest).invert();
+      const controllerMatrix = new Matrix4().makeRotationFromEuler(new Euler(targetRot.x, targetRot.y, targetRot.z));
+      handMatrix.multiplyMatrices(invRootToChest, controllerMatrix);
+      handMatrix.multiply(HAND_ROTATIONS_MATRIX.left);
+      effector.rotation.setFromRotationMatrix(handMatrix);
     }
 
     effector.rotation._onChangeCallback();

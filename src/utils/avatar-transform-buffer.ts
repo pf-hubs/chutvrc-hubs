@@ -13,6 +13,9 @@ export enum AvatarPart {
 
 export const avatarPartTypes = [AvatarPart.RIG, AvatarPart.HEAD, AvatarPart.LEFT, AvatarPart.RIGHT];
 
+type Vector3Type = { x: number; y: number; z: number };
+type QuaternionType = { x: number; y: number; z: number };
+
 export type Transform = {
   position: Vector3;
   rotation: Euler;
@@ -41,7 +44,9 @@ export class AvatarTransformBuffer {
   _encodedClientId: Uint8Array;
   _avatarObj: AvatarObjects;
   _lastAvatarTransform: AvatarTransforms;
-  _avatarInputTransform: InputTransform;
+  // _avatarInputTransform: {
+  //   [part in AvatarPart]: { pos: Vector3Type; rot: QuaternionType };
+  // };
   _encodedAvatarTransform: AvatarEncodedTransforms;
 
   constructor(clientId: string, rig: AElement, head: AElement, left: AElement, right: AElement) {
@@ -70,12 +75,12 @@ export class AvatarTransformBuffer {
         rotation: right.object3D.rotation.clone()
       }
     };
-    this._avatarInputTransform = {
-      rig: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
-      hmd: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
-      leftController: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
-      rightController: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } }
-    };
+    // this._avatarInputTransform = {
+    //   [AvatarPart.RIG]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
+    //   [AvatarPart.HEAD]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
+    //   [AvatarPart.LEFT]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
+    //   [AvatarPart.RIGHT]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } }
+    // };
     this._encodedAvatarTransform = {
       [AvatarPart.RIG]: new Uint8Array(45),
       [AvatarPart.HEAD]: new Uint8Array(45),
@@ -93,11 +98,19 @@ export class AvatarTransformBuffer {
       return false;
     this._lastAvatarTransform[part].position.copy(this._avatarObj[part].position);
     this._lastAvatarTransform[part].rotation.copy(this._avatarObj[part].rotation);
-    // @ts-ignore
-    this._avatarInputTransform[avatarTypeToStr[part]] = {
-      pos: this._avatarObj[part].position,
-      rot: this._avatarObj[part].rotation
-    };
+
+    // this._avatarInputTransform[part] = {
+    //   pos: {
+    //     x: this._avatarObj[part].position.x,
+    //     y: this._avatarObj[part].position.y,
+    //     z: this._avatarObj[part].position.z
+    //   },
+    //   rot: {
+    //     x: this._avatarObj[part].rotation.x,
+    //     y: this._avatarObj[part].rotation.y,
+    //     z: this._avatarObj[part].rotation.z
+    //   }
+    // };
     return true;
   }
 
