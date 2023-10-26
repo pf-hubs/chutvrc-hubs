@@ -70,7 +70,7 @@ export const boneNameKeywords = {
     side: [],
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["root"],
+    typeWithoutPosition: ["root", "armature"],
     parentsWithSimilarName: [],
     parent: null
   },

@@ -4,7 +4,7 @@ import { HubsWorld } from "../app";
 import { AvatarComponent } from "../bit-components";
 import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-system";
 
-const FULL_BODY_HEAD_OFFSET = 0.3;
+const FULL_BODY_HEAD_OFFSET = 0.25;
 const FULL_BODY_HIPS_TO_HEAD_DIST_SCALE = 2;
 const VECTOR_UP = new Vector3(0, 1, 0);
 
@@ -116,7 +116,7 @@ export class AvatarIk {
     this.waitTime = 0;
 
     let headPos = new Vector3();
-    APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.getWorldPosition(headPos);
+    APP.world.eid2obj.get(AvatarComponent.head[avatarEid])?.getWorldPosition(headPos);
     let hipsPos = new Vector3();
     this.hipsBone?.getWorldPosition(hipsPos);
     this.hips2HeadDist = hipsPos && headPos ? headPos.y - hipsPos.y : 0;
@@ -198,7 +198,7 @@ export class AvatarIk {
       }
       this.hipsBone.position.set(
         hipsBonePosX,
-        hmdTransform.pos.y - this.hips2HeadDist * FULL_BODY_HIPS_TO_HEAD_DIST_SCALE + 0.15,
+        hmdTransform.pos.y - this.hips2HeadDist - 0.15, // * FULL_BODY_HIPS_TO_HEAD_DIST_SCALE + 0.15,
         hipsBonePosZ
       );
     }
@@ -306,9 +306,10 @@ export class AvatarIk {
           } else {
             // if VR controller exists
             followHeadVerticalRotation = false;
-            if (this.isFlippedY) {
-              rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
-            }
+            // if (this.isFlippedY) {
+            //   rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+            // }
+            rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
           }
         }
         break;
@@ -321,9 +322,10 @@ export class AvatarIk {
           } else {
             // if VR controller exists
             followHeadVerticalRotation = false;
-            if (this.isFlippedY) {
-              rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
-            }
+            // if (this.isFlippedY) {
+            //   rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+            // }
+            rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
           }
         }
         break;
@@ -331,7 +333,7 @@ export class AvatarIk {
         var hipsPos = this.hipsBone?.position;
         if (hipsPos) {
           rawPos = {
-            x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + (this.isFlippedY ? 0.05 : -0.05),
+            x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + 0.05, // (this.isFlippedY ? 0.05 : -0.05),
             y: 0,
             z: (this.isFlippedY ? -hipsPos.z : hipsPos.z) || 0
           };
@@ -345,7 +347,7 @@ export class AvatarIk {
         var hipsPos = this.hipsBone?.position;
         if (hipsPos) {
           rawPos = {
-            x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + (this.isFlippedY ? -0.05 : 0.05),
+            x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + -0.05, //(this.isFlippedY ? -0.05 : 0.05),
             y: 0,
             z: (this.isFlippedY ? -hipsPos.z : hipsPos.z) || 0
           };
