@@ -96,6 +96,7 @@ export class AvatarIk {
   private isInputReady: boolean;
   private isSelfAvatar: boolean;
   private headEffectorOffset: Vector3;
+  private waitTime: number;
 
   constructor(world: HubsWorld, avatarEid: number) {
     const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
@@ -112,12 +113,15 @@ export class AvatarIk {
     this.isInputReady = false;
     this.isSelfAvatar = false;
     this.headEffectorOffset = new Vector3(0, 0, 0);
+    this.waitTime = 0;
 
     let headPos = new Vector3();
     APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.getWorldPosition(headPos);
     let hipsPos = new Vector3();
     this.hipsBone?.getWorldPosition(hipsPos);
     this.hips2HeadDist = hipsPos && headPos ? headPos.y - hipsPos.y : 0;
+
+    if (this.rootBone?.parent) this.rootBone.parent.visible = false;
   }
 
   updateAvatarBoneIkById(avatarEid: number, poseInputs: InputTransformById, clientId = "", deltaTime = 0) {
@@ -136,6 +140,9 @@ export class AvatarIk {
     this.isInputReady = true;
     // TODO: emit event so that name tag can initialize its position
     if (!this.isInputReady) return;
+    this.waitTime += deltaTime;
+    if (this.waitTime < 2000) return;
+    if (this.rootBone.parent && !this.rootBone.parent?.visible) this.rootBone.parent.visible = true;
 
     this.rootInput = poseInput.rig;
     this.updateRootHipsBone(
