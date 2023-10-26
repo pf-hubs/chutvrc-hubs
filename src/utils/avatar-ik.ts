@@ -5,7 +5,7 @@ import { AvatarComponent } from "../bit-components";
 import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-system";
 
 const FULL_BODY_HEAD_OFFSET = 0.3;
-const FULL_BODY_HIPS_TO_HEAD_DIST_SCALE = 1.75;
+const FULL_BODY_HIPS_TO_HEAD_DIST_SCALE = 2;
 const VECTOR_UP = new Vector3(0, 1, 0);
 
 const HAND_ROTATIONS = {
@@ -198,7 +198,7 @@ export class AvatarIk {
       }
       this.hipsBone.position.set(
         hipsBonePosX,
-        hmdTransform.pos.y - this.hips2HeadDist * FULL_BODY_HIPS_TO_HEAD_DIST_SCALE,
+        hmdTransform.pos.y - this.hips2HeadDist * FULL_BODY_HIPS_TO_HEAD_DIST_SCALE + 0.15,
         hipsBonePosZ
       );
     }
