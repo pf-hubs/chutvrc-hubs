@@ -4,8 +4,7 @@ import { HubsWorld } from "../app";
 import { AvatarComponent } from "../bit-components";
 import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-system";
 
-const FULL_BODY_HEAD_OFFSET = 0.3;
-const FULL_BODY_HIPS_TO_HEAD_DIST_SCALE = 2;
+const FULL_BODY_HEAD_OFFSET = 0.25;
 const VECTOR_UP = new Vector3(0, 1, 0);
 
 const HAND_ROTATIONS = {
@@ -182,25 +181,29 @@ export class AvatarIk {
 
     if (this.hipsBone && hmdTransform) {
       const isHipsFarFromHead =
-        Math.abs(hmdTransform.pos.x - this.hipsBone.position.x) > 0.2 ||
-        Math.abs(hmdTransform.pos.z - this.hipsBone.position.z) > 0.2;
+        Math.abs(hmdTransform.pos.x - this.hipsBone.position.x) > 0.1 ||
+        Math.abs(hmdTransform.pos.z - this.hipsBone.position.z) > 0.1;
       let hipsBonePosX = this.hipsBone.position.x;
       let hipsBonePosZ = this.hipsBone.position.z;
       if (this.isWalking) {
         if (isHipsFarFromHead) {
-          hipsBonePosX = this.hipsBone.position.x + (hmdTransform.pos.x - this.hipsBone.position.x) * deltaTime * 0.005;
-          hipsBonePosZ = this.hipsBone.position.z + (hmdTransform.pos.z - this.hipsBone.position.z) * deltaTime * 0.005;
+          hipsBonePosX =
+            this.hipsBone.position.x +
+            ((this.isFlippedY ? hmdTransform.pos.x : -hmdTransform.pos.x) - this.hipsBone.position.x) *
+              deltaTime *
+              0.005;
+          hipsBonePosZ =
+            this.hipsBone.position.z +
+            ((this.isFlippedY ? hmdTransform.pos.z : -hmdTransform.pos.z) - this.hipsBone.position.z) *
+              deltaTime *
+              0.005;
         } else {
           this.isWalking = false;
         }
       } else if (isHipsFarFromHead) {
         this.isWalking = true;
       }
-      this.hipsBone.position.set(
-        hipsBonePosX,
-        hmdTransform.pos.y - this.hips2HeadDist - 0.2, // * FULL_BODY_HIPS_TO_HEAD_DIST_SCALE + 0.15,
-        hipsBonePosZ
-      );
+      this.hipsBone.position.set(hipsBonePosX, hmdTransform.pos.y - this.hips2HeadDist - 0.15, hipsBonePosZ);
     }
   }
 
@@ -418,8 +421,10 @@ const defaultIKConfig = {
           boneName: BoneType.LeftLowerArm,
           boneAsAvatarProp: AvatarComponent.leftLowerArm,
           order: "YZX",
-          rotationMin: new Vector3(0, -Math.PI, 0),
-          rotationMax: new Vector3(0, -(0.1 / 180) * Math.PI, 0),
+          // rotationMin: new Vector3(0, -Math.PI, 0),
+          // rotationMax: new Vector3(0, -(0.1 / 180) * Math.PI, 0),
+          rotationMin: new Vector3(0, 0, 0),
+          rotationMax: new Vector3(0, Math.PI, Math.PI),
           followTargetRotation: false
         },
         {
@@ -429,15 +434,15 @@ const defaultIKConfig = {
           rotationMin: new Vector3(-Math.PI / 2, -Math.PI, -Math.PI),
           rotationMax: new Vector3(Math.PI / 2, Math.PI, Math.PI),
           followTargetRotation: false
-        },
-        {
-          boneName: BoneType.LeftShoulder,
-          boneAsAvatarProp: AvatarComponent.leftShoulder,
-          order: "ZXY",
-          rotationMin: new Vector3(0, -(45 / 180) * Math.PI, -(45 / 180) * Math.PI),
-          rotationMax: new Vector3(0, (45 / 180) * Math.PI, 0),
-          followTargetRotation: false
         }
+        // {
+        //   boneName: BoneType.LeftShoulder,
+        //   boneAsAvatarProp: AvatarComponent.leftShoulder,
+        //   order: "ZXY",
+        //   rotationMin: new Vector3(0, -(45 / 180) * Math.PI, -(45 / 180) * Math.PI),
+        //   rotationMax: new Vector3(0, (45 / 180) * Math.PI, 0),
+        //   followTargetRotation: false
+        // }
       ],
       effectorBoneName: BoneType.LeftHand,
       effectorBoneAsAvatarProp: AvatarComponent.leftHand,
@@ -450,8 +455,10 @@ const defaultIKConfig = {
           boneName: BoneType.RightLowerArm,
           boneAsAvatarProp: AvatarComponent.rightLowerArm,
           order: "YZX",
-          rotationMin: new Vector3(0, (0.1 / 180) * Math.PI, 0),
-          rotationMax: new Vector3(0, Math.PI, 0),
+          // rotationMin: new Vector3(0, (0.1 / 180) * Math.PI, 0),
+          // rotationMax: new Vector3(0, Math.PI, 0),
+          rotationMin: new Vector3(0, -Math.PI, -Math.PI),
+          rotationMax: new Vector3(0, 0, 0),
           followTargetRotation: false
         },
         {
@@ -461,15 +468,15 @@ const defaultIKConfig = {
           rotationMin: new Vector3(-Math.PI / 2, -Math.PI, -Math.PI),
           rotationMax: new Vector3(Math.PI / 2, Math.PI, Math.PI),
           followTargetRotation: false
-        },
-        {
-          boneName: BoneType.RightShoulder,
-          boneAsAvatarProp: AvatarComponent.rightShoulder,
-          order: "ZXY",
-          rotationMin: new Vector3(0, -(45 / 180) * Math.PI, 0),
-          rotationMax: new Vector3(0, (45 / 180) * Math.PI, (45 / 180) * Math.PI),
-          followTargetRotation: false
         }
+        // {
+        //   boneName: BoneType.RightShoulder,
+        //   boneAsAvatarProp: AvatarComponent.rightShoulder,
+        //   order: "ZXY",
+        //   rotationMin: new Vector3(0, -(45 / 180) * Math.PI, 0),
+        //   rotationMax: new Vector3(0, (45 / 180) * Math.PI, (45 / 180) * Math.PI),
+        //   followTargetRotation: false
+        // }
       ],
       effectorBoneName: BoneType.RightHand,
       effectorBoneAsAvatarProp: AvatarComponent.rightHand,
