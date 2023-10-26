@@ -293,9 +293,10 @@ export class AvatarIk {
       case BoneType.Head:
         followHeadVerticalRotation = false;
         rawPos = poseInput.hmd?.pos;
-        if (rawPos && this.isFlippedY) {
-          rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
-        }
+        // if (rawPos && this.isFlippedY) {
+        //   rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+        // }
+        rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
         break;
       case BoneType.LeftHand:
         rawPos = poseInput.leftController?.pos;
