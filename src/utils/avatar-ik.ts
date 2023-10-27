@@ -177,9 +177,9 @@ export class AvatarIk {
       });
     }
 
-    this.walkingStatusBuffer.push(this.isMoving || this.isWalking);
+    this.walkingStatusBuffer.push(this.isMoving);
     this.walkingStatusBuffer.shift();
-    if (this.walkingStatusBuffer.every(isWalking => !isWalking)) {
+    if (this.walkingStatusBuffer.every(isWalkingManually => !isWalkingManually)) {
       this.stopWalk();
     } else {
       this.walk(deltaTime);
@@ -220,16 +220,14 @@ export class AvatarIk {
         if (isHipsFarFromHead) {
           hipsBonePosX =
             this.hipsBone.position.x +
-            ((this.isFlippedY ? hmdTransform.pos.x : -hmdTransform.pos.x) > this.hipsBone.position.x
-              ? 0.0001
-              : -0.0001) *
-              deltaTime;
+            ((this.isFlippedY ? hmdTransform.pos.x : -hmdTransform.pos.x) - this.hipsBone.position.x) *
+              deltaTime *
+              0.01;
           hipsBonePosZ =
             this.hipsBone.position.z +
-            ((this.isFlippedY ? hmdTransform.pos.z : -hmdTransform.pos.z) > this.hipsBone.position.z
-              ? 0.0001
-              : -0.0001) *
-              deltaTime;
+            ((this.isFlippedY ? hmdTransform.pos.z : -hmdTransform.pos.z) - this.hipsBone.position.z) *
+              deltaTime *
+              0.01;
         } else {
           this.isWalking = false;
         }
