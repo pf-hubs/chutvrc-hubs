@@ -6,6 +6,7 @@ import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-
 
 const FULL_BODY_HEAD_OFFSET = 0.25;
 const VECTOR_UP = new Vector3(0, 1, 0);
+const ALPHA = 0.2;
 
 const HAND_ROTATIONS = {
   left: new Quaternion().setFromEuler(new Euler(-Math.PI / 2, Math.PI / 2, 0)),
@@ -103,6 +104,16 @@ export class AvatarIk {
   private lastRootPosInputZ: number;
   private isMoving: boolean;
   private walkingStatusBuffer: boolean[];
+  private leftControllerBuffer: {
+    x: number;
+    y: number;
+    z: number;
+  };
+  private rightControllerBuffer: {
+    x: number;
+    y: number;
+    z: number;
+  };
 
   constructor(world: HubsWorld, avatarEid: number) {
     const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
@@ -127,6 +138,16 @@ export class AvatarIk {
     this.lastRootPosInputZ = 0;
     this.isMoving = false;
     this.walkingStatusBuffer = [false, false, false];
+    this.leftControllerBuffer = {
+      x: 0,
+      y: 0,
+      z: 0
+    };
+    this.rightControllerBuffer = {
+      x: 0,
+      y: 0,
+      z: 0
+    };
 
     let headPos = new Vector3();
     APP.world.eid2obj.get(AvatarComponent.head[avatarEid])?.getWorldPosition(headPos);
@@ -152,11 +173,44 @@ export class AvatarIk {
     this.updateAvatarBoneIk(avatarEid, poseInput, deltaTime);
   }
 
-  updateAvatarBoneIk(avatarEid: number, poseInput: InputTransform, deltaTime = 0) {
-    if (!this.rootBone || !poseInput) return;
+  lowPassFilterControllerPositions(poseInput: InputTransform) {
+    if (this.leftControllerBuffer.x !== 0)
+      poseInput.leftController.pos.x =
+        poseInput.leftController.pos.x * ALPHA + this.leftControllerBuffer.x * (1 - ALPHA);
+    this.leftControllerBuffer.x = poseInput.leftController.pos.x;
+    if (this.leftControllerBuffer.y !== 0)
+      poseInput.leftController.pos.y =
+        poseInput.leftController.pos.y * ALPHA + this.leftControllerBuffer.y * (1 - ALPHA);
+    this.leftControllerBuffer.y = poseInput.leftController.pos.y;
+    if (this.leftControllerBuffer.z !== 0)
+      poseInput.leftController.pos.z =
+        poseInput.leftController.pos.z * ALPHA + this.leftControllerBuffer.z * (1 - ALPHA);
+    this.leftControllerBuffer.z = poseInput.leftController.pos.z;
+
+    if (this.leftControllerBuffer.x !== 0)
+      poseInput.rightController.pos.x =
+        poseInput.rightController.pos.x * ALPHA + this.rightControllerBuffer.x * (1 - ALPHA);
+    this.rightControllerBuffer.x = poseInput.rightController.pos.x;
+    if (this.leftControllerBuffer.y !== 0)
+      poseInput.rightController.pos.y =
+        poseInput.rightController.pos.y * ALPHA + this.rightControllerBuffer.y * (1 - ALPHA);
+    this.rightControllerBuffer.y = poseInput.rightController.pos.y;
+    if (this.leftControllerBuffer.z !== 0)
+      poseInput.rightController.pos.z =
+        poseInput.rightController.pos.z * ALPHA + this.rightControllerBuffer.z * (1 - ALPHA);
+    this.rightControllerBuffer.z = poseInput.rightController.pos.z;
+
+    return poseInput;
+  }
+
+  updateAvatarBoneIk(avatarEid: number, rawPoseInput: InputTransform, deltaTime = 0) {
+    if (!this.rootBone || !rawPoseInput) return;
     this.isInputReady = true;
     // TODO: emit event so that name tag can initialize its position
     if (!this.isInputReady) return;
+
+    const poseInput = this.lowPassFilterControllerPositions(rawPoseInput);
+
     this.waitTime += deltaTime;
     if (this.waitTime < 2000) return;
     if (this.rootBone.parent && !this.rootBone.parent?.visible) this.rootBone.parent.visible = true;
