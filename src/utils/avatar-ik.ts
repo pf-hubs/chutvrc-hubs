@@ -96,6 +96,13 @@ export class AvatarIk {
   private isSelfAvatar: boolean;
   private headEffectorOffset: Vector3;
   private waitTime: number;
+  private walkTimer: number;
+  private leftFootWalkPosZ: number;
+  private rightFootWalkPosZ: number;
+  private lastRootPosInputX: number;
+  private lastRootPosInputZ: number;
+  private isMoving: boolean;
+  private walkingStatusBuffer: boolean[];
 
   constructor(world: HubsWorld, avatarEid: number) {
     const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
@@ -113,6 +120,13 @@ export class AvatarIk {
     this.isSelfAvatar = false;
     this.headEffectorOffset = new Vector3(0, 0, 0);
     this.waitTime = 0;
+    this.walkTimer = 0;
+    this.leftFootWalkPosZ = 0;
+    this.rightFootWalkPosZ = 0;
+    this.lastRootPosInputX = 0;
+    this.lastRootPosInputZ = 0;
+    this.isMoving = false;
+    this.walkingStatusBuffer = [false, false, false];
 
     let headPos = new Vector3();
     APP.world.eid2obj.get(AvatarComponent.head[avatarEid])?.getWorldPosition(headPos);
@@ -120,7 +134,11 @@ export class AvatarIk {
     this.hipsBone?.getWorldPosition(hipsPos);
     this.hips2HeadDist = hipsPos && headPos ? headPos.y - hipsPos.y : 0;
 
-    if (this.rootBone?.parent) this.rootBone.parent.visible = false;
+    if (this.rootBone) {
+      if (this.rootBone.parent) this.rootBone.parent.visible = false;
+      this.lastRootPosInputX = this.rootBone.position.x;
+      this.lastRootPosInputZ = this.rootBone.position.z;
+    }
   }
 
   updateAvatarBoneIkById(avatarEid: number, poseInputs: InputTransformById, clientId = "", deltaTime = 0) {
@@ -158,6 +176,14 @@ export class AvatarIk {
         this.updateEffectorAndJoint(avatarEid, poseInput, chainConfig);
       });
     }
+
+    this.walkingStatusBuffer.push(this.isMoving || this.isWalking);
+    this.walkingStatusBuffer.shift();
+    if (this.walkingStatusBuffer.every(isWalking => !isWalking)) {
+      this.stopWalk();
+    } else {
+      this.walk(deltaTime);
+    }
   }
 
   private updateRootHipsBone(hmdTransform: Transform | undefined, noLegs = false, deltaTime = 0) {
@@ -168,9 +194,12 @@ export class AvatarIk {
       this.rootInput.pos.y,
       this.rootInput.pos.z /* + (this.isSelfAvatar ? FULL_BODY_HEAD_OFFSET * (this.isFlippedY ? 0.01 : -0.01) : 0)*/
     );
-    if (this.isSelfAvatar) {
-      this.rootBone?.position.add(this.headEffectorOffset.clone().multiplyScalar(this.isFlippedY ? 0.01 : -0.01));
-    }
+    this.isMoving = this.lastRootPosInputX !== this.rootInput.pos.x || this.lastRootPosInputZ !== this.rootInput.pos.z;
+    this.lastRootPosInputX = this.rootInput.pos.x;
+    this.lastRootPosInputZ = this.rootInput.pos.z;
+    // if (this.isSelfAvatar) {
+    //   this.rootBone?.position.add(this.headEffectorOffset.clone().multiplyScalar(this.isFlippedY ? 0.01 : -0.01));
+    // }
     this.rootBone?.rotation.set(
       this.rootInput.rot.y,
       this.rootInput.rot.x + (hmdTransform?.rot.x || 0) + (this.isFlippedY ? 0 : Math.PI),
@@ -337,12 +366,12 @@ export class AvatarIk {
         var hipsPos = this.hipsBone?.position;
         if (hipsPos) {
           rawPos = {
-            x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + 0.05, // (this.isFlippedY ? 0.05 : -0.05),
-            y: 0,
-            z: (this.isFlippedY ? -hipsPos.z : hipsPos.z) || 0
+            x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + 0.1, // (this.isFlippedY ? 0.05 : -0.05),
+            y: -0.05,
+            z: (this.isFlippedY ? -(hipsPos.z + this.leftFootWalkPosZ) : hipsPos.z + this.leftFootWalkPosZ) || 0
           };
         } else {
-          rawPos = { x: this.isFlippedY ? 0.05 : -0.05, y: 0, z: 0 };
+          rawPos = { x: this.isFlippedY ? 0.1 : -0.1, y: 0, z: 0 };
         }
         // TODO: walk / run animation when foot moves with hmd
         // TODO: IK when tracker for foot exists (in such case: followHeadVerticalRotation = false)
@@ -351,12 +380,12 @@ export class AvatarIk {
         var hipsPos = this.hipsBone?.position;
         if (hipsPos) {
           rawPos = {
-            x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + -0.05, //(this.isFlippedY ? -0.05 : 0.05),
-            y: 0,
-            z: (this.isFlippedY ? -hipsPos.z : hipsPos.z) || 0
+            x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + -0.1, //(this.isFlippedY ? -0.05 : 0.05),
+            y: -0.05,
+            z: (this.isFlippedY ? -(hipsPos.z + this.rightFootWalkPosZ) : hipsPos.z + this.rightFootWalkPosZ) || 0
           };
         } else {
-          rawPos = { x: this.isFlippedY ? -0.05 : 0.05, y: 0, z: 0 };
+          rawPos = { x: this.isFlippedY ? -0.1 : 0.1, y: 0, z: 0 };
         }
         // TODO: walk / run animation when foot moves with hmd
         // TODO: IK when tracker for foot exists (in such case: followHeadVerticalRotation = false)
@@ -368,6 +397,18 @@ export class AvatarIk {
       this.currentInputPosition.set(rawPos.x, rawPos.y, rawPos.z);
     }
     return followHeadVerticalRotation;
+  }
+
+  walk(deltaTime: number) {
+    this.walkTimer += deltaTime * 0.01;
+    this.leftFootWalkPosZ = Math.cos(this.walkTimer) * 0.1;
+    this.rightFootWalkPosZ = -Math.cos(this.walkTimer) * 0.1;
+  }
+
+  stopWalk() {
+    this.walkTimer = 0;
+    this.leftFootWalkPosZ = 0;
+    this.rightFootWalkPosZ = 0;
   }
 }
 
