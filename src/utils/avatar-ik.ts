@@ -220,14 +220,16 @@ export class AvatarIk {
         if (isHipsFarFromHead) {
           hipsBonePosX =
             this.hipsBone.position.x +
-            ((this.isFlippedY ? hmdTransform.pos.x : -hmdTransform.pos.x) - this.hipsBone.position.x) *
-              deltaTime *
-              0.005;
+            ((this.isFlippedY ? hmdTransform.pos.x : -hmdTransform.pos.x) > this.hipsBone.position.x
+              ? 0.0001
+              : -0.0001) *
+              deltaTime;
           hipsBonePosZ =
             this.hipsBone.position.z +
-            ((this.isFlippedY ? hmdTransform.pos.z : -hmdTransform.pos.z) - this.hipsBone.position.z) *
-              deltaTime *
-              0.005;
+            ((this.isFlippedY ? hmdTransform.pos.z : -hmdTransform.pos.z) > this.hipsBone.position.z
+              ? 0.0001
+              : -0.0001) *
+              deltaTime;
         } else {
           this.isWalking = false;
         }
