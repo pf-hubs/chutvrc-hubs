@@ -194,7 +194,10 @@ export class AvatarIk {
       this.rootInput.pos.y,
       this.rootInput.pos.z /* + (this.isSelfAvatar ? FULL_BODY_HEAD_OFFSET * (this.isFlippedY ? 0.01 : -0.01) : 0)*/
     );
-    this.isMoving = this.lastRootPosInputX !== this.rootInput.pos.x || this.lastRootPosInputZ !== this.rootInput.pos.z;
+    console.log(this.lastRootPosInputZ - this.rootInput.pos.z);
+    this.isMoving =
+      Math.abs((this.lastRootPosInputX -= this.rootInput.pos.x)) > 0.02 ||
+      Math.abs(this.lastRootPosInputZ - this.rootInput.pos.z) > 0.02;
     this.lastRootPosInputX = this.rootInput.pos.x;
     this.lastRootPosInputZ = this.rootInput.pos.z;
     // if (this.isSelfAvatar) {
