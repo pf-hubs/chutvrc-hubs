@@ -194,10 +194,9 @@ export class AvatarIk {
       this.rootInput.pos.y,
       this.rootInput.pos.z /* + (this.isSelfAvatar ? FULL_BODY_HEAD_OFFSET * (this.isFlippedY ? 0.01 : -0.01) : 0)*/
     );
-    console.log(this.lastRootPosInputZ - this.rootInput.pos.z);
     this.isMoving =
-      Math.abs((this.lastRootPosInputX -= this.rootInput.pos.x)) > 0.02 ||
-      Math.abs(this.lastRootPosInputZ - this.rootInput.pos.z) > 0.02;
+      Math.abs(this.lastRootPosInputX - this.rootInput.pos.x) > 0.03 ||
+      Math.abs(this.lastRootPosInputZ - this.rootInput.pos.z) > 0.03;
     this.lastRootPosInputX = this.rootInput.pos.x;
     this.lastRootPosInputZ = this.rootInput.pos.z;
     // if (this.isSelfAvatar) {
@@ -213,8 +212,8 @@ export class AvatarIk {
 
     if (this.hipsBone && hmdTransform) {
       const isHipsFarFromHead =
-        Math.abs(hmdTransform.pos.x - this.hipsBone.position.x) > 0.1 ||
-        Math.abs(hmdTransform.pos.z - this.hipsBone.position.z) > 0.1;
+        Math.abs(hmdTransform.pos.x - this.hipsBone.position.x) > 0.15 ||
+        Math.abs(hmdTransform.pos.z - this.hipsBone.position.z) > 0.15;
       let hipsBonePosX = this.hipsBone.position.x;
       let hipsBonePosZ = this.hipsBone.position.z;
       if (this.isWalking) {
