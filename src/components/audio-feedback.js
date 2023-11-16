@@ -96,7 +96,17 @@ AFRAME.registerComponent("networked-audio-analyser", {
   _updateAnalysis: function (t) {
     if (!this.analyser) return;
 
-    updateVolume(this);
+    updateVolume(this); // remote avatar sound
+    if (this.volume > 0.0000001) {
+      const clientId = this.el.parentElement.parentElement.getAttribute("client-id");
+      if (clientId) {
+        if (APP.audioTimestamps[clientId]) {
+          APP.audioTimestamps[clientId].push([this.volume, Date.now()]);
+        } else {
+          APP.audioTimestamps[clientId] = [];
+        }
+      }
+    }
 
     if (this.volume < DISABLE_AT_VOLUME_THRESHOLD) {
       if (t && this.lastSeenVolume && this.lastSeenVolume < t - DISABLE_GRACE_PERIOD_MS) {
@@ -155,7 +165,8 @@ AFRAME.registerSystem("local-audio-analyser", {
 
     // TODO Ideally, when muted no audio should ever even make it into the analyser to begin with
     if (APP.sfu.isMicEnabled) {
-      updateVolume(this);
+      updateVolume(this); // local avatar sound
+      APP.localAudioTimestamps.push([this.volume, Date.now()]);
     } else {
       this.prevVolume = this.volume;
       this.volume = 0;

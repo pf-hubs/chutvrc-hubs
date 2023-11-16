@@ -236,6 +236,13 @@ export class SoraAdapter extends SfuAdapter {
           });
         }
         if (avatarPart === AvatarPart.LEFT) {
+          // @ts-ignore
+          if (APP.transformTimestamps[clientId]) {
+            APP.transformTimestamps[clientId].push([decodePosition(encodedTransform), Date.now()]);
+          } else {
+            APP.transformTimestamps[clientId] = [];
+          }
+
           this._leftHandTransformsBuffer.set(clientId, {
             pos: decodePosition(encodedTransform),
             rot: decodeRotation(encodedTransform)
