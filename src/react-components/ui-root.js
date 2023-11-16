@@ -102,7 +102,7 @@ import { NotificationsContainer } from "./room/NotificationsContainer";
 import { usePermissions } from "./room/hooks/usePermissions";
 import { ChatContextProvider } from "./room/contexts/ChatContext";
 import ChatToolbarButton from "./room/components/ChatToolbarButton/ChatToolbarButton";
-import AudioAvatarSyncTestDlButton from "./audio-avatar-sync-test-dl-button";
+import AASyncTestDlButton from "./audio-avatar-sync-test-dl-button";
 
 const avatarEditorDebug = qsTruthy("avatarEditorDebug");
 
@@ -1628,8 +1628,8 @@ class UIRoot extends Component {
                             initialPresence={getPresenceProfileForSession(this.props.presences, this.props.sessionId)}
                           />
                         )}
-                        {<AudioAvatarSyncTestDlButton isLocalTimestamp={true} />}
-                        {<AudioAvatarSyncTestDlButton isLocalTimestamp={false} />}
+                        {<AASyncTestDlButton isLocalTimestamp={true} />}
+                        {<AASyncTestDlButton isLocalTimestamp={false} />}
                       </>
                     )}
                     {!isLockedDownDemo && (

@@ -7,6 +7,7 @@ import { AvatarObjects, AvatarPart, AvatarTransformBuffer, avatarPartTypes } fro
 import { decodeAndSetAvatarTransform, decodePosition, decodeRotation, getAvatarSrc } from "./utils/avatar-utils";
 import { loadModel } from "./components/gltf-model-plus";
 import { createAvatarBoneEntities, removeAvatarEntityAndModel } from "./bit-systems/avatar-bones-system";
+import { Object3D } from "three";
 const debug = newDebug("naf-dialog-adapter:debug");
 
 type ConnectProps = {
@@ -47,6 +48,11 @@ export class SoraAdapter extends SfuAdapter {
   _rightHandTransformsBuffer: Map<string, Transform>;
   /* End of implementation for using bitECS */
 
+  // Part of audio avatar sync test
+  _lastAvatarTimestampInAASyncTest: { [clientId: string]: number };
+  _aASyncTestReceiverResponseObject: Object3D;
+  // End of part of audio avatar sync test
+
   constructor() {
     super();
     this._clientId = "";
@@ -67,6 +73,7 @@ export class SoraAdapter extends SfuAdapter {
     this._leftHandTransformsBuffer = new Map<string, Transform>();
     this._rightHandTransformsBuffer = new Map<string, Transform>();
     /* End of implementation for using bitECS */
+    this._lastAvatarTimestampInAASyncTest = {}; // Part of audio avatar sync test
   }
 
   async connect({ clientId, channelId, signalingUrl, accessToken, scene, debug }: ConnectProps) {
@@ -236,13 +243,38 @@ export class SoraAdapter extends SfuAdapter {
           });
         }
         if (avatarPart === AvatarPart.LEFT) {
-          if (APP.isReceiverInAudioAvatarSyncTest) {
-            if (APP.transformTimestamps[clientId]) {
-              APP.transformTimestamps[clientId].push([decodePosition(encodedTransform).z, Date.now()]);
-            } else {
+          // Part of audio avatar sync test
+          if (APP.isReceiverInAASyncTest) {
+            if (!APP.transformTimestamps[clientId]) {
               APP.transformTimestamps[clientId] = [];
             }
+            const transformArriveTime = Date.now();
+            if (
+              !this._lastAvatarTimestampInAASyncTest[clientId] ||
+              transformArriveTime - this._lastAvatarTimestampInAASyncTest[clientId] > 1000
+            ) {
+              APP.transformTimestamps[clientId].push([]);
+              if (this._aASyncTestReceiverResponseObject) {
+                this._aASyncTestReceiverResponseObject.position.set(
+                  0,
+                  0,
+                  -this._aASyncTestReceiverResponseObject.position.z
+                );
+              } else {
+                this._aASyncTestReceiverResponseObject = (
+                  document.querySelector("#player-right-controller") as AElement
+                ).object3D;
+                this._aASyncTestReceiverResponseObject.position.set(0, 0, 0.5);
+              }
+            }
+            APP.transformTimestamps[clientId][APP.transformTimestamps[clientId].length - 1].push([
+              decodePosition(encodedTransform).z,
+              transformArriveTime
+            ]);
+
+            this._lastAvatarTimestampInAASyncTest[clientId] = transformArriveTime;
           }
+          // End of part of audio avatar sync test
 
           this._leftHandTransformsBuffer.set(clientId, {
             pos: decodePosition(encodedTransform),
@@ -250,6 +282,18 @@ export class SoraAdapter extends SfuAdapter {
           });
         }
         if (avatarPart === AvatarPart.RIGHT) {
+          // Part of audio avatar sync test
+          if (APP.isSenderInAASyncTest) {
+            if (!APP.estimatedRecvAvatarTimestampsAtSenderClock[clientId]) {
+              APP.estimatedRecvAvatarTimestampsAtSenderClock[clientId] = [];
+            }
+            if (APP.estimatedRecvAvatarTimestampsAtSenderClock[clientId].length < APP.localTransformTimestamps.length) {
+              const sendTimestamp = APP.localTransformTimestamps[APP.localTransformTimestamps.length - 1][0][1];
+              APP.estimatedRecvAvatarTimestampsAtSenderClock[clientId].push((sendTimestamp + Date.now()) / 2);
+            }
+          }
+          // End of part of audio avatar sync test
+
           this._rightHandTransformsBuffer.set(clientId, {
             pos: decodePosition(encodedTransform),
             rot: decodeRotation(encodedTransform)

@@ -66,6 +66,8 @@ AFRAME.registerComponent("networked-audio-analyser", {
 
     this.playerSessionId = findAncestorWithComponent(this.el, "player-info")?.components["player-info"].playerSessionId;
     registerComponentInstance(this, "networked-audio-analyser");
+
+    this._lastAudioTimestampInAASyncTest = {};
   },
 
   remove: function () {
@@ -97,16 +99,28 @@ AFRAME.registerComponent("networked-audio-analyser", {
     if (!this.analyser) return;
 
     updateVolume(this); // remote avatar sound
-    if (APP.isReceiverInAudioAvatarSyncTest && this.volume > 0.0001) {
+    if (this.volume > 0.001) {
       const timestamp = Date.now();
-      let clientId = this.el.parentElement.getAttribute("client-id");
-      if (!clientId) clientId = this.el.parentElement.parentElement.getAttribute("client-id");
-      if (clientId) {
-        if (APP.audioTimestamps[clientId]) {
-          APP.audioTimestamps[clientId].push([this.volume, timestamp]);
-        } else {
-          APP.audioTimestamps[clientId] = [];
+      if (!this.clientId) {
+        this.clientId = this.el.parentElement.getAttribute("client-id");
+        if (!this.clientId) this.clientId = this.el.parentElement.parentElement.getAttribute("client-id");
+      }
+
+      if (this.clientId) {
+        if (!APP.audioTimestamps[this.clientId]) {
+          APP.audioTimestamps[this.clientId] = [];
         }
+        if (
+          !this._lastAudioTimestampInAASyncTest[this.clientId] ||
+          timestamp - this._lastAudioTimestampInAASyncTest[this.clientId] > 1000
+        ) {
+          APP.audioTimestamps[this.clientId].push([]);
+        }
+        APP.audioTimestamps[this.clientId][APP.audioTimestamps[this.clientId].length - 1].push([
+          this.volume,
+          timestamp
+        ]);
+        this._lastAudioTimestampInAASyncTest[this.clientId] = timestamp;
       }
     }
 

@@ -115,12 +115,13 @@ export class App {
   dialog = dialogAdapter;
   sora = soraAdapter;
 
-  isSenderInAudioAvatarSyncTest = false;
-  isReceiverInAudioAvatarSyncTest = false;
+  isSenderInAASyncTest = false;
+  isReceiverInAASyncTest = false;
   localAudioTimestamps = [];
   localTransformTimestamps = [];
   audioTimestamps: { [clientId: string]: any[] } = {};
   transformTimestamps: { [clientId: string]: any[] } = {};
+  estimatedRecvAvatarTimestampsAtSenderClock: { [clientId: string]: number[] } = {};
 
   RENDER_ORDER = {
     HUD_BACKGROUND: 1,

@@ -5,7 +5,7 @@ import { ReactComponent as UploadIcon } from "./icons/Upload.svg";
 import { ReactComponent as ObserveIcon } from "./icons/Show.svg";
 import { ReactComponent as DocumentIcon } from "./icons/Document.svg";
 
-const AudioAvatarSyncTestDlButton = ({ isLocalTimestamp }) => {
+const AASyncTestDlButton = ({ isLocalTimestamp }) => {
   const [isSender, setIsSender] = useState(false);
   const [isReceiver, setIsReceiver] = useState(false);
 
@@ -16,7 +16,7 @@ const AudioAvatarSyncTestDlButton = ({ isLocalTimestamp }) => {
         label={"SyncTest Send"}
         preset="accent5"
         onClick={() => {
-          APP.isSenderInAudioAvatarSyncTest = true;
+          APP.isSenderInAASyncTest = true;
           setIsSender(true);
         }}
       ></ToolbarButton>
@@ -28,7 +28,7 @@ const AudioAvatarSyncTestDlButton = ({ isLocalTimestamp }) => {
         label={"SyncTest Recv"}
         preset="accent5"
         onClick={() => {
-          APP.isReceiverInAudioAvatarSyncTest = true;
+          APP.isReceiverInAASyncTest = true;
           setIsReceiver(true);
         }}
       ></ToolbarButton>
@@ -67,14 +67,27 @@ const AudioAvatarSyncTestDlButton = ({ isLocalTimestamp }) => {
           document.body.removeChild(link);
 
           if (isLocalTimestamp) {
+            blob = new Blob([JSON.stringify(APP.estimatedRecvAvatarTimestampsAtSenderClock)], {
+              type: "text/json"
+            });
+            link = document.createElement("a");
+            document.body.appendChild(link);
+            link.href = window.URL.createObjectURL(blob);
+            link.setAttribute("download", `avatarArriveTimeEstimated-${APP.usingSfu.toString()}-${NAF.clientId}.json`);
+            link.click();
+            document.body.removeChild(link);
+          }
+
+          if (isLocalTimestamp) {
             APP.localAudioTimestamps = [];
             APP.localTransformTimestamps = [];
-            APP.isSenderInAudioAvatarSyncTest = false;
+            APP.isSenderInAASyncTest = false;
+            APP.estimatedRecvAvatarTimestampsAtSenderClock = {};
             setIsSender(false);
           } else {
             APP.audioTimestamps = {};
             APP.transformTimestamps = {};
-            APP.isReceiverInAudioAvatarSyncTest = false;
+            APP.isReceiverInAASyncTest = false;
             setIsReceiver(false);
           }
         }}
@@ -83,8 +96,8 @@ const AudioAvatarSyncTestDlButton = ({ isLocalTimestamp }) => {
   }
 };
 
-AudioAvatarSyncTestDlButton.propTypes = {
+AASyncTestDlButton.propTypes = {
   isLocalTimestamp: PropTypes.bool
 };
 
-export default AudioAvatarSyncTestDlButton;
+export default AASyncTestDlButton;

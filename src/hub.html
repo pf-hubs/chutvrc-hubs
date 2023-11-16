@@ -97,7 +97,7 @@
 
                     <a-entity class="left-controller" test-receive-movement></a-entity>
 
-                    <a-entity class="right-controller"></a-entity>
+                    <a-entity class="right-controller" test-get-receiver-response></a-entity>
 
                     <a-entity name-tag tags="ignoreSpaceBubble: true;" position="0 0 0"
                         layers="mask: 768; recursive: true;" billboard="onlyY: true;">
@@ -810,13 +810,20 @@
                 shape-helper="type: box; fit: manual; halfExtents: 0.03 0.04 0.05; offset: 0 0 -0.04" set-yxz-order>
             </a-entity> -->
 
-            <a-entity id="player-right-controller" class="right-controller" hand-right
-                track-pose="path: /actions/rightHand/matrix" visibility-by-path="path: /actions/rightHand/matrix"
+            <a-entity id="player-right-controller" class="right-controller" hand-right test-receiver-response-object
                 hand-controls2="right"
                 teleporter="start: /actions/rightHand/startTeleport; confirm: /actions/rightHand/stopTeleport;"
                 body-helper="type: kinematic; emitCollisionEvents: false; disableCollision: true; collisionFilterGroup: 8; collisionFilterMask: 3; activationState: disable_deactivation; scaleAutoUpdate: false;"
                 shape-helper="type: box; fit: manual; halfExtents: 0.03 0.04 0.05; offset: 0 0 -0.04" set-yxz-order>
             </a-entity>
+
+            <!-- <a-entity id="player-right-controller" class="right-controller" hand-right
+                track-pose="path: /actions/rightHand/matrix" visibility-by-path="path: /actions/rightHand/matrix"
+                hand-controls2="right"
+                teleporter="start: /actions/rightHand/startTeleport; confirm: /actions/rightHand/stopTeleport;"
+                body-helper="type: kinematic; emitCollisionEvents: false; disableCollision: true; collisionFilterGroup: 8; collisionFilterMask: 3; activationState: disable_deactivation; scaleAutoUpdate: false;"
+                shape-helper="type: box; fit: manual; halfExtents: 0.03 0.04 0.05; offset: 0 0 -0.04" set-yxz-order>
+            </a-entity> -->
 
             <!-- <a-entity gltf-model-plus="inflate: true;" class="model"> -->
             <a-entity class="model">
