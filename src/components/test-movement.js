@@ -6,9 +6,8 @@ AFRAME.registerComponent("test-movement", {
     this.intervalMs = 10000;
     this.previousTime = 0;
     this.isSending = false;
-    this.audio = new Audio(URL_SPEAKER_TONE);
-    this.audio.crossOrigin = "anonymous";
-    this.audio.load();
+    this.reloadAudio();
+    this.isAudioStreamReset = false;
   },
 
   tick(time) {
@@ -20,7 +19,6 @@ AFRAME.registerComponent("test-movement", {
     const elapsedTime = time - this.previousTime;
     if (!this.isSending && elapsedTime < this.intervalMs) {
       this.isSending = true;
-      // Send audio stream from a local clip directly to remote clients
       this.audioStream = this.audio.captureStream();
       APP.sfu.setLocalMediaStream(this.audioStream);
       this.audio.play();
@@ -33,11 +31,22 @@ AFRAME.registerComponent("test-movement", {
         this.el.object3D.position.set(-1, 1 + Math.sin(cnt * 2), Math.cos(cnt * 2));
         APP.localTransformTimestamps.push([this.el.object3D.position, Date.now()]);
       }
+      if (!this.isAudioStreamReset && elapsedTime >= this.intervalMs / 2) {
+        this.reloadAudio();
+      }
       if (elapsedTime >= this.intervalMs) {
         this.isSending = false;
         this.previousTime = time;
+        this.isAudioStreamReset = false;
       }
     }
+  },
+
+  reloadAudio() {
+    this.audio = new Audio(URL_SPEAKER_TONE);
+    this.audio.crossOrigin = "anonymous";
+    this.audio.load();
+    this.isAudioStreamReset = true;
   }
 });
 
@@ -58,7 +67,7 @@ AFRAME.registerComponent("test-receive-movement", {
     if (this.previousPositionZ != this.el.object3D.position.z && APP.usingSfu === SFU.DIALOG) {
       if (this.clientId) {
         if (APP.transformTimestamps[this.clientId]) {
-          APP.transformTimestamps[this.clientId].push([this.el.object3D.position, Date.now()]);
+          APP.transformTimestamps[this.clientId].push([this.el.object3D.position.z, Date.now()]);
         } else {
           APP.transformTimestamps[this.clientId] = [];
         }

@@ -238,7 +238,7 @@ export class SoraAdapter extends SfuAdapter {
         if (avatarPart === AvatarPart.LEFT) {
           if (APP.isReceiverInAudioAvatarSyncTest) {
             if (APP.transformTimestamps[clientId]) {
-              APP.transformTimestamps[clientId].push([decodePosition(encodedTransform), Date.now()]);
+              APP.transformTimestamps[clientId].push([decodePosition(encodedTransform).z, Date.now()]);
             } else {
               APP.transformTimestamps[clientId] = [];
             }

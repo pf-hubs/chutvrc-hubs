@@ -769,8 +769,10 @@ export class DialogAdapter extends SfuAdapter {
           // TODO multiple audio tracks?
           if (this._micProducer) {
             if (this._micProducer.track !== track) {
-              this._micProducer.track.stop();
-              this._micProducer.replaceTrack(track);
+              console.log(track.clone());
+              this._micProducer.track?.stop();
+              this._micProducer.replaceTrack(track.clone());
+              console.log(this._micProducer.track);
             }
           } else {
             // stopTracks = false because otherwise the track will end during a temporary disconnect

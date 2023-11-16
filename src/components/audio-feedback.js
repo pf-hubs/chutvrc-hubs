@@ -97,7 +97,7 @@ AFRAME.registerComponent("networked-audio-analyser", {
     if (!this.analyser) return;
 
     updateVolume(this); // remote avatar sound
-    if (APP.isReceiverInAudioAvatarSyncTest && this.volume > 0.001) {
+    if (APP.isReceiverInAudioAvatarSyncTest && this.volume > 0.0001) {
       const timestamp = Date.now();
       let clientId = this.el.parentElement.getAttribute("client-id");
       if (!clientId) clientId = this.el.parentElement.parentElement.getAttribute("client-id");
