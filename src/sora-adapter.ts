@@ -397,9 +397,6 @@ export class SoraAdapter extends SfuAdapter {
           )
             return;
           if (this._localMediaStream) {
-            // console.log(this._localMediaStream);
-            // console.log(stream);
-            // console.log(track);
             this._sendrecv?.replaceAudioTrack(this._localMediaStream, track.clone());
           }
         } else {

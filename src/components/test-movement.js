@@ -5,7 +5,7 @@ import URL_SPEAKER_TONE from "../assets/sfx/tone.mp3";
 
 AFRAME.registerComponent("test-movement", {
   init: function () {
-    this.intervalMs = 5000;
+    this.intervalMs = 10000;
     this.previousTime = 0;
     this.isSending = false;
     this.reloadAudio();
@@ -15,6 +15,7 @@ AFRAME.registerComponent("test-movement", {
   tick(time) {
     if (!APP.isSenderInAASyncTest) {
       this.previousTime = time;
+      if (this.isSending) this.isSending = false;
       return;
     }
 
@@ -58,6 +59,7 @@ AFRAME.registerComponent("test-receive-movement", {
     this.previousPositionZ = this.el.object3D.position.z;
     this.clientId = "";
     this.responseObject = null;
+    this.lastTimestamp = {}; // { [clientId: string]: number }
   },
 
   tick() {
@@ -75,14 +77,21 @@ AFRAME.registerComponent("test-receive-movement", {
 
     if (this.previousPositionZ != this.el.object3D.position.z) {
       if (this.clientId) {
+        const transformArriveTime = Date.now();
         if (!APP.transformTimestamps[this.clientId]) {
           APP.transformTimestamps[this.clientId] = [];
         }
-        console.log("!!!!!!!!!!");
-        APP.transformTimestamps[this.clientId].push([this.el.object3D.position.z, Date.now()]);
+        if (!this.lastTimestamp[this.clientId] || transformArriveTime - this.lastTimestamp[this.clientId] > 1000) {
+          APP.transformTimestamps[this.clientId].push([]);
+        }
+        APP.transformTimestamps[this.clientId][APP.transformTimestamps[this.clientId].length - 1].push([
+          this.el.object3D.position.z,
+          transformArriveTime
+        ]);
         if (this.responseObject) {
           this.responseObject.position.set(0, 0, -this.responseObject.position.z);
         }
+        this.lastTimestamp[this.clientId] = transformArriveTime;
       }
     }
     this.previousPositionZ = this.el.object3D.position.z;

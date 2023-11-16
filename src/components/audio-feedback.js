@@ -99,11 +99,12 @@ AFRAME.registerComponent("networked-audio-analyser", {
     if (!this.analyser) return;
 
     updateVolume(this); // remote avatar sound
-    if (this.volume > 0.001) {
+    if (this.volume > 0.000001) {
       const timestamp = Date.now();
       if (!this.clientId) {
         this.clientId = this.el.parentElement.getAttribute("client-id");
         if (!this.clientId) this.clientId = this.el.parentElement.parentElement.getAttribute("client-id");
+        if (!this.clientId) this.clientId = this.el.parentElement.parentElement.parentElement.getAttribute("client-id");
       }
 
       if (this.clientId) {
