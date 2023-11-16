@@ -10,6 +10,7 @@ import { textureLoader } from "../utils/media-utils";
 
 import handRaisedIconSrc from "../assets/hud/hand-raised.png";
 import { AvatarComponent } from "../bit-components";
+import { SFU } from "../available-sfu";
 
 const DEBUG = qsTruthy("debug");
 const NAMETAG_BACKGROUND_PADDING = 0.05;
@@ -160,9 +161,13 @@ AFRAME.registerComponent("name-tag", {
         this.handRaised.visible = this.isHandRaised;
 
         if (!this.neck && this.ikRoot) {
-          this.neck = APP.world.eid2obj.get(
-            AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
-          );
+          if (APP.usingSfu === SFU.SORA) {
+            this.neck = APP.world.eid2obj.get(
+              AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
+            );
+          } else {
+            this.neck = this.ikRoot.el.querySelector(".Neck")?.object3D || this.ikRoot.object3D;
+          }
         }
         if (this.ikRoot) {
           this.neck?.getWorldPosition(worldPos);
@@ -268,10 +273,13 @@ AFRAME.registerComponent("name-tag", {
     await nextTick();
     this.ikRoot = findAncestorWithComponent(this.el, "ik-root").object3D;
     this.ikRoot.el.object3D.visible = true;
-    // this.neck = this.ikRoot.el.querySelector(".Neck").object3D;
-    this.neck = APP.world.eid2obj.get(
-      AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
-    );
+    if (APP.usingSfu === SFU.SORA) {
+      this.neck = APP.world.eid2obj.get(
+        AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
+      );
+    } else {
+      this.neck = this.ikRoot.el.querySelector(".Neck")?.object3D || this.ikRoot.object3D;
+    }
     this.audioAnalyzer = this.ikRoot.el.querySelector(".model").components["networked-audio-analyser"];
 
     this.updateAvatarModelAABB();

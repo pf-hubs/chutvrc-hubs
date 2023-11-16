@@ -115,6 +115,8 @@ export class App {
   dialog = dialogAdapter;
   sora = soraAdapter;
 
+  isSenderInAudioAvatarSyncTest = false;
+  isReceiverInAudioAvatarSyncTest = false;
   localAudioTimestamps = [];
   localTransformTimestamps = [];
   audioTimestamps: { [clientId: string]: any[] } = {};

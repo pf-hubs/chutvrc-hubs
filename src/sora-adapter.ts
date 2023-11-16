@@ -236,11 +236,12 @@ export class SoraAdapter extends SfuAdapter {
           });
         }
         if (avatarPart === AvatarPart.LEFT) {
-          // @ts-ignore
-          if (APP.transformTimestamps[clientId]) {
-            APP.transformTimestamps[clientId].push([decodePosition(encodedTransform), Date.now()]);
-          } else {
-            APP.transformTimestamps[clientId] = [];
+          if (APP.isReceiverInAudioAvatarSyncTest) {
+            if (APP.transformTimestamps[clientId]) {
+              APP.transformTimestamps[clientId].push([decodePosition(encodedTransform), Date.now()]);
+            } else {
+              APP.transformTimestamps[clientId] = [];
+            }
           }
 
           this._leftHandTransformsBuffer.set(clientId, {
@@ -352,6 +353,9 @@ export class SoraAdapter extends SfuAdapter {
           )
             return;
           if (this._localMediaStream) {
+            // console.log(this._localMediaStream);
+            // console.log(stream);
+            // console.log(track);
             this._sendrecv?.replaceAudioTrack(this._localMediaStream, track.clone());
           }
         } else {
