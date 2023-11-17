@@ -40,56 +40,59 @@ const AASyncTestDlButton = ({ isLocalTimestamp }) => {
         label={(isLocalTimestamp ? "Local" : "Remote") + " TS DL"}
         preset="accent5"
         onClick={() => {
-          let blob = new Blob([JSON.stringify(isLocalTimestamp ? APP.localAudioTimestamps : APP.audioTimestamps)], {
-            type: "text/json"
-          });
-          let link = document.createElement("a");
+          const link = document.createElement("a");
           document.body.appendChild(link);
-          link.href = window.URL.createObjectURL(blob);
-          link.setAttribute(
-            "download",
-            `audio-${isLocalTimestamp ? "sendLocal" : "recvRemote"}-${APP.usingSfu.toString()}-${NAF.clientId}.json`
-          );
-          link.click();
-          document.body.removeChild(link);
-
-          blob = new Blob([JSON.stringify(isLocalTimestamp ? APP.localTransformTimestamps : APP.transformTimestamps)], {
-            type: "text/json"
-          });
-          link = document.createElement("a");
-          document.body.appendChild(link);
-          link.href = window.URL.createObjectURL(blob);
-          link.setAttribute(
-            "download",
-            `avatar-${isLocalTimestamp ? "sendLocal" : "recvRemote"}-${APP.usingSfu.toString()}-${NAF.clientId}.json`
-          );
-          link.click();
-          document.body.removeChild(link);
 
           if (isLocalTimestamp) {
+            let blob = new Blob([JSON.stringify(APP.localAudioTimestamps)], {
+              type: "text/json"
+            });
+            link.href = window.URL.createObjectURL(blob);
+            link.setAttribute("download", `audio-sendLocal-${APP.usingSfu.toString()}-${NAF.clientId}.json`);
+            link.click();
+
+            blob = new Blob([JSON.stringify(APP.localTransformTimestamps)], {
+              type: "text/json"
+            });
+            link.href = window.URL.createObjectURL(blob);
+            link.setAttribute("download", `avatar-sendLocal-${APP.usingSfu.toString()}-${NAF.clientId}.json`);
+            link.click();
+
             blob = new Blob([JSON.stringify(APP.estimatedRecvAvatarTimestampsAtSenderClock)], {
               type: "text/json"
             });
-            link = document.createElement("a");
-            document.body.appendChild(link);
             link.href = window.URL.createObjectURL(blob);
             link.setAttribute("download", `avatarArriveTimeEstimated-${APP.usingSfu.toString()}-${NAF.clientId}.json`);
             link.click();
-            document.body.removeChild(link);
-          }
 
-          if (isLocalTimestamp) {
             APP.localAudioTimestamps = [];
             APP.localTransformTimestamps = [];
             APP.isSenderInAASyncTest = false;
             APP.estimatedRecvAvatarTimestampsAtSenderClock = {};
             setIsSender(false);
           } else {
+            const blob = new Blob(
+              [
+                JSON.stringify({
+                  audio: APP.audioTimestamps,
+                  avatar: APP.transformTimestamps
+                })
+              ],
+              {
+                type: "text/json"
+              }
+            );
+            link.href = window.URL.createObjectURL(blob);
+            link.setAttribute("download", `audio-avatar-recvRemote-${APP.usingSfu.toString()}-${NAF.clientId}.json`);
+            link.click();
+
             APP.audioTimestamps = {};
             APP.transformTimestamps = {};
             APP.isReceiverInAASyncTest = false;
             setIsReceiver(false);
           }
+
+          document.body.removeChild(link);
         }}
       />
     );
