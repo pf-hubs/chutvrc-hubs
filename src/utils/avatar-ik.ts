@@ -6,7 +6,7 @@ import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-
 
 const FULL_BODY_HEAD_OFFSET = 0.25;
 const VECTOR_UP = new Vector3(0, 1, 0);
-const ALPHA = 0.2;
+const ALPHA = 0.3;
 
 const HAND_ROTATIONS = {
   left: new Quaternion().setFromEuler(new Euler(-Math.PI / 2, Math.PI / 2, 0)),
@@ -352,22 +352,26 @@ export class AvatarIk {
         targetRot.z
       );
     } else if (this.rootBone) {
-      // effector.rotation.set(targetRot.x, targetRot.y, targetRot.z, "YZX");
-      effector.rotation.set(0, 0, 0);
-
-      /*
-      const lastJoint = this.world.eid2obj.get(AvatarComponent.spine[avatarEid]);
-      if (!lastJoint) return;
-      const handMatrix = effector.matrix;
-      const rootToChest = new Matrix4();
-      const invRootToChest = new Matrix4();
-      rootToChest.multiplyMatrices(this.rootBone.matrix, lastJoint.matrix);
-      invRootToChest.copy(rootToChest).invert();
-      const controllerMatrix = new Matrix4().makeRotationFromEuler(new Euler(targetRot.x, targetRot.y, targetRot.z));
-      handMatrix.multiplyMatrices(invRootToChest, controllerMatrix);
-      handMatrix.multiply(HAND_ROTATIONS_MATRIX.left);
-      effector.rotation.setFromRotationMatrix(handMatrix);
-      */
+      let targetQ = new Quaternion();
+      targetQ.setFromEuler(new Euler(targetRot.y, targetRot.x, targetRot.z, "YXZ"));
+      let parentWorldQ = new Quaternion();
+      effector.parent?.getWorldQuaternion(parentWorldQ);
+      let localQ = targetQ.multiply(parentWorldQ.invert());
+      localQ.x = -localQ.x;
+      localQ.z = -localQ.z;
+      effector.quaternion.copy(localQ);
+      if (chainConfig.effectorBoneName === BoneType.LeftHand) {
+        // effector.rotation.x = effector.rotation.x - Math.PI / 2;
+        effector.rotation.y = effector.rotation.y + Math.PI;
+        effector.rotation.z = -effector.rotation.z;
+        // effector.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, effector.rotation.x));
+        // effector.rotation.y = Math.max(0, Math.min(Math.PI * 2, effector.rotation.y));
+        // effector.rotation.z = Math.max(-Math.PI, Math.min(0, effector.rotation.z));
+      } else {
+        // effector.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, effector.rotation.x));
+        // effector.rotation.y = Math.max(0, Math.min(Math.PI, effector.rotation.y));
+        // effector.rotation.z = Math.max(0, Math.min(Math.PI, effector.rotation.z));
+      }
     }
 
     effector.rotation._onChangeCallback();
