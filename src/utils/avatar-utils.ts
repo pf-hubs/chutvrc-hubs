@@ -138,3 +138,11 @@ export function decodeRotation(encodedTransform: Uint8Array) {
     z: uInt8ToRad(encodedTransform[8])
   };
 }
+
+export function decodeRotation2(encodedTransform: Uint8Array) {
+  return {
+    x: uInt8ToRad(encodedTransform[6]),
+    y: uInt8ToRad(encodedTransform[7]),
+    z: uInt8ToRad(encodedTransform[8])
+  };
+}
