@@ -10,6 +10,7 @@ import { textureLoader } from "../utils/media-utils";
 
 import handRaisedIconSrc from "../assets/hud/hand-raised.png";
 import { AvatarComponent } from "../bit-components";
+import { SFU } from "../available-sfu";
 
 const DEBUG = qsTruthy("debug");
 const NAMETAG_BACKGROUND_PADDING = 0.05;
@@ -160,13 +161,16 @@ AFRAME.registerComponent("name-tag", {
         this.handRaised.visible = this.isHandRaised;
 
         if (!this.neck && this.ikRoot) {
-          this.neck = APP.world.eid2obj.get(
-            AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
-          );
+          this.neck =
+            APP.usingSfu === SFU.SORA
+              ? APP.world.eid2obj.get(
+                  AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
+                )
+              : this.ikRoot.el.querySelector(".Neck").object3D;
         }
         if (this.ikRoot) {
           this.neck?.getWorldPosition(worldPos);
-          // worldPos.setY(this.nametagElPosY + this.ikRoot.position.y);
+          if (APP.usingSfu === SFU.DIALOG) worldPos.setY(this.nametagElPosY + this.ikRoot.position.y);
           worldPos.setY(this.nametagElPosY + this.ikRoot.position.y + 2);
           mat.copy(this.nametag.matrixWorld);
           mat.setPosition(worldPos);
@@ -268,10 +272,12 @@ AFRAME.registerComponent("name-tag", {
     await nextTick();
     this.ikRoot = findAncestorWithComponent(this.el, "ik-root").object3D;
     this.ikRoot.el.object3D.visible = true;
-    // this.neck = this.ikRoot.el.querySelector(".Neck").object3D;
-    this.neck = APP.world.eid2obj.get(
-      AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
-    );
+    this.neck =
+      APP.usingSfu === SFU.SORA
+        ? APP.world.eid2obj.get(
+            AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
+          )
+        : this.ikRoot.el.querySelector(".Neck").object3D;
     this.audioAnalyzer = this.ikRoot.el.querySelector(".model").components["networked-audio-analyser"];
 
     this.updateAvatarModelAABB();
