@@ -3,6 +3,7 @@ import { BoneType } from "../constants";
 import { HubsWorld } from "../app";
 import { AvatarComponent } from "../bit-components";
 import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-system";
+import { AElement } from "aframe";
 
 const FULL_BODY_HEAD_OFFSET = 0.25;
 const VECTOR_UP = new Vector3(0, 1, 0);
@@ -217,6 +218,23 @@ export class AvatarIk {
       rawPoseInput.rightController.pos.x != 0 ||
       rawPoseInput.rightController.pos.y != 0 ||
       rawPoseInput.rightController.pos.z != 0;
+
+    if (this.isVR) {
+      let box = document.getElementById("test-box") as AElement;
+      box.object3D.position.set(
+        rawPoseInput.leftController.pos.x,
+        rawPoseInput.leftController.pos.y,
+        rawPoseInput.leftController.pos.z
+      );
+      box.object3D.rotation.set(
+        rawPoseInput.leftController.rot.x,
+        rawPoseInput.leftController.rot.y,
+        rawPoseInput.leftController.rot.z,
+        "YXZ"
+      );
+      box.object3D.rotation._onChangeCallback();
+      box.object3D.updateMatrix();
+    }
 
     const poseInput = this.lowPassFilterControllerPositions(rawPoseInput);
 
