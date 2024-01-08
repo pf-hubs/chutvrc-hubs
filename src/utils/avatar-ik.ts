@@ -6,7 +6,7 @@ import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-
 
 const FULL_BODY_HEAD_OFFSET = 0.25;
 const VECTOR_UP = new Vector3(0, 1, 0);
-const ALPHA = 0.2;
+const ALPHA = 0.3;
 
 const HAND_ROTATIONS = {
   left: new Quaternion().setFromEuler(new Euler(-Math.PI / 2, Math.PI / 2, 0)),
@@ -257,8 +257,8 @@ export class AvatarIk {
     //   this.rootBone?.position.add(this.headEffectorOffset.clone().multiplyScalar(this.isFlippedY ? 0.01 : -0.01));
     // }
     this.rootBone?.rotation.set(
-      this.rootInput.rot.y,
-      this.rootInput.rot.x + (hmdTransform?.rot.x || 0) + (this.isFlippedY ? 0 : Math.PI),
+      this.rootInput.rot.x,
+      this.rootInput.rot.y + (hmdTransform?.rot.y || 0) + (this.isFlippedY ? 0 : Math.PI),
       this.rootInput.rot.z
     );
     this.rootBone?.rotation._onChangeCallback();
@@ -317,7 +317,7 @@ export class AvatarIk {
               this.currentInputPosition
                 .applyAxisAngle(
                   this.rootBone.up,
-                  this.rootInput.rot.x - Math.PI + (followHeadVerticalRotation ? poseInput.hmd?.rot?.x || 0 : 0)
+                  this.rootInput.rot.y - Math.PI + (followHeadVerticalRotation ? poseInput.hmd?.rot?.y || 0 : 0)
                 )
                 .add(isSelfHead ? this.rootPos.clone().add(this.headEffectorOffset) : this.rootPos),
               jointConfig.rotationMin,
@@ -364,7 +364,8 @@ export class AvatarIk {
     } else {
       effector.rotation.set(
         this.isFlippedY ? targetRot.x : -targetRot.x,
-        chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.y,
+        targetRot.y,
+        // chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.y,
         targetRot.z,
         "YXZ"
       );
