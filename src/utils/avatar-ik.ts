@@ -351,10 +351,10 @@ export class AvatarIk {
         isHand = true;
         break;
       case BoneType.LeftFoot:
-        targetRot = { x: Math.PI / 2, y: 0, z: 0 };
+        targetRot = { x: -Math.PI / 2, y: 0, z: 0 };
         break;
       case BoneType.RightFoot:
-        targetRot = { x: Math.PI / 2, y: 0, z: 0 };
+        targetRot = { x: -Math.PI / 2, y: 0, z: 0 };
         break;
       default:
         break;
