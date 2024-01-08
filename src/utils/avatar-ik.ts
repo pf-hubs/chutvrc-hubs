@@ -85,7 +85,7 @@ const alignBoneWithTarget = (
 export class AvatarIk {
   private world: HubsWorld;
   private isVR: boolean;
-  private isTestBoxLoaded: boolean;
+  private testCube: Object3D;
   private isFlippedY: boolean;
   private hipsBone: Object3D | undefined;
   private hips2HeadDist: number;
@@ -124,7 +124,6 @@ export class AvatarIk {
 
     this.world = world;
     this.isVR = false;
-    this.isTestBoxLoaded = false;
     this.isFlippedY = rightHandX - leftHandX > 0;
     this.hipsBone = world.eid2obj.get(AvatarComponent.hips[avatarEid]);
     this.rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
@@ -165,6 +164,11 @@ export class AvatarIk {
       this.lastRootPosInputX = this.rootBone.position.x;
       this.lastRootPosInputZ = this.rootBone.position.z;
     }
+
+    const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+    const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+    this.testCube = new THREE.Mesh(geometry, material);
+    this.world.scene.add(this.testCube);
   }
 
   updateAvatarBoneIkById(avatarEid: number, poseInputs: InputTransformById, clientId = "", deltaTime = 0) {
@@ -221,28 +225,6 @@ export class AvatarIk {
       rawPoseInput.rightController.pos.y != 0 ||
       rawPoseInput.rightController.pos.z != 0;
 
-    let cube;
-    if (!this.isTestBoxLoaded) {
-      const geometry = new THREE.BoxGeometry(1, 1, 1);
-      const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-      cube = new THREE.Mesh(geometry, material);
-      this.world.scene.add(cube);
-      this.isTestBoxLoaded = true;
-    }
-
-    if (cube) {
-      // && this.isVR
-      cube.position.set(rawPoseInput.rig.pos.x, rawPoseInput.rig.pos.y + 2, rawPoseInput.rig.pos.z + 2);
-      cube.rotation.set(
-        rawPoseInput.leftController.rot.x,
-        rawPoseInput.leftController.rot.y,
-        rawPoseInput.leftController.rot.z,
-        "YXZ"
-      );
-      cube.rotation._onChangeCallback();
-      cube.updateMatrix();
-    }
-
     const poseInput = this.lowPassFilterControllerPositions(rawPoseInput);
 
     this.waitTime += deltaTime;
@@ -271,6 +253,22 @@ export class AvatarIk {
       this.stopWalk();
     } else {
       this.walk(deltaTime);
+    }
+
+    if (this.testCube && this.isVR) {
+      this.testCube.position.set(
+        rawPoseInput.leftController.pos.x,
+        rawPoseInput.leftController.pos.y,
+        rawPoseInput.leftController.pos.z
+      );
+      this.testCube.rotation.set(
+        rawPoseInput.leftController.rot.x,
+        rawPoseInput.leftController.rot.y,
+        rawPoseInput.leftController.rot.z,
+        "YXZ"
+      );
+      this.testCube.rotation._onChangeCallback();
+      this.testCube.updateMatrix();
     }
   }
 
