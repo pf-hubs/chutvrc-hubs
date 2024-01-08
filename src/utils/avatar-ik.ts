@@ -85,7 +85,6 @@ const alignBoneWithTarget = (
 export class AvatarIk {
   private world: HubsWorld;
   private isVR: boolean;
-  private testCube: Object3D;
   private isFlippedY: boolean;
   private hipsBone: Object3D | undefined;
   private hips2HeadDist: number;
@@ -164,11 +163,6 @@ export class AvatarIk {
       this.lastRootPosInputX = this.rootBone.position.x;
       this.lastRootPosInputZ = this.rootBone.position.z;
     }
-
-    const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-    const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-    this.testCube = new THREE.Mesh(geometry, material);
-    this.world.scene.add(this.testCube);
   }
 
   updateAvatarBoneIkById(avatarEid: number, poseInputs: InputTransformById, clientId = "", deltaTime = 0) {
@@ -255,21 +249,7 @@ export class AvatarIk {
       this.walk(deltaTime);
     }
 
-    if (this.testCube && this.isVR) {
-      this.testCube.position.set(
-        rawPoseInput.leftController.pos.x,
-        rawPoseInput.leftController.pos.y,
-        rawPoseInput.leftController.pos.z
-      );
-      this.testCube.rotation.set(
-        rawPoseInput.leftController.rot.x,
-        rawPoseInput.leftController.rot.y,
-        rawPoseInput.leftController.rot.z,
-        "YXZ"
-      );
-      this.testCube.rotation._onChangeCallback();
-      this.testCube.updateMatrix();
-    }
+    this.rootBone?.updateMatrixWorld(true);
   }
 
   private updateRootHipsBone(hmdTransform: Transform | undefined, noLegs = false, deltaTime = 0) {
@@ -397,7 +377,7 @@ export class AvatarIk {
         effector.quaternion.copy(localQ);
         effector.quaternion._onChangeCallback();
 
-        if (effector.parent) effector.parent.updateMatrixWorld();
+        if (effector.parent) effector.parent.updateMatrixWorld(true);
         // if (effector.parent) effector.parent.matrixWorldNeedsUpdate = true;
       } else {
         effector.rotation.set(0, 0, 0);
