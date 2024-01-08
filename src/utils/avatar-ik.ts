@@ -391,7 +391,7 @@ export class AvatarIk {
         if (rawPos) {
           if (rawPos.x == 0 && rawPos.y == 0 && rawPos.z == 0) {
             // if VR controller doesn't exist
-            rawPos = { x: 0.5, y: 0.9, z: 0.1 };
+            rawPos = { x: 0.3, y: 0.9, z: 0.1 };
           } else {
             // if VR controller exists
             followHeadVerticalRotation = false;
@@ -407,7 +407,7 @@ export class AvatarIk {
         if (rawPos) {
           if (rawPos.x == 0 && rawPos.y == 0 && rawPos.z == 0) {
             // if VR controller doesn't exist
-            rawPos = { x: -0.5, y: 0.9, z: 0.1 };
+            rawPos = { x: -0.3, y: 0.9, z: 0.1 };
           } else {
             // if VR controller exists
             followHeadVerticalRotation = false;
