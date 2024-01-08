@@ -364,8 +364,7 @@ export class AvatarIk {
     } else {
       effector.rotation.set(
         this.isFlippedY ? targetRot.x : -targetRot.x,
-        targetRot.y,
-        // chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.y,
+        chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.y,
         targetRot.z,
         "YXZ"
       );
