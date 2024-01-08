@@ -83,6 +83,7 @@ const alignBoneWithTarget = (
 
 export class AvatarIk {
   private world: HubsWorld;
+  private isVR: boolean;
   private isFlippedY: boolean;
   private hipsBone: Object3D | undefined;
   private hips2HeadDist: number;
@@ -120,6 +121,7 @@ export class AvatarIk {
     const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
 
     this.world = world;
+    this.isVR = false;
     this.isFlippedY = rightHandX - leftHandX > 0;
     this.hipsBone = world.eid2obj.get(AvatarComponent.hips[avatarEid]);
     this.rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
@@ -208,6 +210,13 @@ export class AvatarIk {
     this.isInputReady = true;
     // TODO: emit event so that name tag can initialize its position
     if (!this.isInputReady) return;
+    this.isVR =
+      rawPoseInput.leftController.pos.x != 0 ||
+      rawPoseInput.leftController.pos.y != 0 ||
+      rawPoseInput.leftController.pos.z != 0 ||
+      rawPoseInput.rightController.pos.x != 0 ||
+      rawPoseInput.rightController.pos.y != 0 ||
+      rawPoseInput.rightController.pos.z != 0;
 
     const poseInput = this.lowPassFilterControllerPositions(rawPoseInput);
 
@@ -346,21 +355,24 @@ export class AvatarIk {
     }
 
     if (isHand) {
-      // effector.rotation.set(targetRot.x, targetRot.y, targetRot.z, "YXZ");
-      // effector.rotation.set(0, 0, 0);
+      if (this.isVR) {
+        // effector.rotation.set(targetRot.x, targetRot.y, targetRot.z, "YXZ");
 
-      let targetQ = new Quaternion();
-      targetQ.setFromEuler(new Euler(targetRot.x, targetRot.y, targetRot.z, "YXZ"));
-      let parentWorldQ = new Quaternion();
-      effector.parent?.getWorldQuaternion(parentWorldQ);
-      let localQ = targetQ.multiply(parentWorldQ.invert());
-      // localQ.x = -localQ.x;
-      // localQ.z = -localQ.z;
-      effector.quaternion.copy(localQ);
-      effector.quaternion._onChangeCallback();
+        let targetQ = new Quaternion();
+        targetQ.setFromEuler(new Euler(targetRot.x, targetRot.y, targetRot.z, "YXZ"));
+        let parentWorldQ = new Quaternion();
+        effector.parent?.getWorldQuaternion(parentWorldQ);
+        let localQ = targetQ.multiply(parentWorldQ.invert());
+        // localQ.x = -localQ.x;
+        // localQ.z = -localQ.z;
+        effector.quaternion.copy(localQ);
+        effector.quaternion._onChangeCallback();
 
-      if (effector.parent) effector.parent.updateMatrixWorld();
-      // if (effector.parent) effector.parent.matrixWorldNeedsUpdate = true;
+        if (effector.parent) effector.parent.updateMatrixWorld();
+        // if (effector.parent) effector.parent.matrixWorldNeedsUpdate = true;
+      } else {
+        effector.rotation.set(0, 0, 0);
+      }
     } else {
       effector.rotation.set(
         this.isFlippedY ? targetRot.x : -targetRot.x,
@@ -389,7 +401,7 @@ export class AvatarIk {
         if (rawPos) {
           if (rawPos.x == 0 && rawPos.y == 0 && rawPos.z == 0) {
             // if VR controller doesn't exist
-            rawPos = { x: 0.3, y: 0.9, z: 0.1 };
+            rawPos = { x: 0.2, y: 0.9, z: 0.1 };
           } else {
             // if VR controller exists
             followHeadVerticalRotation = false;
@@ -402,7 +414,7 @@ export class AvatarIk {
         if (rawPos) {
           if (rawPos.x == 0 && rawPos.y == 0 && rawPos.z == 0) {
             // if VR controller doesn't exist
-            rawPos = { x: -0.3, y: 0.9, z: 0.1 };
+            rawPos = { x: -0.2, y: 0.9, z: 0.1 };
           } else {
             // if VR controller exists
             followHeadVerticalRotation = false;
@@ -415,7 +427,7 @@ export class AvatarIk {
         if (hipsPos) {
           rawPos = {
             x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + 0.1, // (this.isFlippedY ? 0.05 : -0.05),
-            y: -0.05,
+            y: 0, // -0.05
             z: (this.isFlippedY ? -(hipsPos.z + this.leftFootWalkPosZ) : hipsPos.z + this.leftFootWalkPosZ) || 0
           };
         } else {
@@ -429,7 +441,7 @@ export class AvatarIk {
         if (hipsPos) {
           rawPos = {
             x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + -0.1, //(this.isFlippedY ? -0.05 : 0.05),
-            y: -0.05,
+            y: 0, // -0.05
             z: (this.isFlippedY ? -(hipsPos.z + this.rightFootWalkPosZ) : hipsPos.z + this.rightFootWalkPosZ) || 0
           };
         } else {
