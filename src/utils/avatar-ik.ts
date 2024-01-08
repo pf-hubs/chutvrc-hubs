@@ -85,6 +85,7 @@ const alignBoneWithTarget = (
 export class AvatarIk {
   private world: HubsWorld;
   private isVR: boolean;
+  private isTestBoxLoaded: boolean;
   private isFlippedY: boolean;
   private hipsBone: Object3D | undefined;
   private hips2HeadDist: number;
@@ -123,6 +124,7 @@ export class AvatarIk {
 
     this.world = world;
     this.isVR = false;
+    this.isTestBoxLoaded = false;
     this.isFlippedY = rightHandX - leftHandX > 0;
     this.hipsBone = world.eid2obj.get(AvatarComponent.hips[avatarEid]);
     this.rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
@@ -219,21 +221,26 @@ export class AvatarIk {
       rawPoseInput.rightController.pos.y != 0 ||
       rawPoseInput.rightController.pos.z != 0;
 
-    if (this.isVR) {
-      let box = document.getElementById("test-box") as AElement;
-      box.object3D.position.set(
-        rawPoseInput.leftController.pos.x,
-        rawPoseInput.leftController.pos.y,
-        rawPoseInput.leftController.pos.z
-      );
-      box.object3D.rotation.set(
+    let cube;
+    if (!this.isTestBoxLoaded) {
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+      cube = new THREE.Mesh(geometry, material);
+      this.world.scene.add(cube);
+      this.isTestBoxLoaded = true;
+    }
+
+    if (cube) {
+      // && this.isVR
+      cube.position.set(rawPoseInput.rig.pos.x, rawPoseInput.rig.pos.y + 2, rawPoseInput.rig.pos.z + 2);
+      cube.rotation.set(
         rawPoseInput.leftController.rot.x,
         rawPoseInput.leftController.rot.y,
         rawPoseInput.leftController.rot.z,
         "YXZ"
       );
-      box.object3D.rotation._onChangeCallback();
-      box.object3D.updateMatrix();
+      cube.rotation._onChangeCallback();
+      cube.updateMatrix();
     }
 
     const poseInput = this.lowPassFilterControllerPositions(rawPoseInput);
