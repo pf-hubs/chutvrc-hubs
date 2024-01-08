@@ -350,6 +350,12 @@ export class AvatarIk {
         targetRot = poseInput.rightController?.rot || targetRot;
         isHand = true;
         break;
+      case BoneType.LeftFoot:
+        targetRot = { x: Math.PI / 2, y: 0, z: 0 };
+        break;
+      case BoneType.RightFoot:
+        targetRot = { x: Math.PI / 2, y: 0, z: 0 };
+        break;
       default:
         break;
     }
@@ -427,7 +433,7 @@ export class AvatarIk {
         if (hipsPos) {
           rawPos = {
             x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + 0.1, // (this.isFlippedY ? 0.05 : -0.05),
-            y: 0, // -0.05
+            y: -0.05,
             z: (this.isFlippedY ? -(hipsPos.z + this.leftFootWalkPosZ) : hipsPos.z + this.leftFootWalkPosZ) || 0
           };
         } else {
@@ -441,7 +447,7 @@ export class AvatarIk {
         if (hipsPos) {
           rawPos = {
             x: ((this.isFlippedY ? -hipsPos.x : hipsPos.x) || 0) + -0.1, //(this.isFlippedY ? -0.05 : 0.05),
-            y: 0, // -0.05
+            y: -0.05,
             z: (this.isFlippedY ? -(hipsPos.z + this.rightFootWalkPosZ) : hipsPos.z + this.rightFootWalkPosZ) || 0
           };
         } else {
