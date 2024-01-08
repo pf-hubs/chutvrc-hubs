@@ -217,10 +217,10 @@ export class SoraAdapter extends SfuAdapter {
         const clientId = new TextDecoder().decode(encodedTransform.subarray(9));
         const avatarPart = event.label.substring(8) as unknown as AvatarPart;
 
-        const remoteAvatarObjs = this._remoteAvatarObjects.get(clientId); // encodedTransform.subarray(9): encoded clientId
-        if (remoteAvatarObjs) {
-          decodeAndSetAvatarTransform(encodedTransform, remoteAvatarObjs[avatarPart]); // event.label.substring(8): avatar part
-        }
+        // const remoteAvatarObjs = this._remoteAvatarObjects.get(clientId); // encodedTransform.subarray(9): encoded clientId
+        // if (remoteAvatarObjs) {
+        //   decodeAndSetAvatarTransform(encodedTransform, remoteAvatarObjs[avatarPart]); // event.label.substring(8): avatar part
+        // }
 
         /* Implementation for using bitECS */
         if (avatarPart === AvatarPart.RIG) {

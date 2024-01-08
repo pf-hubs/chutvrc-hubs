@@ -345,32 +345,33 @@ export class AvatarIk {
         break;
     }
 
-    if (!isHand) {
-      effector.rotation.set(
-        this.isFlippedY ? targetRot.y : -targetRot.y,
-        chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.x,
-        targetRot.z
-      );
-    } else if (this.rootBone) {
-      // effector.rotation.set(targetRot.x, targetRot.y, targetRot.z, "YZX");
-      effector.rotation.set(0, 0, 0);
+    if (isHand) {
+      // effector.rotation.set(targetRot.x, targetRot.y, targetRot.z, "YXZ");
+      // effector.rotation.set(0, 0, 0);
 
-      /*
-      const lastJoint = this.world.eid2obj.get(AvatarComponent.spine[avatarEid]);
-      if (!lastJoint) return;
-      const handMatrix = effector.matrix;
-      const rootToChest = new Matrix4();
-      const invRootToChest = new Matrix4();
-      rootToChest.multiplyMatrices(this.rootBone.matrix, lastJoint.matrix);
-      invRootToChest.copy(rootToChest).invert();
-      const controllerMatrix = new Matrix4().makeRotationFromEuler(new Euler(targetRot.x, targetRot.y, targetRot.z));
-      handMatrix.multiplyMatrices(invRootToChest, controllerMatrix);
-      handMatrix.multiply(HAND_ROTATIONS_MATRIX.left);
-      effector.rotation.setFromRotationMatrix(handMatrix);
-      */
+      let targetQ = new Quaternion();
+      targetQ.setFromEuler(new Euler(targetRot.x, targetRot.y, targetRot.z, "YXZ"));
+      let parentWorldQ = new Quaternion();
+      effector.parent?.getWorldQuaternion(parentWorldQ);
+      let localQ = targetQ.multiply(parentWorldQ.invert());
+      // localQ.x = -localQ.x;
+      // localQ.z = -localQ.z;
+      effector.quaternion.copy(localQ);
+      effector.quaternion._onChangeCallback();
+
+      if (effector.parent) effector.parent.updateMatrixWorld();
+      // if (effector.parent) effector.parent.matrixWorldNeedsUpdate = true;
+    } else {
+      effector.rotation.set(
+        this.isFlippedY ? targetRot.x : -targetRot.x,
+        chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.y,
+        targetRot.z,
+        "YXZ"
+      );
     }
 
     effector.rotation._onChangeCallback();
+    // effector.matrixNeedsUpdate = true;
     effector.updateMatrix();
   }
 
@@ -381,9 +382,6 @@ export class AvatarIk {
       case BoneType.Head:
         followHeadVerticalRotation = false;
         rawPos = poseInput.hmd?.pos;
-        // if (rawPos && this.isFlippedY) {
-        //   rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
-        // }
         rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
         break;
       case BoneType.LeftHand:
@@ -395,9 +393,6 @@ export class AvatarIk {
           } else {
             // if VR controller exists
             followHeadVerticalRotation = false;
-            // if (this.isFlippedY) {
-            //   rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
-            // }
             rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
           }
         }
@@ -411,9 +406,6 @@ export class AvatarIk {
           } else {
             // if VR controller exists
             followHeadVerticalRotation = false;
-            // if (this.isFlippedY) {
-            //   rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
-            // }
             rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
           }
         }
