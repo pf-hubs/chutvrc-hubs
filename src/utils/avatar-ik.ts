@@ -351,10 +351,10 @@ export class AvatarIk {
         isHand = true;
         break;
       case BoneType.LeftFoot:
-        targetRot = { x: -Math.PI / 2, y: 0, z: 0 };
+        targetRot = { x: -Math.PI / 3, y: 0, z: 0 };
         break;
       case BoneType.RightFoot:
-        targetRot = { x: -Math.PI / 2, y: 0, z: 0 };
+        targetRot = { x: -Math.PI / 3, y: 0, z: 0 };
         break;
       default:
         break;
@@ -405,26 +405,22 @@ export class AvatarIk {
       case BoneType.LeftHand:
         rawPos = poseInput.leftController?.pos;
         if (rawPos) {
-          if (rawPos.x == 0 && rawPos.y == 0 && rawPos.z == 0) {
-            // if VR controller doesn't exist
-            rawPos = { x: 0.2, y: 0.9, z: 0.1 };
-          } else {
-            // if VR controller exists
+          if (this.isVR) {
             followHeadVerticalRotation = false;
             rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+          } else {
+            rawPos = { x: 0.2, y: 0.9, z: 0.1 };
           }
         }
         break;
       case BoneType.RightHand:
         rawPos = poseInput.rightController?.pos;
         if (rawPos) {
-          if (rawPos.x == 0 && rawPos.y == 0 && rawPos.z == 0) {
-            // if VR controller doesn't exist
-            rawPos = { x: -0.2, y: 0.9, z: 0.1 };
-          } else {
-            // if VR controller exists
+          if (this.isVR) {
             followHeadVerticalRotation = false;
             rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+          } else {
+            rawPos = { x: -0.2, y: 0.9, z: 0.1 };
           }
         }
         break;
