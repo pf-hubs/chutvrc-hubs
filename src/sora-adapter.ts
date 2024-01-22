@@ -4,7 +4,13 @@ import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from
 import { MediaDevices } from "./utils/media-devices-utils";
 import { AElement } from "aframe";
 import { AvatarObjects, AvatarPart, AvatarTransformBuffer, avatarPartTypes } from "./utils/avatar-transform-buffer";
-import { decodeAndSetAvatarTransform, decodePosition, decodeRotation, getAvatarSrc } from "./utils/avatar-utils";
+import {
+  decodeAndSetAvatarTransform,
+  decodePosition,
+  decodeRotation,
+  decodeRotation2,
+  getAvatarSrc
+} from "./utils/avatar-utils";
 import { loadModel } from "./components/gltf-model-plus";
 import { createAvatarBoneEntities, removeAvatarEntityAndModel } from "./bit-systems/avatar-bones-system";
 const debug = newDebug("naf-dialog-adapter:debug");
@@ -46,6 +52,7 @@ export class SoraAdapter extends SfuAdapter {
   _leftHandTransformsBuffer: Map<string, Transform>;
   _rightHandTransformsBuffer: Map<string, Transform>;
   /* End of implementation for using bitECS */
+  _rightHand: AElement;
 
   constructor() {
     super();
@@ -163,6 +170,7 @@ export class SoraAdapter extends SfuAdapter {
         const head = document.querySelector("#avatar-pov-node") as AElement;
         const left = document.querySelector("#player-left-controller") as AElement;
         const right = document.querySelector("#player-right-controller") as AElement;
+        this._rightHand = right;
         if (rig && head && left && right) {
           this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._clientId, rig, head, left, right);
           clearInterval(getPlayerAvatarIntervalId);
@@ -226,25 +234,25 @@ export class SoraAdapter extends SfuAdapter {
         if (avatarPart === AvatarPart.RIG) {
           this._rootTransformsBuffer.set(clientId, {
             pos: decodePosition(encodedTransform),
-            rot: decodeRotation(encodedTransform)
+            rot: decodeRotation2(encodedTransform)
           });
         }
         if (avatarPart === AvatarPart.HEAD) {
           this._headTransformsBuffer.set(clientId, {
             pos: decodePosition(encodedTransform),
-            rot: decodeRotation(encodedTransform)
+            rot: decodeRotation2(encodedTransform)
           });
         }
         if (avatarPart === AvatarPart.LEFT) {
           this._leftHandTransformsBuffer.set(clientId, {
             pos: decodePosition(encodedTransform),
-            rot: decodeRotation(encodedTransform)
+            rot: decodeRotation2(encodedTransform)
           });
         }
         if (avatarPart === AvatarPart.RIGHT) {
           this._rightHandTransformsBuffer.set(clientId, {
             pos: decodePosition(encodedTransform),
-            rot: decodeRotation(encodedTransform)
+            rot: decodeRotation2(encodedTransform)
           });
         }
         /* End of implementation for using bitECS */
@@ -479,6 +487,14 @@ export class SoraAdapter extends SfuAdapter {
 
   sendSelfAvatarTransform(checkUpdatedRequired: boolean) {
     if (!this._selfAvatarTransformBuffer) return;
+    // console.log(
+    //   Math.round(this._rightHand.object3D.rotation.x * 100) / 100 +
+    //     " " +
+    //     Math.round(this._rightHand.object3D.rotation.y * 100) / 100 +
+    //     " " +
+    //     Math.round(this._rightHand.object3D.rotation.z * 100) / 100
+    // );
+    // console.log(this._rightHand.object3D.rotation);
     avatarPartTypes.forEach(part => {
       if (checkUpdatedRequired && !this._selfAvatarTransformBuffer?.updateAvatarTransform(part)) return;
 
