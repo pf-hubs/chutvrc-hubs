@@ -3,7 +3,6 @@ import { BoneType } from "../constants";
 import { HubsWorld } from "../app";
 import { AvatarComponent } from "../bit-components";
 import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-system";
-import { AElement } from "aframe";
 
 const FULL_BODY_HEAD_OFFSET = 0.25;
 const VECTOR_UP = new Vector3(0, 1, 0);
@@ -249,7 +248,7 @@ export class AvatarIk {
       this.walk(deltaTime);
     }
 
-    this.rootBone?.updateMatrixWorld(true);
+    if (this.isVR) this.rootBone?.updateWorldMatrix(false, true);
   }
 
   private updateRootHipsBone(hmdTransform: Transform | undefined, noLegs = false, deltaTime = 0) {
@@ -340,18 +339,19 @@ export class AvatarIk {
       });
     }
 
-    var isHand = false;
+    var isLeftHand = false;
+    var isRightHand = false;
     switch (chainConfig.effectorBoneName) {
       case BoneType.Head:
         targetRot = poseInput.hmd?.rot || targetRot;
         break;
       case BoneType.LeftHand:
         targetRot = poseInput.leftController?.rot || targetRot;
-        isHand = true;
+        isLeftHand = true;
         break;
       case BoneType.RightHand:
         targetRot = poseInput.rightController?.rot || targetRot;
-        isHand = true;
+        isRightHand = true;
         break;
       case BoneType.LeftFoot:
         targetRot = { x: -Math.PI / 3, y: 0, z: 0 };
@@ -363,22 +363,19 @@ export class AvatarIk {
         break;
     }
 
-    if (isHand) {
-      if (this.isVR) {
-        // effector.rotation.set(targetRot.x, targetRot.y, targetRot.z, "YXZ");
-
+    if (isLeftHand || isRightHand) {
+      if (this.isVR && this.rootBone) {
+        let parent = effector.parent;
         let targetQ = new Quaternion();
-        targetQ.setFromEuler(new Euler(targetRot.x, targetRot.y, targetRot.z, "YXZ"));
-        let parentWorldQ = new Quaternion();
-        effector.parent?.getWorldQuaternion(parentWorldQ);
-        let localQ = targetQ.multiply(parentWorldQ.invert());
-        // localQ.x = -localQ.x;
-        // localQ.z = -localQ.z;
-        effector.quaternion.copy(localQ);
+        targetQ.setFromEuler(new Euler(-targetRot.x, targetRot.y, -targetRot.z, "YXZ"));
+        let newQ = this.rootBone?.quaternion.clone().multiply(targetQ) || targetQ;
+        this.world.scene.attach(effector);
+        effector.quaternion.copy(newQ);
         effector.quaternion._onChangeCallback();
-
-        if (effector.parent) effector.parent.updateMatrixWorld(true);
-        // if (effector.parent) effector.parent.matrixWorldNeedsUpdate = true;
+        effector.updateMatrix();
+        parent?.attach(effector);
+        effector.rotateX(Math.PI / 3);
+        effector.rotateY(isLeftHand ? -Math.PI / 2 : Math.PI / 2);
       } else {
         effector.rotation.set(0, 0, 0);
       }
@@ -392,7 +389,6 @@ export class AvatarIk {
     }
 
     effector.rotation._onChangeCallback();
-    // effector.matrixNeedsUpdate = true;
     effector.updateMatrix();
   }
 
