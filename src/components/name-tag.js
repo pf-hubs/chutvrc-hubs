@@ -160,13 +160,10 @@ AFRAME.registerComponent("name-tag", {
         this.modBadge.visible = this.isOwner && !this.isRecording;
         this.handRaised.visible = this.isHandRaised;
 
-        if (!this.neck && this.ikRoot) {
-          this.neck =
-            APP.usingSfu === SFU.SORA
-              ? APP.world.eid2obj.get(
-                  AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
-                )
-              : this.ikRoot.el.querySelector(".Neck").object3D;
+        if (APP.usingSfu === SFU.SORA && !this.neck && this.ikRoot) {
+          this.neck = APP.world.eid2obj.get(
+            AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
+          );
         }
         if (this.ikRoot) {
           this.neck?.getWorldPosition(worldPos);

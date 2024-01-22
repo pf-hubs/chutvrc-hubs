@@ -83,6 +83,7 @@ const alignBoneWithTarget = (
 
 export class AvatarIk {
   private world: HubsWorld;
+  private isVR: boolean;
   private isFlippedY: boolean;
   private hipsBone: Object3D | undefined;
   private hips2HeadDist: number;
@@ -120,6 +121,7 @@ export class AvatarIk {
     const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
 
     this.world = world;
+    this.isVR = false;
     this.isFlippedY = rightHandX - leftHandX > 0;
     this.hipsBone = world.eid2obj.get(AvatarComponent.hips[avatarEid]);
     this.rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
@@ -208,6 +210,13 @@ export class AvatarIk {
     this.isInputReady = true;
     // TODO: emit event so that name tag can initialize its position
     if (!this.isInputReady) return;
+    this.isVR =
+      rawPoseInput.leftController.pos.x != 0 ||
+      rawPoseInput.leftController.pos.y != 0 ||
+      rawPoseInput.leftController.pos.z != 0 ||
+      rawPoseInput.rightController.pos.x != 0 ||
+      rawPoseInput.rightController.pos.y != 0 ||
+      rawPoseInput.rightController.pos.z != 0;
 
     const poseInput = this.lowPassFilterControllerPositions(rawPoseInput);
 
@@ -238,6 +247,8 @@ export class AvatarIk {
     } else {
       this.walk(deltaTime);
     }
+
+    if (this.isVR) this.rootBone?.updateWorldMatrix(false, true);
   }
 
   private updateRootHipsBone(hmdTransform: Transform | undefined, noLegs = false, deltaTime = 0) {
@@ -257,8 +268,8 @@ export class AvatarIk {
     //   this.rootBone?.position.add(this.headEffectorOffset.clone().multiplyScalar(this.isFlippedY ? 0.01 : -0.01));
     // }
     this.rootBone?.rotation.set(
-      this.rootInput.rot.y,
-      this.rootInput.rot.x + (hmdTransform?.rot.x || 0) + (this.isFlippedY ? 0 : Math.PI),
+      this.rootInput.rot.x,
+      this.rootInput.rot.y + (hmdTransform?.rot.y || 0) + (this.isFlippedY ? 0 : Math.PI),
       this.rootInput.rot.z
     );
     this.rootBone?.rotation._onChangeCallback();
@@ -317,7 +328,7 @@ export class AvatarIk {
               this.currentInputPosition
                 .applyAxisAngle(
                   this.rootBone.up,
-                  this.rootInput.rot.x - Math.PI + (followHeadVerticalRotation ? poseInput.hmd?.rot?.x || 0 : 0)
+                  this.rootInput.rot.y - Math.PI + (followHeadVerticalRotation ? poseInput.hmd?.rot?.y || 0 : 0)
                 )
                 .add(isSelfHead ? this.rootPos.clone().add(this.headEffectorOffset) : this.rootPos),
               jointConfig.rotationMin,
@@ -328,50 +339,53 @@ export class AvatarIk {
       });
     }
 
-    var isHand = false;
+    var isLeftHand = false;
+    var isRightHand = false;
     switch (chainConfig.effectorBoneName) {
       case BoneType.Head:
         targetRot = poseInput.hmd?.rot || targetRot;
         break;
       case BoneType.LeftHand:
         targetRot = poseInput.leftController?.rot || targetRot;
-        isHand = true;
+        isLeftHand = true;
         break;
       case BoneType.RightHand:
         targetRot = poseInput.rightController?.rot || targetRot;
-        isHand = true;
+        isRightHand = true;
+        break;
+      case BoneType.LeftFoot:
+        targetRot = { x: -Math.PI / 3, y: 0, z: 0 };
+        break;
+      case BoneType.RightFoot:
+        targetRot = { x: -Math.PI / 3, y: 0, z: 0 };
         break;
       default:
         break;
     }
 
-    if (!isHand) {
-      effector.rotation.set(
-        this.isFlippedY ? targetRot.y : -targetRot.y,
-        chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.x,
-        targetRot.z
-      );
-    } else if (this.rootBone) {
-      let targetQ = new Quaternion();
-      targetQ.setFromEuler(new Euler(targetRot.y, targetRot.x, targetRot.z, "YXZ"));
-      let parentWorldQ = new Quaternion();
-      effector.parent?.getWorldQuaternion(parentWorldQ);
-      let localQ = targetQ.multiply(parentWorldQ.invert());
-      localQ.x = -localQ.x;
-      localQ.z = -localQ.z;
-      effector.quaternion.copy(localQ);
-      if (chainConfig.effectorBoneName === BoneType.LeftHand) {
-        // effector.rotation.x = effector.rotation.x - Math.PI / 2;
-        effector.rotation.y = effector.rotation.y + Math.PI;
-        effector.rotation.z = -effector.rotation.z;
-        // effector.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, effector.rotation.x));
-        // effector.rotation.y = Math.max(0, Math.min(Math.PI * 2, effector.rotation.y));
-        // effector.rotation.z = Math.max(-Math.PI, Math.min(0, effector.rotation.z));
+    if (isLeftHand || isRightHand) {
+      if (this.isVR && this.rootBone) {
+        let parent = effector.parent;
+        let targetQ = new Quaternion();
+        targetQ.setFromEuler(new Euler(-targetRot.x, targetRot.y, -targetRot.z, "YXZ"));
+        let newQ = this.rootBone?.quaternion.clone().multiply(targetQ) || targetQ;
+        this.world.scene.attach(effector);
+        effector.quaternion.copy(newQ);
+        effector.quaternion._onChangeCallback();
+        effector.updateMatrix();
+        parent?.attach(effector);
+        effector.rotateX(Math.PI / 3);
+        effector.rotateY(isLeftHand ? -Math.PI / 2 : Math.PI / 2);
       } else {
-        // effector.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, effector.rotation.x));
-        // effector.rotation.y = Math.max(0, Math.min(Math.PI, effector.rotation.y));
-        // effector.rotation.z = Math.max(0, Math.min(Math.PI, effector.rotation.z));
+        effector.rotation.set(0, 0, 0);
       }
+    } else {
+      effector.rotation.set(
+        this.isFlippedY ? targetRot.x : -targetRot.x,
+        chainConfig.effectorBoneName === BoneType.Head ? 0 : targetRot.y,
+        targetRot.z,
+        "YXZ"
+      );
     }
 
     effector.rotation._onChangeCallback();
@@ -385,40 +399,27 @@ export class AvatarIk {
       case BoneType.Head:
         followHeadVerticalRotation = false;
         rawPos = poseInput.hmd?.pos;
-        // if (rawPos && this.isFlippedY) {
-        //   rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
-        // }
         rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
         break;
       case BoneType.LeftHand:
         rawPos = poseInput.leftController?.pos;
         if (rawPos) {
-          if (rawPos.x == 0 && rawPos.y == 0 && rawPos.z == 0) {
-            // if VR controller doesn't exist
-            rawPos = { x: 0.5, y: 0.9, z: 0.1 };
-          } else {
-            // if VR controller exists
+          if (this.isVR) {
             followHeadVerticalRotation = false;
-            // if (this.isFlippedY) {
-            //   rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
-            // }
             rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+          } else {
+            rawPos = { x: 0.2, y: 0.9, z: 0.1 };
           }
         }
         break;
       case BoneType.RightHand:
         rawPos = poseInput.rightController?.pos;
         if (rawPos) {
-          if (rawPos.x == 0 && rawPos.y == 0 && rawPos.z == 0) {
-            // if VR controller doesn't exist
-            rawPos = { x: -0.5, y: 0.9, z: 0.1 };
-          } else {
-            // if VR controller exists
+          if (this.isVR) {
             followHeadVerticalRotation = false;
-            // if (this.isFlippedY) {
-            //   rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
-            // }
             rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+          } else {
+            rawPos = { x: -0.2, y: 0.9, z: 0.1 };
           }
         }
         break;

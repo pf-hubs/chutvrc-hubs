@@ -133,8 +133,8 @@ export function decodePosition(encodedTransform: Uint8Array) {
 
 export function decodeRotation(encodedTransform: Uint8Array) {
   return {
-    x: uInt8ToRad(encodedTransform[7]),
-    y: uInt8ToRad(encodedTransform[6]),
+    x: uInt8ToRad(encodedTransform[6]),
+    y: uInt8ToRad(encodedTransform[7]),
     z: uInt8ToRad(encodedTransform[8])
   };
 }
