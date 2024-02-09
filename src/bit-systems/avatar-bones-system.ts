@@ -6,10 +6,7 @@ import { addObject3DComponent } from "../utils/jsx-entity";
 import { HubsWorld } from "../app";
 import { mapAvatarBone } from "../utils/map-avatar-bones";
 import { AvatarIk } from "../utils/avatar-ik";
-
-type Vector3Type = { x: number; y: number; z: number };
-type QuaternionType = { x: number; y: number; z: number };
-type Transform = { pos: Vector3Type; rot: QuaternionType };
+import { Transform } from "../types/transform";
 
 export type InputTransformById = {
   rig: Map<string, Transform>;

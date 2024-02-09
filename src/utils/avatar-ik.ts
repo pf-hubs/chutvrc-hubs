@@ -3,29 +3,17 @@ import { BoneType } from "../constants";
 import { HubsWorld } from "../app";
 import { AvatarComponent } from "../bit-components";
 import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-system";
+import { TransformLowPassFilter } from "./transform-low-pass-filter";
+import { Transform } from "../types/transform";
 
 const FULL_BODY_HEAD_OFFSET = 0.25;
 const VECTOR_UP = new Vector3(0, 1, 0);
 const ALPHA = 0.3;
 
-const HAND_ROTATIONS = {
-  left: new Quaternion().setFromEuler(new Euler(-Math.PI / 2, Math.PI / 2, 0)),
-  right: new Quaternion().setFromEuler(new Euler(-Math.PI / 2, -Math.PI / 2, 0))
-};
-
-const HAND_ROTATIONS_MATRIX = {
-  left: new Matrix4().makeRotationFromEuler(new Euler(-Math.PI / 2, Math.PI / 2, 0)),
-  right: new Matrix4().makeRotationFromEuler(new Euler(-Math.PI / 2, -Math.PI / 2, 0))
-};
-
 const DummyInputTransform = {
   pos: { x: 0, y: 0, z: 0 },
   rot: { x: 0, y: 0, z: 0 }
 };
-
-type Vector3Type = { x: number; y: number; z: number };
-type QuaternionType = { x: number; y: number; z: number };
-type Transform = { pos: Vector3Type; rot: QuaternionType };
 
 // Ref: https://scrapbox.io/ke456memo/%2327_pixiv%2Fthree-vrm%E3%81%A7VRM%E3%81%AB%E5%AF%BE%E5%BF%9C%E3%81%97%E3%81%9FIK%E3%82%92%E5%AE%9F%E8%A3%85%E3%81%99%E3%82%8B
 const alignBoneWithTarget = (
@@ -105,16 +93,8 @@ export class AvatarIk {
   private lastRootPosInputZ: number;
   private isMoving: boolean;
   private walkingStatusBuffer: boolean[];
-  private leftControllerBuffer: {
-    x: number;
-    y: number;
-    z: number;
-  };
-  private rightControllerBuffer: {
-    x: number;
-    y: number;
-    z: number;
-  };
+  private leftControllerFilter: TransformLowPassFilter;
+  private rightControllerFilter: TransformLowPassFilter;
 
   constructor(world: HubsWorld, avatarEid: number) {
     const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
@@ -140,16 +120,8 @@ export class AvatarIk {
     this.lastRootPosInputZ = 0;
     this.isMoving = false;
     this.walkingStatusBuffer = [false, false, false];
-    this.leftControllerBuffer = {
-      x: 0,
-      y: 0,
-      z: 0
-    };
-    this.rightControllerBuffer = {
-      x: 0,
-      y: 0,
-      z: 0
-    };
+    this.leftControllerFilter = new TransformLowPassFilter(0.3, 0.3);
+    this.rightControllerFilter = new TransformLowPassFilter(0.3, 0.3);
 
     let headPos = new Vector3();
     APP.world.eid2obj.get(AvatarComponent.head[avatarEid])?.getWorldPosition(headPos);
@@ -175,50 +147,17 @@ export class AvatarIk {
     this.updateAvatarBoneIk(avatarEid, poseInput, deltaTime);
   }
 
-  lowPassFilterControllerPositions(poseInput: InputTransform) {
-    if (this.leftControllerBuffer.x !== 0)
-      poseInput.leftController.pos.x =
-        poseInput.leftController.pos.x * ALPHA + this.leftControllerBuffer.x * (1 - ALPHA);
-    this.leftControllerBuffer.x = poseInput.leftController.pos.x;
-    if (this.leftControllerBuffer.y !== 0)
-      poseInput.leftController.pos.y =
-        poseInput.leftController.pos.y * ALPHA + this.leftControllerBuffer.y * (1 - ALPHA);
-    this.leftControllerBuffer.y = poseInput.leftController.pos.y;
-    if (this.leftControllerBuffer.z !== 0)
-      poseInput.leftController.pos.z =
-        poseInput.leftController.pos.z * ALPHA + this.leftControllerBuffer.z * (1 - ALPHA);
-    this.leftControllerBuffer.z = poseInput.leftController.pos.z;
-
-    if (this.leftControllerBuffer.x !== 0)
-      poseInput.rightController.pos.x =
-        poseInput.rightController.pos.x * ALPHA + this.rightControllerBuffer.x * (1 - ALPHA);
-    this.rightControllerBuffer.x = poseInput.rightController.pos.x;
-    if (this.leftControllerBuffer.y !== 0)
-      poseInput.rightController.pos.y =
-        poseInput.rightController.pos.y * ALPHA + this.rightControllerBuffer.y * (1 - ALPHA);
-    this.rightControllerBuffer.y = poseInput.rightController.pos.y;
-    if (this.leftControllerBuffer.z !== 0)
-      poseInput.rightController.pos.z =
-        poseInput.rightController.pos.z * ALPHA + this.rightControllerBuffer.z * (1 - ALPHA);
-    this.rightControllerBuffer.z = poseInput.rightController.pos.z;
-
-    return poseInput;
-  }
-
-  updateAvatarBoneIk(avatarEid: number, rawPoseInput: InputTransform, deltaTime = 0) {
-    if (!this.rootBone || !rawPoseInput) return;
+  updateAvatarBoneIk(avatarEid: number, poseInput: InputTransform, deltaTime = 0) {
+    if (!this.rootBone || !poseInput) return;
     this.isInputReady = true;
     // TODO: emit event so that name tag can initialize its position
     if (!this.isInputReady) return;
-    this.isVR =
-      rawPoseInput.leftController.pos.x != 0 ||
-      rawPoseInput.leftController.pos.y != 0 ||
-      rawPoseInput.leftController.pos.z != 0 ||
-      rawPoseInput.rightController.pos.x != 0 ||
-      rawPoseInput.rightController.pos.y != 0 ||
-      rawPoseInput.rightController.pos.z != 0;
 
-    const poseInput = this.lowPassFilterControllerPositions(rawPoseInput);
+    const renderer = AFRAME.scenes[0].renderer;
+    this.isVR = renderer.xr.enabled && renderer.xr.isPresenting;
+
+    poseInput.leftController = this.leftControllerFilter.getTransformWithFilteredPosition(poseInput.leftController);
+    poseInput.rightController = this.rightControllerFilter.getTransformWithFilteredPosition(poseInput.rightController);
 
     this.waitTime += deltaTime;
     if (this.waitTime < 2000) return;

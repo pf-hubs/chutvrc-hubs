@@ -13,9 +13,6 @@ export enum AvatarPart {
 
 export const avatarPartTypes = [AvatarPart.RIG, AvatarPart.HEAD, AvatarPart.LEFT, AvatarPart.RIGHT];
 
-type Vector3Type = { x: number; y: number; z: number };
-type QuaternionType = { x: number; y: number; z: number };
-
 export type Transform = {
   position: Vector3;
   rotation: Euler;
@@ -44,9 +41,6 @@ export class AvatarTransformBuffer {
   _encodedClientId: Uint8Array;
   _avatarObj: AvatarObjects;
   _lastAvatarTransform: AvatarTransforms;
-  // _avatarInputTransform: {
-  //   [part in AvatarPart]: { pos: Vector3Type; rot: QuaternionType };
-  // };
   _encodedAvatarTransform: AvatarEncodedTransforms;
 
   constructor(clientId: string, rig: AElement, head: AElement, left: AElement, right: AElement) {
