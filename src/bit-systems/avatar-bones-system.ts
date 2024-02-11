@@ -245,12 +245,22 @@ export const avatarQuery = defineQuery([AvatarComponent]);
 export const avatarIkSystem = (
   world: HubsWorld,
   avatarPoseInputs: InputTransformById,
-  avatarEid2ClientId: Map<number, string>
+  avatarEid2ClientId: Map<number, string>,
+  isVrByClientId: Map<string, boolean>
 ) => {
   avatarQuery(world).forEach(avatarEid => {
-    APP.world.eid2Ik
-      .get(avatarEid)
-      ?.updateAvatarBoneIkById(avatarEid, avatarPoseInputs, avatarEid2ClientId.get(avatarEid), world.time.delta);
+    const clientId = avatarEid2ClientId.get(avatarEid);
+    if (clientId) {
+      APP.world.eid2Ik
+        .get(avatarEid)
+        ?.updateAvatarBoneIkById(
+          avatarEid,
+          avatarPoseInputs,
+          clientId,
+          isVrByClientId.get(clientId) || false,
+          world.time.delta
+        );
+    }
   });
 
   return world;

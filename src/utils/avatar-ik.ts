@@ -136,7 +136,13 @@ export class AvatarIk {
     }
   }
 
-  updateAvatarBoneIkById(avatarEid: number, poseInputs: InputTransformById, clientId = "", deltaTime = 0) {
+  updateAvatarBoneIkById(
+    avatarEid: number,
+    poseInputs: InputTransformById,
+    clientId: string,
+    isVr: boolean,
+    deltaTime = 0
+  ) {
     const poseInput: InputTransform = {
       rig: poseInputs.rig?.get(clientId) || DummyInputTransform,
       hmd: poseInputs.hmd?.get(clientId) || DummyInputTransform,
@@ -144,6 +150,7 @@ export class AvatarIk {
       rightController: poseInputs.rightController?.get(clientId) || DummyInputTransform
     };
     this.isSelfAvatar = clientId === APP.sfu._clientId;
+    this.isVR = isVr;
     this.updateAvatarBoneIk(avatarEid, poseInput, deltaTime);
   }
 
@@ -152,9 +159,6 @@ export class AvatarIk {
     this.isInputReady = true;
     // TODO: emit event so that name tag can initialize its position
     if (!this.isInputReady) return;
-
-    const renderer = AFRAME.scenes[0].renderer;
-    this.isVR = renderer.xr.enabled && renderer.xr.isPresenting;
 
     poseInput.leftController = this.leftControllerFilter.getTransformWithFilteredPosition(poseInput.leftController);
     poseInput.rightController = this.rightControllerFilter.getTransformWithFilteredPosition(poseInput.rightController);
@@ -179,6 +183,7 @@ export class AvatarIk {
       });
     }
 
+    // TODO: refactor animation
     this.walkingStatusBuffer.push(this.isMoving);
     this.walkingStatusBuffer.shift();
     if (this.walkingStatusBuffer.every(isWalkingManually => !isWalkingManually)) {
@@ -198,11 +203,14 @@ export class AvatarIk {
       this.rootInput.pos.y,
       this.rootInput.pos.z /* + (this.isSelfAvatar ? FULL_BODY_HEAD_OFFSET * (this.isFlippedY ? 0.01 : -0.01) : 0)*/
     );
+
+    // TODO: refactor animation
     this.isMoving =
       Math.abs(this.lastRootPosInputX - this.rootInput.pos.x) > 0.03 ||
       Math.abs(this.lastRootPosInputZ - this.rootInput.pos.z) > 0.03;
     this.lastRootPosInputX = this.rootInput.pos.x;
     this.lastRootPosInputZ = this.rootInput.pos.z;
+
     // if (this.isSelfAvatar) {
     //   this.rootBone?.position.add(this.headEffectorOffset.clone().multiplyScalar(this.isFlippedY ? 0.01 : -0.01));
     // }
@@ -220,6 +228,8 @@ export class AvatarIk {
         Math.abs(hmdTransform.pos.z - this.hipsBone.position.z) > 0.15;
       let hipsBonePosX = this.hipsBone.position.x;
       let hipsBonePosZ = this.hipsBone.position.z;
+
+      // TODO: refactor animation
       if (this.isWalking) {
         if (isHipsFarFromHead) {
           hipsBonePosX =
@@ -306,14 +316,22 @@ export class AvatarIk {
       if (this.isVR && this.rootBone) {
         let parent = effector.parent;
         let targetQ = new Quaternion();
-        targetQ.setFromEuler(new Euler(-targetRot.x, targetRot.y, -targetRot.z, "YXZ"));
+        if (this.isFlippedY) {
+          targetQ.setFromEuler(new Euler(targetRot.x, targetRot.y, targetRot.z, "YXZ"));
+        } else {
+          targetQ.setFromEuler(new Euler(-targetRot.x, targetRot.y, -targetRot.z, "YXZ"));
+        }
         let newQ = this.rootBone?.quaternion.clone().multiply(targetQ) || targetQ;
         this.world.scene.attach(effector);
         effector.quaternion.copy(newQ);
         effector.quaternion._onChangeCallback();
         effector.updateMatrix();
         parent?.attach(effector);
-        effector.rotateX(Math.PI / 3);
+        if (this.isFlippedY) {
+          effector.rotateZ(isLeftHand ? Math.PI / 2 : -Math.PI / 2);
+        } else {
+          effector.rotateX(Math.PI / 3);
+        }
         effector.rotateY(isLeftHand ? -Math.PI / 2 : Math.PI / 2);
       } else {
         effector.rotation.set(0, 0, 0);
@@ -399,12 +417,14 @@ export class AvatarIk {
     return followHeadVerticalRotation;
   }
 
+  // TODO: refactor animation
   walk(deltaTime: number) {
     this.walkTimer += deltaTime * 0.01;
     this.leftFootWalkPosZ = Math.cos(this.walkTimer) * 0.1;
     this.rightFootWalkPosZ = -Math.cos(this.walkTimer) * 0.1;
   }
 
+  // TODO: refactor animation
   stopWalk() {
     this.walkTimer = 0;
     this.leftFootWalkPosZ = 0;

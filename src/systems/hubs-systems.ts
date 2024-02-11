@@ -300,7 +300,8 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
         leftController: APP.sora._leftHandTransformsBuffer,
         rightController: APP.sora._rightHandTransformsBuffer
       },
-      APP.sora._avatarEid2ClientId
+      APP.sora._avatarEid2ClientId,
+      APP.sora._clientId2isVR
     );
   }
   /* End of implementation for using bitECS */

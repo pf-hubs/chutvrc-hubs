@@ -47,6 +47,7 @@ export class SoraAdapter extends SfuAdapter {
   _avatarEid2ClientId: Map<number, string>;
   _clientId2AvatarEid: Map<string, number>;
   _clientId2avatarId: Map<string, string>;
+  _clientId2isVR: Map<string, boolean>;
   _rootTransformsBuffer: Map<string, Transform>;
   _headTransformsBuffer: Map<string, Transform>;
   _leftHandTransformsBuffer: Map<string, Transform>;
@@ -69,6 +70,7 @@ export class SoraAdapter extends SfuAdapter {
     this._avatarEid2ClientId = new Map<number, string>();
     this._clientId2AvatarEid = new Map<string, number>();
     this._clientId2avatarId = new Map<string, string>();
+    this._clientId2isVR = new Map<string, boolean>();
     this._rootTransformsBuffer = new Map<string, Transform>();
     this._headTransformsBuffer = new Map<string, Transform>();
     this._leftHandTransformsBuffer = new Map<string, Transform>();
@@ -108,6 +110,10 @@ export class SoraAdapter extends SfuAdapter {
         },
         {
           label: "#avatar-RIGHT",
+          direction: "sendrecv" as SoraType.DataChannelDirection
+        },
+        {
+          label: "#isVR",
           direction: "sendrecv" as SoraType.DataChannelDirection
         }
       ]
@@ -159,30 +165,35 @@ export class SoraAdapter extends SfuAdapter {
       console.log("Track removed: " + event.track.id);
     });
     this._sendrecv.on("datachannel", event => {
-      // get self avatar parts
-      let getPlayerAvatarIntervalId: NodeJS.Timer;
-      const getPlayerAvatar = () => {
-        if (this._selfAvatarTransformBuffer) {
-          clearInterval(getPlayerAvatarIntervalId);
-          return;
-        }
-        const rig = document.querySelector("#avatar-rig") as AElement;
-        const head = document.querySelector("#avatar-pov-node") as AElement;
-        const left = document.querySelector("#player-left-controller") as AElement;
-        const right = document.querySelector("#player-right-controller") as AElement;
-        this._rightHand = right;
-        if (rig && head && left && right) {
-          this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._clientId, rig, head, left, right);
-          clearInterval(getPlayerAvatarIntervalId);
-        }
-      };
-      getPlayerAvatarIntervalId = setInterval(getPlayerAvatar, 1000);
+      if (event.datachannel.label === "#avatar-RIG") {
+        // get self avatar parts
+        let getPlayerAvatarIntervalId: NodeJS.Timer;
+        const getPlayerAvatar = () => {
+          if (this._selfAvatarTransformBuffer) {
+            clearInterval(getPlayerAvatarIntervalId);
+            return;
+          }
+          const rig = document.querySelector("#avatar-rig") as AElement;
+          const head = document.querySelector("#avatar-pov-node") as AElement;
+          const left = document.querySelector("#player-left-controller") as AElement;
+          const right = document.querySelector("#player-right-controller") as AElement;
+          this._rightHand = right;
+          if (rig && head && left && right) {
+            this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._clientId, rig, head, left, right);
+            clearInterval(getPlayerAvatarIntervalId);
+          }
+        };
+        getPlayerAvatarIntervalId = setInterval(getPlayerAvatar, 1000);
+      }
 
-      // check self avatar transform periodically, and send message if updated
-      const sendAvatarTransform = async () => {
-        this.sendSelfAvatarTransform(true);
-      };
-      setInterval(sendAvatarTransform, 20);
+      if (event.datachannel.label === "#isVR") {
+        setInterval(() => this.setSelfIsVrFlag(), 1000);
+        setInterval(() => this.sendSelfIsVrFlag(), 1000);
+      }
+
+      if (event.datachannel.label.includes("#avatar-")) {
+        setInterval(() => this.sendSelfAvatarTransform(true), 20);
+      }
     });
     this._sendrecv.on("message", event => {
       if (event.label === "#avatarId") {
@@ -216,6 +227,11 @@ export class SoraAdapter extends SfuAdapter {
 
         // Always record/update the client's avatar ID
         this._clientId2avatarId.set(clientId, avatarId);
+      }
+
+      if (event.label === "#isVR") {
+        let [clientId, isVR] = new TextDecoder().decode(new Uint8Array(event.data)).split("|");
+        this._clientId2isVR.set(clientId, isVR === "1");
       }
 
       if (event.label.includes("#avatar-")) {
@@ -487,14 +503,6 @@ export class SoraAdapter extends SfuAdapter {
 
   sendSelfAvatarTransform(checkUpdatedRequired: boolean) {
     if (!this._selfAvatarTransformBuffer) return;
-    // console.log(
-    //   Math.round(this._rightHand.object3D.rotation.x * 100) / 100 +
-    //     " " +
-    //     Math.round(this._rightHand.object3D.rotation.y * 100) / 100 +
-    //     " " +
-    //     Math.round(this._rightHand.object3D.rotation.z * 100) / 100
-    // );
-    // console.log(this._rightHand.object3D.rotation);
     avatarPartTypes.forEach(part => {
       if (checkUpdatedRequired && !this._selfAvatarTransformBuffer?.updateAvatarTransform(part)) return;
 
@@ -506,31 +514,15 @@ export class SoraAdapter extends SfuAdapter {
       };
       /* Implementation for using bitECS */
       if (part === AvatarPart.RIG) {
-        // this._rootTransformsBuffer.set(
-        //   this._clientId,
-        //   this._selfAvatarTransformBuffer._avatarInputTransform[AvatarPart.RIG]
-        // );
         this._rootTransformsBuffer.set(this._clientId, decodedTransform);
       }
       if (part === AvatarPart.HEAD) {
-        // this._headTransformsBuffer.set(
-        //   this._clientId,
-        //   this._selfAvatarTransformBuffer._avatarInputTransform[AvatarPart.HEAD]
-        // );
         this._headTransformsBuffer.set(this._clientId, decodedTransform);
       }
       if (part === AvatarPart.LEFT) {
-        // this._leftHandTransformsBuffer.set(
-        //   this._clientId,
-        //   this._selfAvatarTransformBuffer._avatarInputTransform[AvatarPart.LEFT]
-        // );
         this._leftHandTransformsBuffer.set(this._clientId, decodedTransform);
       }
       if (part === AvatarPart.RIGHT) {
-        // this._rightHandTransformsBuffer.set(
-        //   this._clientId,
-        //   this._selfAvatarTransformBuffer._avatarInputTransform[AvatarPart.RIGHT]
-        // );
         this._rightHandTransformsBuffer.set(this._clientId, decodedTransform);
       }
       /* End of implementation for using bitECS */
@@ -539,6 +531,24 @@ export class SoraAdapter extends SfuAdapter {
 
   sendSelfAvatarSrc(avatarId: string) {
     this._sendrecv?.sendMessage("#avatarId", new TextEncoder().encode(this._clientId + "|" + avatarId));
+  }
+
+  private setSelfIsVrFlag() {
+    this._clientId2isVR.set(
+      this._clientId,
+      AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting
+    );
+  }
+
+  private sendSelfIsVrFlag() {
+    this._sendrecv?.sendMessage(
+      "#isVR",
+      new TextEncoder().encode(
+        this._clientId +
+          "|" +
+          (AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting ? "1" : "0")
+      )
+    );
   }
 
   emitRTCEvent(level: string, tag: string, msgFunc: () => void) {
