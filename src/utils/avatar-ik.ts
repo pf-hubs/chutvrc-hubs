@@ -72,6 +72,7 @@ const alignBoneWithTarget = (
 export class AvatarIk {
   private world: HubsWorld;
   private isVR: boolean;
+  private isHalfBody: boolean;
   private isFlippedY: boolean;
   private hipsBone: Object3D | undefined;
   private hips2HeadDist: number;
@@ -134,6 +135,11 @@ export class AvatarIk {
       this.lastRootPosInputX = this.rootBone.position.x;
       this.lastRootPosInputZ = this.rootBone.position.z;
     }
+
+    const left = world.eid2obj.get(AvatarComponent.leftHand[avatarEid]);
+    const right = world.eid2obj.get(AvatarComponent.rightHand[avatarEid]);
+    const spine = world.eid2obj.get(AvatarComponent.spine[avatarEid]);
+    this.isHalfBody = left?.parent === spine && right?.parent === spine && spine?.parent === this.hipsBone;
   }
 
   updateAvatarBoneIkById(
@@ -160,8 +166,12 @@ export class AvatarIk {
     // TODO: emit event so that name tag can initialize its position
     if (!this.isInputReady) return;
 
-    poseInput.leftController = this.leftControllerFilter.getTransformWithFilteredPosition(poseInput.leftController);
-    poseInput.rightController = this.rightControllerFilter.getTransformWithFilteredPosition(poseInput.rightController);
+    if (!this.isHalfBody) {
+      poseInput.leftController = this.leftControllerFilter.getTransformWithFilteredPosition(poseInput.leftController);
+      poseInput.rightController = this.rightControllerFilter.getTransformWithFilteredPosition(
+        poseInput.rightController
+      );
+    }
 
     this.waitTime += deltaTime;
     if (this.waitTime < 2000) return;
@@ -258,11 +268,17 @@ export class AvatarIk {
 
     let targetRot = { x: 0, y: 0, z: 0 };
 
+    this.currentInputPosition.applyAxisAngle(
+      this.rootBone?.up || this.world.scene.up,
+      (this.rootInput?.rot.y || 0) -
+        Math.PI +
+        (this.getEffectorInputPosition(chainConfig.effectorBoneName, poseInput) ? poseInput.hmd?.rot?.y || 0 : 0)
+    );
+
     for (let _ = 0; _ < 2; _++) {
       chainConfig.jointConfigs.forEach((jointConfig: any) => {
         this.currentJoint = this.world.eid2obj.get(jointConfig.boneAsAvatarProp[avatarEid]);
         if (this.currentInputPosition && this.currentJoint && effector) {
-          const followHeadVerticalRotation = this.getEffectorInputPosition(chainConfig.effectorBoneName, poseInput);
           const isSelfHead = this.isSelfAvatar && chainConfig.effectorBoneName === BoneType.Head;
           if (isSelfHead) {
             effector.getWorldDirection(this.headEffectorOffset);
@@ -270,15 +286,12 @@ export class AvatarIk {
               .projectOnPlane(VECTOR_UP)
               .multiplyScalar(FULL_BODY_HEAD_OFFSET * (this.isFlippedY ? 1 : -1));
           }
-          if (this.currentInputPosition && this.rootBone && this.rootInput) {
+          if (this.rootBone && this.rootInput) {
             alignBoneWithTarget(
               this.currentJoint,
               effector,
               this.currentInputPosition
-                .applyAxisAngle(
-                  this.rootBone.up,
-                  this.rootInput.rot.y - Math.PI + (followHeadVerticalRotation ? poseInput.hmd?.rot?.y || 0 : 0)
-                )
+                .clone()
                 .add(isSelfHead ? this.rootPos.clone().add(this.headEffectorOffset) : this.rootPos),
               jointConfig.rotationMin,
               jointConfig.rotationMax
@@ -321,12 +334,17 @@ export class AvatarIk {
         } else {
           targetQ.setFromEuler(new Euler(-targetRot.x, targetRot.y, -targetRot.z, "YXZ"));
         }
-        let newQ = this.rootBone?.quaternion.clone().multiply(targetQ) || targetQ;
+
+        // Attach hand to scene -> apply world transform -> attach back to original parent
         this.world.scene.attach(effector);
-        effector.quaternion.copy(newQ);
+        if (this.isHalfBody) {
+          effector.position.copy(this.currentInputPosition.add(this.rootBone.position)); // world position
+        }
+        effector.quaternion.copy(this.rootBone?.quaternion.clone().multiply(targetQ) || targetQ); // world rotation
         effector.quaternion._onChangeCallback();
         effector.updateMatrix();
         parent?.attach(effector);
+
         if (this.isFlippedY) {
           effector.rotateZ(isLeftHand ? Math.PI / 2 : -Math.PI / 2);
         } else {
@@ -356,7 +374,7 @@ export class AvatarIk {
       case BoneType.Head:
         followHeadVerticalRotation = false;
         rawPos = poseInput.hmd?.pos;
-        rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
+        if (!this.isHalfBody) rawPos = { x: -rawPos.x, y: rawPos.y, z: -rawPos.z };
         break;
       case BoneType.LeftHand:
         rawPos = poseInput.leftController?.pos;
