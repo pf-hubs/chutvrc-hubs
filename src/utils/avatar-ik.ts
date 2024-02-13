@@ -1,3 +1,5 @@
+// DEPRECATED!
+
 import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
 import { BoneType } from "../constants";
 import { HubsWorld } from "../app";
@@ -69,6 +71,9 @@ const alignBoneWithTarget = (
   joint.updateMatrixWorld(true);
 };
 
+/*
+  DEPRECATED! Use AvatarIkManager instead
+*/
 export class AvatarIk {
   private world: HubsWorld;
   private isVR: boolean;

@@ -7,6 +7,7 @@ import { HubsWorld } from "../app";
 import { mapAvatarBone } from "../utils/map-avatar-bones";
 import { AvatarIk } from "../utils/avatar-ik";
 import { Transform } from "../types/transform";
+import { AvatarIkManager } from "../utils/avatar-ik-manager";
 
 export type InputTransformById = {
   rig: Map<string, Transform>;
@@ -183,7 +184,8 @@ export const createSelfAvatarBoneEntities = (world: HubsWorld, avatar: Object3D)
 
       // const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
       // const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
-      APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid));
+      // APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid));
+      APP.world.eid2Ik.set(avatarEid, new AvatarIkManager(world, avatarEid));
 
       // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
       // let neckPos = avatarBoneMap.get(BoneType.Neck)?.position;
@@ -224,7 +226,8 @@ export const createAvatarBoneEntities = (
 
       // const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
       // const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
-      APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid));
+      // APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid));
+      APP.world.eid2Ik.set(avatarEid, new AvatarIkManager(world, avatarEid));
 
       // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
       // let neckPos = avatarBoneMap.get(BoneType.Neck)?.position;
@@ -251,15 +254,13 @@ export const avatarIkSystem = (
   avatarQuery(world).forEach(avatarEid => {
     const clientId = avatarEid2ClientId.get(avatarEid);
     if (clientId) {
-      APP.world.eid2Ik
-        .get(avatarEid)
-        ?.updateAvatarBoneIkById(
-          avatarEid,
-          avatarPoseInputs,
-          clientId,
-          isVrByClientId.get(clientId) || false,
-          world.time.delta
-        );
+      APP.world.eid2Ik.get(avatarEid)?.updateAvatarBoneIkById(
+        // avatarEid,
+        avatarPoseInputs,
+        clientId,
+        isVrByClientId.get(clientId) || false
+        // world.time.delta
+      );
     }
   });
 
