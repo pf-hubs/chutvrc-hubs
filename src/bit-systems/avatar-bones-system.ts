@@ -5,7 +5,6 @@ import { AvatarComponent, BoneComponent } from "../bit-components";
 import { addObject3DComponent } from "../utils/jsx-entity";
 import { HubsWorld } from "../app";
 import { mapAvatarBone } from "../utils/map-avatar-bones";
-import { AvatarIk } from "../utils/avatar-ik";
 import { Transform } from "../types/transform";
 import { AvatarIkManager } from "../utils/avatar-ik-manager";
 
@@ -184,7 +183,6 @@ export const createSelfAvatarBoneEntities = (world: HubsWorld, avatar: Object3D)
 
       // const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
       // const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
-      // APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid));
       APP.world.eid2Ik.set(avatarEid, new AvatarIkManager(world, avatarEid));
 
       // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
@@ -226,7 +224,6 @@ export const createAvatarBoneEntities = (
 
       // const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
       // const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
-      // APP.world.eid2Ik.set(avatarEid, new AvatarIk(world, avatarEid));
       APP.world.eid2Ik.set(avatarEid, new AvatarIkManager(world, avatarEid));
 
       // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;

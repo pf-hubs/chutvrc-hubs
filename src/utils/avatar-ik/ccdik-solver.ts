@@ -1,5 +1,7 @@
 import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
 
+const VECTOR_UP = new Vector3(0, 1, 0);
+
 export class CCDIKSolver {
   private bone: Object3D;
   private effector: Object3D;
@@ -38,7 +40,7 @@ export class CCDIKSolver {
   }
 
   // Ref: https://scrapbox.io/ke456memo/%2327_pixiv%2Fthree-vrm%E3%81%A7VRM%E3%81%AB%E5%AF%BE%E5%BF%9C%E3%81%97%E3%81%9FIK%E3%82%92%E5%AE%9F%E8%A3%85%E3%81%99%E3%82%8B
-  alignBoneWithGoal = (goal: Vector3) => {
+  alignBoneWithGoal = (goal: Vector3, goalRotY?: number) => {
     this.bone.getWorldPosition(this.bonePosition);
     this.bone.getWorldQuaternion(this.boneQuaternionInverse);
     this.boneQuaternionInverse.invert();
@@ -69,12 +71,16 @@ export class CCDIKSolver {
     this.rotationDiff.setFromQuaternion(this.bone.quaternion);
 
     this.rotationDiff.x = Math.max(this.rotationMin.x, Math.min(this.rotationMax.x, this.rotationDiff.x));
-    this.rotationDiff.y = Math.max(this.rotationMin.y, Math.min(this.rotationMax.y, this.rotationDiff.y));
     this.rotationDiff.z = Math.max(this.rotationMin.z, Math.min(this.rotationMax.z, this.rotationDiff.z));
+    if (!this.isYRotFixed) {
+      this.rotationDiff.y = Math.max(this.rotationMin.y, Math.min(this.rotationMax.y, this.rotationDiff.y));
+    }
     this.bone.quaternion.setFromEuler(this.rotationDiff);
 
-    if (this.isYRotFixed) {
-      this.bone.rotation.y = this.effector.rotation.y;
+    if (this.isYRotFixed && goalRotY) {
+      this.bone.quaternion.setFromAxisAngle(VECTOR_UP, goalRotY % (Math.PI * 2));
+      this.effector.rotation.y = 0;
+      this.effector.rotation._onChangeCallback();
     }
     this.bone.rotation._onChangeCallback();
     this.bone.updateMatrix();

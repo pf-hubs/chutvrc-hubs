@@ -7,6 +7,7 @@ import { TransformLowPassFilter } from "../transform-low-pass-filter";
 const VECTOR_UP = new Vector3(0, 1, 0);
 
 export class ArmIk extends LimbIk {
+  private isDebug?: boolean;
   private isLeft: boolean;
   private isHalfBody: boolean;
   private world: HubsWorld;
@@ -21,7 +22,8 @@ export class ArmIk extends LimbIk {
     isFlippedY: boolean,
     isLeft: boolean,
     isHalfBody: boolean,
-    world: HubsWorld
+    world: HubsWorld,
+    isDebug?: boolean
   ) {
     super(avatarRootBone, avatarHipsBone, base, elbow, effector, isFlippedY);
 
@@ -33,6 +35,7 @@ export class ArmIk extends LimbIk {
     this.isHalfBody = isHalfBody;
     this.world = world;
     this.inputFilter = new TransformLowPassFilter(0.3, 0.3);
+    this.isDebug = isDebug;
   }
 
   protected override updateCurrentInput(input: Transform | null, cameraTransform: Transform) {
@@ -60,11 +63,7 @@ export class ArmIk extends LimbIk {
     if (input && this.isVR && this.avatarRoot) {
       let parent = this.effector.parent;
       let targetQ = new Quaternion();
-      if (this.isFlippedY) {
-        targetQ.setFromEuler(new Euler(input.rot.x, input.rot.y, input.rot.z, "YXZ"));
-      } else {
-        targetQ.setFromEuler(new Euler(input.rot.x, input.rot.y, input.rot.z, "YXZ"));
-      }
+      targetQ.setFromEuler(new Euler(input.rot.x, input.rot.y, input.rot.z, "YXZ"));
 
       // Attach hand to scene -> apply world transform -> attach back to original parent
       this.world.scene.attach(this.effector);
@@ -87,12 +86,16 @@ export class ArmIk extends LimbIk {
     } else {
       this.effector.rotation.set(0, 0, 0);
     }
+
+    this.effector.rotation._onChangeCallback();
+    this.effector.updateMatrix();
   }
 
   override solve(input: Transform | null, cameraTransform: Transform, isVR: boolean, isSelfAvatar: boolean) {
     if (input && isVR && !this.isHalfBody) {
       input = this.inputFilter.getTransformWithFilteredPosition(input);
     }
+
     super.solve(input, cameraTransform, isVR, isSelfAvatar);
   }
 }

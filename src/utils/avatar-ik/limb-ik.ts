@@ -80,6 +80,8 @@ export class LimbIk {
   protected adjustEffectorTransform(input: Transform | null) {
     if (!input) return;
     this.effector.rotation.set(this.isFlippedY ? input.rot.x : -input.rot.x, input.rot.y, input.rot.z, "YXZ");
+    this.effector.rotation._onChangeCallback();
+    this.effector.updateMatrix();
   }
 
   solve(input: Transform | null, cameraTransform: Transform, isVR: boolean, isSelfAvatar: boolean) {
@@ -89,12 +91,10 @@ export class LimbIk {
     this.updateCurrentInput(input, cameraTransform);
 
     this.adjustEffectorTransform(input);
-    this.effector.rotation._onChangeCallback();
-    this.effector.updateMatrix();
 
     for (let _ = 0; _ < 3; _++) {
       this.base?.ikSolver?.alignBoneWithGoal(this.currentInputPosition);
-      this.elbow?.ikSolver?.alignBoneWithGoal(this.currentInputPosition);
+      this.elbow?.ikSolver?.alignBoneWithGoal(this.currentInputPosition, input?.rot.y);
     }
 
     this.adjustElbow();

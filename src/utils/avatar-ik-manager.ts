@@ -84,6 +84,7 @@ export class AvatarIkManager {
           true,
           this.isHalfBody,
           this.world
+          // true
         );
       }
       if (right) {
@@ -96,7 +97,8 @@ export class AvatarIkManager {
           this.isFlippedY,
           false,
           this.isHalfBody,
-          this.world
+          this.world,
+          true
         );
       }
       if (leftFoot) {

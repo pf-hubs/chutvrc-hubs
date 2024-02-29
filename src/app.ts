@@ -33,7 +33,6 @@ import { SfuAdapter } from "./sfu-adapter";
 import { DialogAdapter } from "./naf-dialog-adapter";
 import { addObject3DComponent } from "./utils/jsx-entity";
 import { ElOrEid } from "./utils/bit-utils";
-import { AvatarIk } from "./utils/avatar-ik";
 import { AvatarIkManager } from "./utils/avatar-ik-manager";
 
 declare global {
@@ -57,7 +56,6 @@ export interface HubsWorld extends IWorld {
   nid2eid: Map<number, number>;
   eid2obj: Map<number, Object3D>;
   eid2mat: Map<number, Material>;
-  // eid2Ik: Map<number, AvatarIk>;
   eid2Ik: Map<number, AvatarIkManager>;
   time: { delta: number; elapsed: number; tick: number };
 }
