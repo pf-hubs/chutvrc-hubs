@@ -32,7 +32,7 @@ export class CCDIKSolver {
     this.bone2GoalVector = new Vector3();
     this.axis = new Vector3();
     this.quarternionDiff = new Quaternion();
-    this.rotationDiff = new Euler();
+    this.rotationDiff = new Euler(0, 0, 0, this.bone.rotation.order);
   }
 
   setYRotFixedFlag(isYRotFixed: boolean) {
@@ -72,15 +72,16 @@ export class CCDIKSolver {
 
     this.rotationDiff.x = Math.max(this.rotationMin.x, Math.min(this.rotationMax.x, this.rotationDiff.x));
     this.rotationDiff.z = Math.max(this.rotationMin.z, Math.min(this.rotationMax.z, this.rotationDiff.z));
-    if (!this.isYRotFixed) {
-      this.rotationDiff.y = Math.max(this.rotationMin.y, Math.min(this.rotationMax.y, this.rotationDiff.y));
-    }
+    this.rotationDiff.y = this.isYRotFixed
+      ? 0
+      : Math.max(this.rotationMin.y, Math.min(this.rotationMax.y, this.rotationDiff.y));
     this.bone.quaternion.setFromEuler(this.rotationDiff);
 
     if (this.isYRotFixed && goalRotY) {
-      this.bone.quaternion.setFromAxisAngle(VECTOR_UP, goalRotY % (Math.PI * 2));
-      this.effector.rotation.y = 0;
-      this.effector.rotation._onChangeCallback();
+      this.bone.rotation.y = (goalRotY * 2) / 3;
+      // TODO:
+      // this.bone.rotation.y = goalRotY;
+      // console.log(Math.round(this.effector.rotation.y * 100) / 100 + " | " + Math.round(goalRotY * 100) / 100);
     }
     this.bone.rotation._onChangeCallback();
     this.bone.updateMatrix();

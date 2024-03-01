@@ -36,6 +36,8 @@ export class ArmIk extends LimbIk {
     this.world = world;
     this.inputFilter = new TransformLowPassFilter(0.3, 0.3);
     this.isDebug = isDebug;
+    this.elbow.bone.rotation.order = "XZY";
+    this.effector.rotation.order = "YXZ";
   }
 
   protected override updateCurrentInput(input: Transform | null, cameraTransform: Transform) {
@@ -96,6 +98,23 @@ export class ArmIk extends LimbIk {
       input = this.inputFilter.getTransformWithFilteredPosition(input);
     }
 
-    super.solve(input, cameraTransform, isVR, isSelfAvatar);
+    // super.solve(input, cameraTransform, isVR, isSelfAvatar);
+    this.isVR = isVR;
+    this.isSelfAvatar = isSelfAvatar;
+    this.avatarRoot.getWorldPosition(this.avatarRootWorldPos);
+    this.updateCurrentInput(input, cameraTransform);
+
+    this.adjustEffectorTransform(input);
+
+    const rotY = this.effector.rotation.y;
+    // this.effector.rotation.y = 0;
+    // this.effector.updateMatrix();
+
+    for (let _ = 0; _ < 2; _++) {
+      this.base?.ikSolver?.alignBoneWithGoal(this.currentInputPosition);
+      this.elbow?.ikSolver?.alignBoneWithGoal(this.currentInputPosition, rotY);
+    }
+
+    this.adjustElbow();
   }
 }

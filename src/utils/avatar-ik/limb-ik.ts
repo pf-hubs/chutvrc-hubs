@@ -94,7 +94,7 @@ export class LimbIk {
 
     for (let _ = 0; _ < 3; _++) {
       this.base?.ikSolver?.alignBoneWithGoal(this.currentInputPosition);
-      this.elbow?.ikSolver?.alignBoneWithGoal(this.currentInputPosition, input?.rot.y);
+      this.elbow?.ikSolver?.alignBoneWithGoal(this.currentInputPosition, this.effector.rotation.y);
     }
 
     this.adjustElbow();
