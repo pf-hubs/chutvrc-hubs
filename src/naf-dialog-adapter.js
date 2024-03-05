@@ -50,11 +50,14 @@ export class DialogAdapter extends SfuAdapter {
     this._shareProducer = null;
     this._localMediaStream = null;
     this._consumers = new Map();
+    this._dataProducer = null; // DataChannel implementation
+    this._dataConsumers = new Map(); // DataChannel implementation
     this._pendingMediaRequests = new Map();
     this._blockedClients = new Map();
     this._forceTcp = false;
     this._forceTurn = false;
     this._iceTransportPolicy = null;
+    this._useDataChannel = true; // DataChannel implementation
     this.scene = null;
     this._serverParams = {};
     this._consumerStats = {};
@@ -329,6 +332,46 @@ export class DialogAdapter extends SfuAdapter {
 
           break;
         }
+        // DataChannel implementation
+        case "newDataConsumer": {
+          const { dataProducerId, id, label, protocol, sctpStreamParameters /* , peerId */ } = request.data;
+
+          try {
+            const dataConsumer = await this._recvTransport.consumeData({
+              id,
+              dataProducerId,
+              label,
+              protocol,
+              sctpStreamParameters
+            });
+
+            // Store in the map.
+            this._dataConsumers.set(dataConsumer.id, dataConsumer);
+
+            dataConsumer.on("message", data => {
+              // TODO
+            });
+
+            dataConsumer.on("transportclose", () => {
+              this.emitRTCEvent("error", "RTC", () => `DataConsumer transport closed`);
+              this.removeConsumer(dataConsumer.id);
+            });
+
+            // We are ready. Answer the protoo request so the server will
+            // resume this DataConsumer.
+            accept();
+
+            // Notify of an stream update event
+            // this.emit("stream_updated", peerId, kind);
+          } catch (err) {
+            this.emitRTCEvent("error", "Adapter", () => `Error: ${err}`);
+            error('"newDataConsumer" request failed:%o', err);
+
+            throw err;
+          }
+
+          break;
+        }
       }
     });
 
@@ -547,7 +590,7 @@ export class DialogAdapter extends SfuAdapter {
     const sendTransportInfo = await this._protoo.request("createWebRtcTransport", {
       producing: true,
       consuming: false,
-      sctpCapabilities: undefined
+      sctpCapabilities: { OS: 1024, MIS: 1024 }
     });
 
     this._sendTransport = this._mediasoupDevice.createSendTransport({
@@ -616,6 +659,20 @@ export class DialogAdapter extends SfuAdapter {
         errback(error);
       }
     });
+
+    this._sendTransport.on("producedata", async (parameters, callback, errback) => {
+      this.emitRTCEvent("info", "RTC", () => `Send transport [produceData]`);
+      try {
+        const id = await this._protoo.request("produceData", {
+          transportId: this._sendTransport.id,
+          ...parameters
+        });
+        callback({ id });
+      } catch (error) {
+        this.emitRTCEvent("error", "Signaling", () => `[produceData] error: ${error}`);
+        errback(error);
+      }
+    });
   }
 
   async closeSendTransport() {
@@ -652,7 +709,7 @@ export class DialogAdapter extends SfuAdapter {
     const recvTransportInfo = await this._protoo.request("createWebRtcTransport", {
       producing: false,
       consuming: true,
-      sctpCapabilities: undefined
+      sctpCapabilities: { OS: 1024, MIS: 1024 }
     });
 
     this._recvTransport = this._mediasoupDevice.createRecvTransport({
@@ -818,6 +875,13 @@ export class DialogAdapter extends SfuAdapter {
       this.disableShare();
     }
     this._localMediaStream = stream;
+
+    // DataChannel implementation
+    this._dataProducer = await this._sendTransport.produceData({ label: "test" });
+    this._dataProducer.on("transportclose", () => {
+      this.emitRTCEvent("error", "RTC", () => `DataConsumer transport closed`);
+      this.removeConsumer(this._dataProducer.id);
+    });
   }
 
   async enableCamera(track) {
