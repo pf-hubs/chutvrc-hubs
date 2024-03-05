@@ -195,25 +195,23 @@ export default class SceneEntryManager {
     if (!force && this._lastFetchedAvatarId === avatarId) return; // Avoid continually refetching based upon state changing
 
     this._lastFetchedAvatarId = avatarId;
-    if (APP.usingSfu === SFU.SORA && APP.sora) APP.sora.sendSelfAvatarSrc(avatarId);
+    APP.sfu._avatarSyncHelper.sendSelfAvatarSrc(avatarId);
     const avatarSrc = await getAvatarSrc(avatarId);
 
-    if (APP.usingSfu === SFU.SORA && APP.sora) {
-      // Load self-avatar after entering scene
-      loadModel(avatarSrc).then(gltf => {
-        if (
-          createAvatarBoneEntities(
-            APP.world,
-            gltf.scene,
-            APP.sora._clientId,
-            APP.sora._avatarEid2ClientId,
-            APP.sora._clientId2AvatarEid
-          )
-        ) {
-          APP.world.scene.add(gltf.scene);
-        }
-      });
-    }
+    // Load self-avatar after entering scene
+    loadModel(avatarSrc).then(gltf => {
+      if (
+        createAvatarBoneEntities(
+          APP.world,
+          gltf.scene,
+          APP.sfu._clientId,
+          APP.sfu._avatarSyncHelper._avatarEid2ClientId,
+          APP.sfu._avatarSyncHelper._client2AvatarEid
+        )
+      ) {
+        APP.world.scene.add(gltf.scene);
+      }
+    });
 
     this.avatarRig.setAttribute("player-info", { avatarSrc, avatarType: getAvatarType(avatarId) });
   };

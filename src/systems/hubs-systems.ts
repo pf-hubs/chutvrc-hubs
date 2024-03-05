@@ -79,8 +79,8 @@ import { linearTransformSystem } from "../bit-systems/linear-transform";
 import { quackSystem } from "../bit-systems/quack";
 import { mixerAnimatableSystem } from "../bit-systems/mixer-animatable";
 import { loopAnimationSystem } from "../bit-systems/loop-animation";
-import { SFU } from "../available-sfu";
 import { avatarIkSystem } from "../bit-systems/avatar-bones-system";
+import { AvatarPart } from "../utils/avatar-transform-buffer";
 
 declare global {
   interface Window {
@@ -291,19 +291,17 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   }
 
   /* Implementation for using bitECS */
-  if (APP.usingSfu === SFU.SORA && APP.sora) {
-    avatarIkSystem(
-      world,
-      {
-        rig: APP.sora._rootTransformsBuffer,
-        hmd: APP.sora._headTransformsBuffer,
-        leftController: APP.sora._leftHandTransformsBuffer,
-        rightController: APP.sora._rightHandTransformsBuffer
-      },
-      APP.sora._avatarEid2ClientId,
-      APP.sora._clientId2isVR
-    );
-  }
+  avatarIkSystem(
+    world,
+    {
+      rig: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.RIG) || new Map(),
+      hmd: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.HEAD) || new Map(),
+      leftController: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.LEFT) || new Map(),
+      rightController: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.RIGHT) || new Map()
+    },
+    APP.sfu._avatarSyncHelper._avatarEid2ClientId,
+    APP.sfu._avatarSyncHelper._client2VrMode
+  );
   /* End of implementation for using bitECS */
 
   scene.updateMatrixWorld();

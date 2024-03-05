@@ -160,14 +160,16 @@ AFRAME.registerComponent("name-tag", {
         this.modBadge.visible = this.isOwner && !this.isRecording;
         this.handRaised.visible = this.isHandRaised;
 
-        if (APP.usingSfu === SFU.SORA && !this.neck && this.ikRoot) {
+        if (!this.neck && this.ikRoot) {
           this.neck = APP.world.eid2obj.get(
-            AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
+            AvatarComponent.neck[
+              APP.sfu._avatarSyncHelper._client2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))
+            ]
           );
         }
         if (this.ikRoot) {
           this.neck?.getWorldPosition(worldPos);
-          if (APP.usingSfu === SFU.DIALOG) worldPos.setY(this.nametagElPosY + this.ikRoot.position.y);
+          // if (APP.usingSfu === SFU.DIALOG) worldPos.setY(this.nametagElPosY + this.ikRoot.position.y);
           worldPos.setY(this.nametagElPosY + this.ikRoot.position.y + 2);
           mat.copy(this.nametag.matrixWorld);
           mat.setPosition(worldPos);
@@ -269,12 +271,10 @@ AFRAME.registerComponent("name-tag", {
     await nextTick();
     this.ikRoot = findAncestorWithComponent(this.el, "ik-root").object3D;
     this.ikRoot.el.object3D.visible = true;
-    this.neck =
-      APP.usingSfu === SFU.SORA
-        ? APP.world.eid2obj.get(
-            AvatarComponent.neck[APP.sfu._clientId2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
-          )
-        : this.ikRoot.el.querySelector(".Neck").object3D;
+    this.neck = APP.world.eid2obj.get(
+      AvatarComponent.neck[APP.sfu._avatarSyncHelper._client2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
+    );
+    // this.ikRoot.el.querySelector(".Neck").object3D;
     this.audioAnalyzer = this.ikRoot.el.querySelector(".model").components["networked-audio-analyser"];
 
     this.updateAvatarModelAABB();

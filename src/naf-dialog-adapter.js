@@ -3,6 +3,7 @@ import protooClient from "protoo-client";
 import { debug as newDebug } from "debug";
 import { MediaDevices } from "./utils/media-devices-utils";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
+import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
 
 // Used for VP9 webcam video.
 //const VIDEO_KSVC_ENCODINGS = [{ scalabilityMode: "S3T3_KEY" }];
@@ -50,7 +51,7 @@ export class DialogAdapter extends SfuAdapter {
     this._shareProducer = null;
     this._localMediaStream = null;
     this._consumers = new Map();
-    this._dataProducer = null; // DataChannel implementation
+    this._dataProducers = new Map(); // DataChannel implementation
     this._dataConsumers = new Map(); // DataChannel implementation
     this._pendingMediaRequests = new Map();
     this._blockedClients = new Map();
@@ -61,6 +62,7 @@ export class DialogAdapter extends SfuAdapter {
     this.scene = null;
     this._serverParams = {};
     this._consumerStats = {};
+    this._avatarSyncHelper = new AvatarSyncHelper(this);
   }
 
   get consumerStats() {
@@ -345,17 +347,18 @@ export class DialogAdapter extends SfuAdapter {
               sctpStreamParameters
             });
 
-            // Store in the map.
-            this._dataConsumers.set(dataConsumer.id, dataConsumer);
-
             dataConsumer.on("message", data => {
-              // TODO
+              console.log(`Channel ${label} received message: ${new TextDecoder().decode(data)}`);
+              this._avatarSyncHelper.handleRecvMessage(label, new Uint8Array(data));
             });
 
             dataConsumer.on("transportclose", () => {
               this.emitRTCEvent("error", "RTC", () => `DataConsumer transport closed`);
               this.removeConsumer(dataConsumer.id);
             });
+
+            // Store in the map.
+            this._dataConsumers.set(dataConsumer.id, dataConsumer);
 
             // We are ready. Answer the protoo request so the server will
             // resume this DataConsumer.
@@ -877,11 +880,23 @@ export class DialogAdapter extends SfuAdapter {
     this._localMediaStream = stream;
 
     // DataChannel implementation
-    this._dataProducer = await this._sendTransport.produceData({ label: "test" });
-    this._dataProducer.on("transportclose", () => {
-      this.emitRTCEvent("error", "RTC", () => `DataConsumer transport closed`);
-      this.removeConsumer(this._dataProducer.id);
-    });
+    await Promise.all(
+      this._avatarSyncHelper._channelsForSync.map(async label => {
+        const dataProducer = await this._sendTransport.produceData({ label });
+
+        dataProducer.on("open", () => {
+          console.log(`Channel ${label} opened.`);
+          this._avatarSyncHelper.handleSyncInit(label);
+        });
+
+        dataProducer.on("transportclose", () => {
+          this.emitRTCEvent("error", "RTC", () => `DataConsumer transport closed. Channel: #${label}`);
+          this.removeConsumer(dataProducer.id);
+        });
+
+        this._dataProducers.set(label, dataProducer);
+      })
+    );
   }
 
   async enableCamera(track) {
@@ -1036,6 +1051,14 @@ export class DialogAdapter extends SfuAdapter {
       this._blockedClients.delete(clientId);
       document.body.dispatchEvent(new CustomEvent("unblocked", { detail: { clientId: clientId } }));
     });
+  }
+
+  broadcast(channel, message) {
+    this._dataProducers.get(channel)?.send(new TextEncoder().encode(message));
+  }
+
+  broadcastUint8(channel, message) {
+    this._dataProducers.get(channel)?.send(message);
   }
 
   emitRTCEvent(level, tag, msgFunc) {
