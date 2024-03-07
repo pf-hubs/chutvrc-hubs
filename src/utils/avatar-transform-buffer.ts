@@ -13,9 +13,9 @@ export enum AvatarPart {
 
 export const avatarPartTypes = [AvatarPart.RIG, AvatarPart.HEAD, AvatarPart.LEFT, AvatarPart.RIGHT];
 
-export type Transform = {
-  position: Vector3;
-  rotation: Euler;
+type Transform = {
+  pos: Vector3;
+  rot: Euler;
 };
 
 export type AvatarObjects = {
@@ -53,20 +53,20 @@ export class AvatarTransformBuffer {
     };
     this._lastAvatarTransform = {
       [AvatarPart.RIG]: {
-        position: rig.object3D.position.clone(),
-        rotation: rig.object3D.rotation.clone()
+        pos: rig.object3D.position.clone(),
+        rot: rig.object3D.rotation.clone()
       },
       [AvatarPart.HEAD]: {
-        position: head.object3D.position.clone(),
-        rotation: head.object3D.rotation.clone()
+        pos: head.object3D.position.clone(),
+        rot: head.object3D.rotation.clone()
       },
       [AvatarPart.LEFT]: {
-        position: left.object3D.position.clone(),
-        rotation: left.object3D.rotation.clone()
+        pos: left.object3D.position.clone(),
+        rot: left.object3D.rotation.clone()
       },
       [AvatarPart.RIGHT]: {
-        position: right.object3D.position.clone(),
-        rotation: right.object3D.rotation.clone()
+        pos: right.object3D.position.clone(),
+        rot: right.object3D.rotation.clone()
       }
     };
     // this._avatarInputTransform = {
@@ -83,29 +83,20 @@ export class AvatarTransformBuffer {
     };
   }
 
-  // return true if updated, false if not
-  updateAvatarTransform(part: AvatarPart) {
-    if (
-      !this.isPositionUpdated(this._avatarObj[part].position, this._lastAvatarTransform[part].position) &&
-      !this.isRotationUpdated(this._avatarObj[part].rotation, this._lastAvatarTransform[part].rotation)
-    )
-      return false;
-    this._lastAvatarTransform[part].position.copy(this._avatarObj[part].position);
-    this._lastAvatarTransform[part].rotation.copy(this._avatarObj[part].rotation);
+  isUpdateAvatarTransformUpdated(part: AvatarPart) {
+    return (
+      this.isPositionUpdated(this._avatarObj[part].position, this._lastAvatarTransform[part].pos) ||
+      this.isRotationUpdated(this._avatarObj[part].rotation, this._lastAvatarTransform[part].rot)
+    );
+  }
 
-    // this._avatarInputTransform[part] = {
-    //   pos: {
-    //     x: this._avatarObj[part].position.x,
-    //     y: this._avatarObj[part].position.y,
-    //     z: this._avatarObj[part].position.z
-    //   },
-    //   rot: {
-    //     x: this._avatarObj[part].rotation.x,
-    //     y: this._avatarObj[part].rotation.y,
-    //     z: this._avatarObj[part].rotation.z
-    //   }
-    // };
-    return true;
+  updateAvatarTransform(part: AvatarPart) {
+    this._lastAvatarTransform[part].pos.copy(this._avatarObj[part].position);
+    this._lastAvatarTransform[part].rot.copy(this._avatarObj[part].rotation);
+  }
+
+  getAvatarTransform(part: AvatarPart) {
+    return this._lastAvatarTransform[part];
   }
 
   getEncodedAvatarTransform(part: AvatarPart) {

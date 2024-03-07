@@ -9,8 +9,6 @@ type Vector3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number };
 type Transform = { pos: Vector3; rot: Quaternion };
 
-const AvatarPartsToSync = [AvatarPart.RIG, AvatarPart.HEAD, AvatarPart.LEFT, AvatarPart.RIGHT];
-
 /* Sync BitECS-managed avatars through WebRTC DataChannel */
 export class AvatarSyncHelper {
   private _selfAvatarTransformBuffer: AvatarTransformBuffer;
@@ -20,7 +18,9 @@ export class AvatarSyncHelper {
   _client2VrMode: Map<string, boolean>;
   _client2Transform: Map<AvatarPart, Map<string, Transform>>;
   _avatarEid2ClientId: Map<number, string>;
+  _avatarPartsToSync: AvatarPart[];
   _channelsForSync: string[];
+  _isStartSendingSelfAvatarTransform: boolean;
 
   constructor(sfu: SfuAdapter) {
     this._sfu = sfu;
@@ -29,16 +29,18 @@ export class AvatarSyncHelper {
     this._client2AvatarEid = new Map<string, number>();
     this._client2VrMode = new Map<string, boolean>();
     this._client2Transform = new Map<AvatarPart, Map<string, Transform>>();
-    this._channelsForSync = ["#avatarId", "#isVR"].concat(AvatarPartsToSync.map(part => "#avatar-" + AvatarPart[part]));
-
-    AvatarPartsToSync.forEach(part => {
+    this._avatarPartsToSync = [AvatarPart.RIG, AvatarPart.HEAD, AvatarPart.LEFT, AvatarPart.RIGHT];
+    this._channelsForSync = ["#avatarId", "#isVR"].concat(
+      this._avatarPartsToSync.map(part => "#avatar-" + AvatarPart[part])
+    );
+    this._avatarPartsToSync.forEach(part => {
       this._client2Transform.set(part, new Map<string, Transform>());
     });
+    this._isStartSendingSelfAvatarTransform = false;
   }
 
   handleSyncInit(channel: string) {
-    // if (channel === "#avatar-RIG") {
-    if (channel.includes("#avatar-RIG")) {
+    if (channel.includes("#avatar-")) {
       this.handleTransformSyncInit();
     } else if (channel === "#isVR") {
       this.handleVrModeSyncInit();
@@ -108,45 +110,60 @@ export class AvatarSyncHelper {
     removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
   }
 
+  updateSelfAvatarTransform() {
+    this._avatarPartsToSync.forEach(part => {
+      this._selfAvatarTransformBuffer?.updateAvatarTransform(part);
+      this._client2Transform
+        .get(part)
+        ?.set(this._sfu._clientId, this._selfAvatarTransformBuffer.getAvatarTransform(part));
+    });
+  }
+
   sendSelfAvatarSrc(avatarId: string) {
     this._sfu.broadcast("#avatarId", this._sfu._clientId + "|" + avatarId);
   }
 
   sendSelfAvatarTransform(checkUpdatedRequired: boolean) {
     if (!this._selfAvatarTransformBuffer) return;
-    AvatarPartsToSync.forEach(part => {
-      if (checkUpdatedRequired && !this._selfAvatarTransformBuffer?.updateAvatarTransform(part)) return;
+    this._avatarPartsToSync.forEach(part => {
+      if (checkUpdatedRequired && !this._selfAvatarTransformBuffer?.isUpdateAvatarTransformUpdated(part)) return;
 
       const arrToSend = this._selfAvatarTransformBuffer.getEncodedAvatarTransform(part);
       this._sfu.broadcastUint8("#avatar-" + AvatarPart[part], arrToSend);
-      this._client2Transform.get(part)?.set(this._sfu._clientId, {
-        pos: decodePosition(arrToSend),
-        rot: decodeRotation(arrToSend)
-      });
     });
   }
 
-  private handleTransformSyncInit() {
+  initSelfAvatarTransform() {
     // get self avatar parts
+    const rig = document.querySelector("#avatar-rig") as AElement;
+    const head = document.querySelector("#avatar-pov-node") as AElement;
+    const left = document.querySelector("#player-left-controller") as AElement;
+    const right = document.querySelector("#player-right-controller") as AElement;
+
+    if (rig && head && left && right) {
+      this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._sfu._clientId, rig, head, left, right);
+      setInterval(() => this.updateSelfAvatarTransform(), 20);
+      return true;
+    }
+
+    return false;
+  }
+
+  private handleTransformSyncInit() {
+    if (this._selfAvatarTransformBuffer && !this._isStartSendingSelfAvatarTransform) {
+      this._isStartSendingSelfAvatarTransform = true;
+      setInterval(() => this.sendSelfAvatarTransform(true), 10);
+      return;
+    }
     let getPlayerAvatarIntervalId: NodeJS.Timer;
     const getPlayerAvatar = () => {
       if (this._selfAvatarTransformBuffer) {
         clearInterval(getPlayerAvatarIntervalId);
         return;
       }
-      const rig = document.querySelector("#avatar-rig") as AElement;
-      const head = document.querySelector("#avatar-pov-node") as AElement;
-      const left = document.querySelector("#player-left-controller") as AElement;
-      const right = document.querySelector("#player-right-controller") as AElement;
-
-      if (rig && head && left && right) {
-        this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._sfu._clientId, rig, head, left, right);
-        clearInterval(getPlayerAvatarIntervalId);
-      }
+      if (this.initSelfAvatarTransform()) clearInterval(getPlayerAvatarIntervalId);
     };
     getPlayerAvatarIntervalId = setInterval(getPlayerAvatar, 1000);
-
-    setInterval(() => this.sendSelfAvatarTransform(true), 20);
   }
 
   private handleVrModeSyncInit() {

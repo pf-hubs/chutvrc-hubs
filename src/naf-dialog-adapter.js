@@ -257,6 +257,8 @@ export class DialogAdapter extends SfuAdapter {
     urlWithParams.searchParams.append("roomId", this._roomId);
     urlWithParams.searchParams.append("peerId", this._clientId);
 
+    this._avatarSyncHelper.initSelfAvatarTransform();
+
     // TODO: Establishing connection could take a very long time.
     //       Inform the user if we are stuck here.
     const protooTransport = new protooClient.WebSocketTransport(urlWithParams.toString(), {
@@ -348,7 +350,7 @@ export class DialogAdapter extends SfuAdapter {
             });
 
             dataConsumer.on("message", data => {
-              console.log(`Channel ${label} received message: ${new TextDecoder().decode(data)}`);
+              console.log(`Channel ${label} received message: ${new TextDecoder().decode(new Uint8Array(data))}`);
               this._avatarSyncHelper.handleRecvMessage(label, new Uint8Array(data));
             });
 
@@ -884,17 +886,13 @@ export class DialogAdapter extends SfuAdapter {
       this._avatarSyncHelper._channelsForSync.map(async label => {
         const dataProducer = await this._sendTransport.produceData({ label });
 
-        dataProducer.on("open", () => {
-          console.log(`Channel ${label} opened.`);
-          this._avatarSyncHelper.handleSyncInit(label);
-        });
-
         dataProducer.on("transportclose", () => {
           this.emitRTCEvent("error", "RTC", () => `DataConsumer transport closed. Channel: #${label}`);
           this.removeConsumer(dataProducer.id);
         });
 
         this._dataProducers.set(label, dataProducer);
+        this._avatarSyncHelper.handleSyncInit(label);
       })
     );
   }
