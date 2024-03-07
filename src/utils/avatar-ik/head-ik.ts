@@ -44,5 +44,7 @@ export class HeadIk extends LimbIk {
   protected override adjustEffectorTransform(input: Transform | null) {
     if (!input) return;
     this.effector.rotation.set(this.isFlippedY ? input.rot.x : -input.rot.x, 0, input.rot.z, "YXZ");
+    this.effector.rotation._onChangeCallback();
+    this.effector.updateMatrix();
   }
 }

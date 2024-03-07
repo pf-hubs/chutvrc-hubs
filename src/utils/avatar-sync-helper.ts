@@ -38,7 +38,7 @@ export class AvatarSyncHelper {
 
   handleSyncInit(channel: string) {
     // if (channel === "#avatar-RIG") {
-    if (channel.includes("#avatar-")) {
+    if (channel.includes("#avatar-RIG")) {
       this.handleTransformSyncInit();
     } else if (channel === "#isVR") {
       this.handleVrModeSyncInit();
@@ -55,6 +55,8 @@ export class AvatarSyncHelper {
       } else {
         // if avatar id of this client is not recorded, that means this client is new to this room, so send my avatar id & src to the client
         this.sendSelfAvatarSrc(window.APP.store.state.profile.avatarId);
+        // Also send my avatar transform to the new client without check if the transform is updated
+        this.sendSelfAvatarTransform(false);
       }
 
       // if avatar id of this client is already recorded but with different avatar id (existing client but avatar changed),
@@ -67,14 +69,16 @@ export class AvatarSyncHelper {
         // Load new avatar
         getAvatarSrc(avatarId).then((avatarSrc: string) => {
           loadModel(avatarSrc).then(gltf => {
-            var isAvatarBoneEntitiesSuccessfullyCreated = createAvatarBoneEntities(
-              APP.world,
-              gltf.scene,
-              clientId,
-              this._avatarEid2ClientId,
-              this._client2AvatarEid
-            );
-            if (isAvatarBoneEntitiesSuccessfullyCreated) APP.world.scene.add(gltf.scene);
+            if (
+              createAvatarBoneEntities(
+                APP.world,
+                gltf.scene,
+                clientId,
+                this._avatarEid2ClientId,
+                this._client2AvatarEid
+              ) // return avatarEid
+            )
+              APP.world.scene.add(gltf.scene);
           });
         });
       }

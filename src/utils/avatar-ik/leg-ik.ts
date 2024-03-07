@@ -39,6 +39,8 @@ export class LegIk extends LimbIk {
     } else {
       this.effector.rotation.set(this.isFlippedY ? -Math.PI / 3 : Math.PI / 3, 0, 0, "YXZ");
     }
+    this.effector.rotation._onChangeCallback();
+    this.effector.updateMatrix();
   }
 
   // protected override adjustElbow() {}

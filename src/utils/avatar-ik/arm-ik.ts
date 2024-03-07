@@ -30,13 +30,13 @@ export class ArmIk extends LimbIk {
     if (this.elbow) {
       this.elbow.isYRotFixed = true;
       this.elbow.ikSolver.setYRotFixedFlag(true);
+      this.elbow.bone.rotation.order = "XZY";
     }
     this.isLeft = isLeft;
     this.isHalfBody = isHalfBody;
     this.world = world;
     this.inputFilter = new TransformLowPassFilter(0.3, 0.3);
     this.isDebug = isDebug;
-    this.elbow.bone.rotation.order = "XZY";
     this.effector.rotation.order = "YXZ";
   }
 
