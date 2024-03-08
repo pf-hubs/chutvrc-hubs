@@ -350,13 +350,12 @@ export class DialogAdapter extends SfuAdapter {
             });
 
             dataConsumer.on("message", data => {
-              console.log(`Channel ${label} received message: ${new TextDecoder().decode(new Uint8Array(data))}`);
+              // console.log(`Channel ${label} received message: ${new TextDecoder().decode(new Uint8Array(data))}`);
               this._avatarSyncHelper.handleRecvMessage(label, new Uint8Array(data));
             });
 
             dataConsumer.on("transportclose", () => {
               this.emitRTCEvent("error", "RTC", () => `DataConsumer transport closed`);
-              this.removeConsumer(dataConsumer.id);
             });
 
             // Store in the map.
@@ -404,8 +403,27 @@ export class DialogAdapter extends SfuAdapter {
             break;
           }
 
+          this._avatarSyncHelper.handleOnClientLeave(consumer.appData.peerId);
+
           consumer.close();
           this.removeConsumer(consumer.id);
+
+          break;
+        }
+
+        case "dataConsumerClosed": {
+          const { dataConsumerId } = notification.data;
+          const dataConsumer = this._dataConsumers.get(dataConsumerId);
+
+          if (!dataConsumer) {
+            info(`dataConsumerClosed event received without related dataConsumer: ${dataConsumerId}`);
+            break;
+          }
+
+          this._avatarSyncHelper.handleOnClientLeave(dataConsumer.appData.peerId);
+
+          dataConsumer.close();
+          this.removeDataConsumer(dataConsumer.id);
 
           break;
         }
@@ -543,6 +561,16 @@ export class DialogAdapter extends SfuAdapter {
   removeConsumer(consumerId) {
     this.emitRTCEvent("info", "RTC", () => `Consumer removed: ${consumerId}`);
     this._consumers.delete(consumerId);
+  }
+
+  removeDataProducer(dataProducerId) {
+    this.emitRTCEvent("info", "RTC", () => `DataProducer removed: ${dataProducerId}`);
+    this._consumers.delete(dataProducerId);
+  }
+
+  removeDataConsumer(dataConsumerId) {
+    this.emitRTCEvent("info", "RTC", () => `DataConsumer removed: ${dataConsumerId}`);
+    this._consumers.delete(dataConsumerId);
   }
 
   getMediaStream(clientId, kind = "audio") {
@@ -888,7 +916,7 @@ export class DialogAdapter extends SfuAdapter {
 
         dataProducer.on("transportclose", () => {
           this.emitRTCEvent("error", "RTC", () => `DataConsumer transport closed. Channel: #${label}`);
-          this.removeConsumer(dataProducer.id);
+          this.removeDataProducer(dataProducer.id);
         });
 
         this._dataProducers.set(label, dataProducer);

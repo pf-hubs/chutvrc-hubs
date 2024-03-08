@@ -24,10 +24,10 @@ export class LegIk extends LimbIk {
 
   protected override updateCurrentInput(input: Transform | null, cameraTransform: Transform) {
     if (input) {
-      // ...
+      // TODO: use tracker position if it exists
     } else {
       this.currentInputPosition
-        .set(-this.avatarHips.position.x + (this.isLeft ? 0.15 : -0.15), 0, -this.avatarHips.position.z) // TODO: use tracker position if it exists
+        .set(this.isLeft ? 0.15 : -0.15, 0, -0.1)
         .applyAxisAngle(VECTOR_UP, this.avatarRoot.rotation.y - Math.PI + cameraTransform.rot.y)
         .add(this.avatarRootWorldPos);
     }
@@ -37,7 +37,7 @@ export class LegIk extends LimbIk {
     if (input) {
       this.effector.rotation.set(this.isFlippedY ? input.rot.x : -input.rot.x, input.rot.y, input.rot.z, "YXZ");
     } else {
-      this.effector.rotation.set(this.isFlippedY ? -Math.PI / 3 : Math.PI / 3, 0, 0, "YXZ");
+      this.effector.rotation.set(this.isFlippedY ? 0 : Math.PI / 3, 0, 0, "YXZ");
     }
     this.effector.rotation._onChangeCallback();
     this.effector.updateMatrix();
