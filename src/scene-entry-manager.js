@@ -3,8 +3,6 @@ import nextTick from "./utils/next-tick";
 import { hackyMobileSafariTest } from "./utils/detect-touchscreen";
 import { SignInMessages } from "./react-components/auth/SignInModal";
 import { createNetworkedEntity } from "./utils/create-networked-entity";
-import { loadModel } from "./components/gltf-model-plus";
-import { createAvatarBoneEntities } from "./bit-systems/avatar-bones-system";
 
 const isBotMode = qsTruthy("bot");
 const isMobile = AFRAME.utils.device.isMobile();
@@ -195,24 +193,9 @@ export default class SceneEntryManager {
     if (!force && this._lastFetchedAvatarId === avatarId) return; // Avoid continually refetching based upon state changing
 
     this._lastFetchedAvatarId = avatarId;
-    APP.sfu._avatarSyncHelper.sendSelfAvatarSrc(avatarId);
     const avatarSrc = await getAvatarSrc(avatarId);
-
-    // Load self-avatar after entering scene
-    loadModel(avatarSrc).then(gltf => {
-      if (
-        createAvatarBoneEntities(
-          APP.world,
-          gltf.scene,
-          APP.sfu._clientId,
-          APP.sfu._avatarSyncHelper._avatarEid2ClientId,
-          APP.sfu._avatarSyncHelper._client2AvatarEid
-        )
-      ) {
-        APP.world.scene.add(gltf.scene);
-      }
-    });
-
+    APP.sfu._avatarSyncHelper.sendSelfAvatarSrc(avatarId);
+    APP.sfu._avatarSyncHelper.replaceAvatarModel(avatarId, APP.sfu._clientId);
     this.avatarRig.setAttribute("player-info", { avatarSrc, avatarType: getAvatarType(avatarId) });
   };
 

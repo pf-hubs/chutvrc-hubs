@@ -65,28 +65,8 @@ export class AvatarSyncHelper {
       // or avatar id of this client is not recorded (new client to this room),
       // then load the client's avatar's model
       if (clientId !== this._sfu._clientId) {
-        // Remove old avatar if exists
-        if (this._client2AvatarEid.has(clientId))
-          removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
-        // Load new avatar
-        getAvatarSrc(avatarId).then((avatarSrc: string) => {
-          loadModel(avatarSrc).then(gltf => {
-            if (
-              createAvatarBoneEntities(
-                APP.world,
-                gltf.scene,
-                clientId,
-                this._avatarEid2ClientId,
-                this._client2AvatarEid
-              ) // return avatarEid
-            )
-              APP.world.scene.add(gltf.scene);
-          });
-        });
+        this.replaceAvatarModel(avatarId, clientId);
       }
-
-      // Always record/update the client's avatar ID
-      this._client2AvatarAssetId.set(clientId, avatarId);
     }
 
     if (channel === "#isVR") {
@@ -135,6 +115,28 @@ export class AvatarSyncHelper {
     });
   }
 
+  replaceAvatarModel = async (avatarId: string, clientId: string) => {
+    if (avatarId === this._client2AvatarAssetId.get(clientId)) return;
+
+    // Remove old avatar if exists
+    if (this._client2AvatarEid.has(clientId)) {
+      removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
+    }
+    // Load self-avatar after entering scene
+    getAvatarSrc(avatarId).then((avatarSrc: string) => {
+      loadModel(avatarSrc).then(gltf => {
+        if (
+          createAvatarBoneEntities(APP.world, gltf.scene, clientId, this._avatarEid2ClientId, this._client2AvatarEid)
+        ) {
+          APP.world.scene.add(gltf.scene);
+        }
+      });
+    });
+
+    // Always record/update the client's avatar ID
+    this._client2AvatarAssetId.set(clientId, avatarId);
+  };
+
   sendSelfAvatarSrc(avatarId: string) {
     this._sfu.broadcast("#avatarId", this._sfu._clientId + "|" + avatarId);
   }
@@ -142,7 +144,13 @@ export class AvatarSyncHelper {
   sendSelfAvatarTransform(checkUpdatedRequired: boolean) {
     if (!this._selfAvatarTransformBuffer) return;
     this._avatarPartsToSync.forEach(part => {
-      if (checkUpdatedRequired && !this._selfAvatarTransformBuffer?.isUpdateAvatarTransformUpdated(part)) return;
+      // RIG: always sync because rotation by pressing Q or E is only executed once, and sync can fail if there is loss in dataChannel:
+      if (
+        checkUpdatedRequired &&
+        part !== AvatarPart.RIG &&
+        !this._selfAvatarTransformBuffer?.isUpdateAvatarTransformUpdated(part)
+      )
+        return;
 
       const arrToSend = this._selfAvatarTransformBuffer.getEncodedAvatarTransform(part);
       this._sfu.broadcastUint8("#avatar-" + AvatarPart[part], arrToSend);
