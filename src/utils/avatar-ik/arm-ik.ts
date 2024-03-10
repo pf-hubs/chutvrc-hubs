@@ -1,4 +1,4 @@
-import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
+import { Euler, Matrix4, Mesh, Object3D, Quaternion, Vector3 } from "three";
 import { Transform } from "../../types/transform";
 import { JointInitSettings, LimbIk } from "./limb-ik";
 import { HubsWorld } from "../../app";
@@ -10,6 +10,7 @@ export class ArmIk extends LimbIk {
   private isDebug?: boolean;
   private isLeft: boolean;
   private isHalfBody: boolean;
+  private isVisible: boolean;
   private world: HubsWorld;
   private inputFilter: TransformLowPassFilter;
 
@@ -34,9 +35,10 @@ export class ArmIk extends LimbIk {
     }
     this.isLeft = isLeft;
     this.isHalfBody = isHalfBody;
-    this.world = world;
+    this.isVisible = true;
     this.inputFilter = new TransformLowPassFilter(0.3, 0.3);
     this.isDebug = isDebug;
+    this.world = world;
     this.effector.rotation.order = "YXZ";
   }
 
@@ -94,6 +96,17 @@ export class ArmIk extends LimbIk {
   }
 
   override solve(input: Transform | null, cameraTransform: Transform, isVR: boolean, isSelfAvatar: boolean) {
+    if (this.isVisible && this.isHalfBody && !this.isVR) {
+      this.isVisible = false;
+      this.effector.position.set(0, 0, 0);
+      this.effector.scale.set(0.1, 0.1, 0.1);
+      this.effector.updateMatrix();
+      return;
+    } else if (!this.isVisible && (!this.isHalfBody || this.isVR)) {
+      this.isVisible = true;
+      this.effector.scale.set(1, 1, 1);
+    }
+
     if (input && isVR && !this.isHalfBody) {
       input = this.inputFilter.getTransformWithFilteredPosition(input);
     }
