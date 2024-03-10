@@ -108,8 +108,8 @@ export class App {
 
   audioListener: AudioListener;
 
-  usingSfu = SFU.SORA;
-  // usingSfu = SFU.DIALOG;
+  usingSfu = SFU.DIALOG;
+  // usingSfu = SFU.SORA;
   sfu: SfuAdapter = soraAdapter;
   // sfu: SfuAdapter = dialogAdapter;
   dialog = dialogAdapter;

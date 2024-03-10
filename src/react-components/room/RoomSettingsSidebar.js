@@ -214,13 +214,13 @@ export function RoomSettingsSidebar({
             <RadioInputOption
               name="sfu"
               value="0"
-              label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-sora" defaultMessage="Sora" />}
+              label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-dialog" defaultMessage="Dialog" />}
               ref={register}
             />
             <RadioInputOption
               name="sfu"
               value="1"
-              label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-dialog" defaultMessage="Dialog" />}
+              label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-sora" defaultMessage="Sora" />}
               ref={register}
             />
           </RadioInputField>
