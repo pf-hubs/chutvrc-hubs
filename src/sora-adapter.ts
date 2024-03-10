@@ -126,7 +126,10 @@ export class SoraAdapter extends SfuAdapter {
         this.emit(SFU_CONNECTION_ERROR_FATAL);
         this.enableMicrophone(false);
       })
-      .finally(() => this.enableMicrophone(false));
+      .finally(() => {
+        this.enableMicrophone(false);
+        this._avatarSyncHelper.initSelfAvatarTransform();
+      });
   }
 
   async disconnect() {

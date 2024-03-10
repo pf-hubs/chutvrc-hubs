@@ -110,6 +110,22 @@ export class AvatarSyncHelper {
     removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
   }
 
+  initSelfAvatarTransform() {
+    // get self avatar parts
+    const rig = document.querySelector("#avatar-rig") as AElement;
+    const head = document.querySelector("#avatar-pov-node") as AElement;
+    const left = document.querySelector("#player-left-controller") as AElement;
+    const right = document.querySelector("#player-right-controller") as AElement;
+
+    if (rig && head && left && right) {
+      this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._sfu._clientId, rig, head, left, right);
+      setInterval(() => this.updateSelfAvatarTransform(), 10);
+      return true;
+    }
+
+    return false;
+  }
+
   updateSelfAvatarTransform() {
     this._avatarPartsToSync.forEach(part => {
       this._selfAvatarTransformBuffer?.updateAvatarTransform(part);
@@ -133,37 +149,22 @@ export class AvatarSyncHelper {
     });
   }
 
-  initSelfAvatarTransform() {
-    // get self avatar parts
-    const rig = document.querySelector("#avatar-rig") as AElement;
-    const head = document.querySelector("#avatar-pov-node") as AElement;
-    const left = document.querySelector("#player-left-controller") as AElement;
-    const right = document.querySelector("#player-right-controller") as AElement;
-
-    if (rig && head && left && right) {
-      this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._sfu._clientId, rig, head, left, right);
-      setInterval(() => this.updateSelfAvatarTransform(), 20);
-      return true;
-    }
-
-    return false;
-  }
-
   private handleTransformSyncInit() {
-    if (this._selfAvatarTransformBuffer && !this._isStartSendingSelfAvatarTransform) {
+    if (!this._selfAvatarTransformBuffer) {
+      let getPlayerAvatarIntervalId: NodeJS.Timer;
+      const getPlayerAvatar = () => {
+        if (this._selfAvatarTransformBuffer) {
+          clearInterval(getPlayerAvatarIntervalId);
+          return;
+        }
+        if (this.initSelfAvatarTransform()) clearInterval(getPlayerAvatarIntervalId);
+      };
+      getPlayerAvatarIntervalId = setInterval(getPlayerAvatar, 1000);
+    } else if (this._selfAvatarTransformBuffer && !this._isStartSendingSelfAvatarTransform) {
       this._isStartSendingSelfAvatarTransform = true;
       setInterval(() => this.sendSelfAvatarTransform(true), 10);
       return;
     }
-    let getPlayerAvatarIntervalId: NodeJS.Timer;
-    const getPlayerAvatar = () => {
-      if (this._selfAvatarTransformBuffer) {
-        clearInterval(getPlayerAvatarIntervalId);
-        return;
-      }
-      if (this.initSelfAvatarTransform()) clearInterval(getPlayerAvatarIntervalId);
-    };
-    getPlayerAvatarIntervalId = setInterval(getPlayerAvatar, 1000);
   }
 
   private handleVrModeSyncInit() {
