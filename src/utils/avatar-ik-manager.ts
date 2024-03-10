@@ -8,8 +8,8 @@ import { ArmIk } from "./avatar-ik/arm-ik";
 import { LegIk } from "./avatar-ik/leg-ik";
 import { JointSettings } from "./avatar-ik/joint-settings";
 
-const HipsPositionOffsetInVR = new Vector3(0, 0, -0.1);
-const HipsPositionFlippedOffsetInVR = new Vector3(0, 0, 0.1);
+const SelfHipsPositionOffset = new Vector3(0, 0, -0.1);
+const SelfHipsPositionFlippedOffset = new Vector3(0, 0, 0.1);
 
 const DummyInputTransform = {
   pos: { x: 0, y: 0, z: 0 },
@@ -164,20 +164,25 @@ export class AvatarIkManager {
 
     if (this.rootBone) {
       this.rootBone.position.set(this.rootInput.pos.x, this.rootInput.pos.y, this.rootInput.pos.z);
-      this.rootBone.rotation.set(this.rootInput.rot.x, this.rootInput.rot.y, this.rootInput.rot.z);
+      this.rootBone.rotation.set(this.rootInput.rot.x, this.rootInput.rot.y, 0 /* this.rootInput.rot.z */);
       this.rootBone.rotation._onChangeCallback();
       this.rootBone.updateMatrix();
       this.rootBone.getWorldPosition(this.rootPos);
     }
 
     if (this.hipsBone) {
-      this.hipsBone.position
-        .set(hmdTransform.pos.x, hmdTransform.pos.y - this.hips2HeadDist - 0.05, hmdTransform.pos.z)
-        .add(
-          (this.isFlippedY ? HipsPositionFlippedOffsetInVR : HipsPositionOffsetInVR)
+      this.hipsBone.position.set(
+        this.isVR ? hmdTransform.pos.x : 0,
+        hmdTransform.pos.y - this.hips2HeadDist - 0.05,
+        this.isVR ? hmdTransform.pos.z : 0
+      );
+      if (this.isSelfAvatar) {
+        this.hipsBone.position.add(
+          (this.isFlippedY ? SelfHipsPositionFlippedOffset : SelfHipsPositionOffset)
             .clone()
             .applyQuaternion(this.hipsBone.quaternion)
         );
+      }
       this.hipsBone.rotation.set(0, (hmdTransform?.rot.y || 0) + (this.isFlippedY ? 0 : Math.PI), 0);
       this.hipsBone.rotation._onChangeCallback();
       this.hipsBone.updateMatrix();
