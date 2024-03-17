@@ -31,9 +31,11 @@ export const MediaFrame = defineComponent({
   scale: [Types.f32, 3],
   mediaType: Types.ui8,
   bounds: [Types.f32, 3],
+  align: [Types.ui8, 3],
   guide: Types.eid,
   preview: Types.eid,
-  previewingNid: Types.eid
+  previewingNid: Types.eid,
+  flags: Types.ui8
 });
 export const TextTag = defineComponent();
 export const ReflectionProbe = defineComponent();
@@ -69,6 +71,13 @@ export const HoveredHandRight = defineComponent();
 export const HoveredHandLeft = defineComponent();
 export const HoveredRemoteRight = defineComponent();
 export const HoveredRemoteLeft = defineComponent();
+export const HoverableVisuals = defineComponent({
+  geometryRadius: Types.f32
+});
+/**
+ * @type {Map<EntityId, Uniform[]}>}
+ */
+export const HoverableVisualsUniforms = new Map();
 export const HeldHandRight = defineComponent();
 export const HeldHandLeft = defineComponent();
 export const HeldRemoteRight = defineComponent();
@@ -88,9 +97,14 @@ export const TextButton = defineComponent({ labelRef: Types.eid });
 export const HoldableButton = defineComponent();
 export const SingleActionButton = defineComponent();
 export const Pen = defineComponent();
+export const PenActive = defineComponent();
+export const PenUpdated = defineComponent();
 export const HoverMenuChild = defineComponent();
 export const Static = defineComponent();
-export const Inspectable = defineComponent();
+export const Inspectable = defineComponent({
+  flags: Types.ui8
+});
+export const Inspected = defineComponent();
 export const PreventAudioBoost = defineComponent();
 export const IgnoreSpaceBubble = defineComponent();
 export const Rigidbody = defineComponent({
@@ -125,8 +139,6 @@ export const PhysicsShape = defineComponent({
   heightfieldDistance: Types.f32,
   flags: Types.ui8
 });
-export const Pinnable = defineComponent();
-export const Pinned = defineComponent();
 export const DestroyAtExtremeDistance = defineComponent();
 export const MediaLoading = defineComponent();
 export const FloatyObject = defineComponent({ flags: Types.ui8, releaseGravity: Types.f32 });
@@ -154,13 +166,52 @@ export const CameraTool = defineComponent({
 export const MyCameraTool = defineComponent();
 export const MediaLoader = defineComponent({
   src: Types.ui32,
-  flags: Types.ui8
+  flags: Types.ui8,
+  fileId: Types.ui32,
+  count: Types.ui8,
+  mediaRef: Types.eid
 });
 MediaLoader.src[$isStringType] = true;
+MediaLoader.fileId[$isStringType] = true;
+export const MediaLoaderOffset = defineComponent();
 export const MediaLoaded = defineComponent();
+export const LoadedByMediaLoader = defineComponent();
+export const MediaRefresh = defineComponent();
 export const MediaContentBounds = defineComponent({
   bounds: [Types.f32, 3]
 });
+export const MediaInfo = defineComponent({
+  accessibleUrl: Types.ui32,
+  contentType: Types.ui32,
+  mediaType: Types.ui8
+});
+MediaInfo.accessibleUrl[$isStringType] = true;
+MediaInfo.contentType[$isStringType] = true;
+
+// MediaImageLoaderData and MediaVideoLoaderData are
+// for parameters that are set at glTF inflators
+// inflateImageLoader and inflateVideoLoader and
+// are needed to be transported to util image/audio loaders.
+// They are handled as part of MediaLoader component data.
+
+/**
+ * @type {Map<EntityId, {
+ *   alphaCutoff: number,
+ *   alphaMode: AlphaMode,
+ *   projection: ProjectionMode
+ * }>}
+ */
+export const MediaImageLoaderData = new Map();
+
+/**
+ * @type {Map<EntityId, {
+ *   loop: boolean,
+ *   autoPlay: boolean,
+ *   controls: boolean,
+ *   projection: ProjectionMode
+ * }>}
+ */
+export const MediaVideoLoaderData = new Map();
 
 export const SceneRoot = defineComponent();
 export const NavMesh = defineComponent();
@@ -168,7 +219,10 @@ export const SceneLoader = defineComponent({ src: Types.ui32 });
 SceneLoader.src[$isStringType] = true;
 
 export const MediaImage = defineComponent({
-  cacheKey: Types.ui32
+  cacheKey: Types.ui32,
+  projection: Types.ui8,
+  alphaMode: Types.ui8,
+  alphaCutoff: Types.f32
 });
 MediaImage.cacheKey[$isStringType] = true;
 
@@ -179,11 +233,21 @@ export const MediaPDF = defineComponent({
   pageNumber: Types.ui8
 });
 MediaPDF.map = new Map();
+export const MediaPDFUpdated = defineComponent({
+  pageNumber: Types.ui8
+});
 
 export const MediaVideo = defineComponent({
-  autoPlay: Types.ui8,
-  ratio: Types.f32
+  ratio: Types.f32,
+  flags: Types.ui8,
+  projection: Types.ui8,
+  lastUpdate: Types.ui32
 });
+export const MediaVideoUpdated = defineComponent();
+/**
+ * @type {Map<EntityId, HTMLVideoElement}>}
+ */
+export const MediaVideoData = new Map();
 export const MixerAnimatableInitialize = defineComponent({});
 export const MixerAnimatable = defineComponent({});
 /**
@@ -218,7 +282,11 @@ export const VideoMenu = defineComponent({
   trackRef: Types.eid,
   headRef: Types.eid,
   playIndicatorRef: Types.eid,
-  pauseIndicatorRef: Types.eid
+  pauseIndicatorRef: Types.eid,
+  snapRef: Types.eid,
+  volUpRef: Types.eid,
+  volDownRef: Types.eid,
+  clearTargetTimer: Types.f64
 });
 export const AudioEmitter = defineComponent({
   flags: Types.ui8
@@ -233,6 +301,7 @@ EnvironmentSettings.map = new Map();
 
 // TODO: Store this data elsewhere, since only one or two will ever exist.
 export const ObjectMenu = defineComponent({
+  backgroundRef: Types.eid,
   pinButtonRef: Types.eid,
   unpinButtonRef: Types.eid,
   cameraFocusButtonRef: Types.eid,
@@ -247,27 +316,58 @@ export const ObjectMenu = defineComponent({
   rotateButtonRef: Types.eid,
   mirrorButtonRef: Types.eid,
   scaleButtonRef: Types.eid,
-  targetRef: Types.eid
+  targetRef: Types.eid,
+  handlingTargetRef: Types.eid,
+  flags: Types.ui8
 });
+export const ObjectDropped = defineComponent();
+export const MediaMirrored = defineComponent({
+  linkedRef: Types.eid
+});
+export const MirroredMedia = defineComponent({
+  linkedRef: Types.eid
+});
+export const LinkedMedia = defineComponent({
+  linkedRef: Types.eid
+});
+export const FollowInFov = defineComponent({
+  offset: [Types.f32, 3],
+  angle: Types.f32,
+  speed: Types.f32,
+  started: Types.ui8
+});
+export const MirrorMenu = defineComponent({
+  closeRef: Types.eid,
+  mirrorTargetRef: Types.eid,
+  flags: Types.ui8
+});
+export const AvatarPOVNode = defineComponent();
 // TODO: Store this data elsewhere, since only one or two will ever exist.
 export const LinkHoverMenu = defineComponent({
   targetObjectRef: Types.eid,
-  linkButtonRef: Types.eid
+  linkButtonRef: Types.eid,
+  clearTargetTimer: Types.f64
 });
 export const LinkHoverMenuItem = defineComponent();
 export const Link = defineComponent({
-  url: Types.ui32
+  url: Types.ui32,
+  type: Types.ui8
 });
 Link.url[$isStringType] = true;
+export const LinkInitializing = defineComponent();
 // TODO: Store this data elsewhere, since only one or two will ever exist.
 export const PDFMenu = defineComponent({
   prevButtonRef: Types.eid,
   nextButtonRef: Types.eid,
   pageLabelRef: Types.eid,
+  snapRef: Types.eid,
   targetRef: Types.eid,
   clearTargetTimer: Types.f64
 });
-export const ObjectMenuTarget = defineComponent();
+export const ObjectMenuTarget = defineComponent({
+  flags: Types.ui8
+});
+export const MediaSnapped = defineComponent();
 export const NetworkDebug = defineComponent();
 export const NetworkDebugRef = defineComponent({
   ref: Types.eid
@@ -380,3 +480,16 @@ const AvatarSchema = {
 export const TransformComponent = defineComponent(TransformSchema);
 export const BoneComponent = defineComponent(BoneSchema);
 export const AvatarComponent = defineComponent(AvatarSchema);
+export const TrimeshTag = defineComponent();
+export const HeightFieldTag = defineComponent();
+export const LocalAvatar = defineComponent();
+export const RemoteAvatar = defineComponent();
+export const MediaLink = defineComponent({
+  src: Types.ui32
+});
+MediaLink.src[$isStringType] = true;
+export const ObjectMenuTransform = defineComponent({
+  targetObjectRef: Types.eid,
+  prevObjectRef: Types.eid,
+  flags: Types.ui8
+});

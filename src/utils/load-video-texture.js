@@ -1,10 +1,11 @@
-import { LinearFilter, VideoTexture, sRGBEncoding } from "three";
+import { LinearFilter, sRGBEncoding } from "three";
 import HLS from "hls.js";
 import { DashVideoTexture } from "../textures/DashVideoTexture";
 import { HLSVideoTexture } from "../textures/HLSVideoTexture";
 import { createDashPlayer, createHLSPlayer, createVideoOrAudioEl } from "./media-utils";
+import { HubsVideoTexture } from "../textures/HubsVideoTexture";
 
-export async function loadVideoTexture(src, contentType) {
+export async function loadVideoTexture(src, contentType, loop, autoplay) {
   const videoEl = createVideoOrAudioEl("video");
   let texture = null;
 
@@ -44,9 +45,11 @@ export async function loadVideoTexture(src, contentType) {
     }
 
     if (texture === null) {
-      texture = new VideoTexture(videoEl);
+      texture = new HubsVideoTexture(videoEl);
       videoEl.src = src;
       videoEl.onerror = failLoad;
+      videoEl.loop = loop;
+      videoEl.autoplay = autoplay;
     }
 
     texture.minFilter = LinearFilter;
@@ -61,7 +64,7 @@ export async function loadVideoTexture(src, contentType) {
 
         const height = texture.image.videoHeight || texture.image.height;
         const width = texture.image.videoWidth || texture.image.width;
-        resolve({ texture, audioSourceEl: texture.image, ratio: height / width });
+        resolve({ texture, audioSourceEl: texture.image, ratio: height / width, video: videoEl });
       } else {
         pollTimeout = setTimeout(poll, 500);
       }

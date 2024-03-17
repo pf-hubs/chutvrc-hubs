@@ -71,6 +71,7 @@ import { ReactComponent as LeaveIcon } from "./icons/Leave.svg";
 import { ReactComponent as DocumentIcon } from "./icons/Document.svg";
 import { ReactComponent as EnterIcon } from "./icons/Enter.svg";
 import { ReactComponent as InviteIcon } from "./icons/Invite.svg";
+import hubsLogo from "../assets/images/hubs-logo.png";
 import { PeopleSidebarContainer, userFromPresence } from "./room/PeopleSidebarContainer";
 import { ObjectListProvider } from "./room/hooks/useObjectList";
 import { ObjectsSidebarContainer } from "./room/ObjectsSidebarContainer";
@@ -102,6 +103,7 @@ import { NotificationsContainer } from "./room/NotificationsContainer";
 import { usePermissions } from "./room/hooks/usePermissions";
 import { ChatContextProvider } from "./room/contexts/ChatContext";
 import ChatToolbarButton from "./room/components/ChatToolbarButton/ChatToolbarButton";
+import SeePlansCTA from "./room/components/SeePlansCTA/SeePlansCTA";
 
 const avatarEditorDebug = qsTruthy("avatarEditorDebug");
 
@@ -151,6 +153,7 @@ class UIRoot extends Component {
     subscriptions: PropTypes.object,
     initialIsFavorited: PropTypes.bool,
     showSignInDialog: PropTypes.bool,
+    showBitECSBasedClientRefreshPrompt: PropTypes.bool,
     signInMessage: PropTypes.object,
     onContinueAfterSignIn: PropTypes.func,
     showSafariMicDialog: PropTypes.bool,
@@ -176,6 +179,7 @@ class UIRoot extends Component {
     enterInVR: false,
     entered: false,
     entering: false,
+    leaving: false,
     dialog: null,
     showShareDialog: false,
     linkCode: null,
@@ -520,7 +524,7 @@ class UIRoot extends Component {
   handleForceEntry = () => {
     console.log("Forced entry type: " + this.props.forcedVREntryType);
 
-    if (!this.props.forcedVREntryType) return;
+    if (!this.props.forcedVREntryType || !this.props.hubChannel.canEnterRoom(this.props.hub)) return;
 
     if (this.props.forcedVREntryType.startsWith("daydream")) {
       this.enterDaydream();
@@ -774,7 +778,7 @@ class UIRoot extends Component {
   pushHistoryState = (k, v) => pushHistoryState(this.props.history, k, v);
 
   setSidebar(sidebarId, otherState) {
-    this.setState({ sidebarId, chatPrefix: "", chatAutofoucs: false, selectedUserId: null, ...otherState });
+    this.setState({ sidebarId, chatPrefix: "", chatAutofocus: false, selectedUserId: null, ...(otherState || {}) });
   }
 
   toggleSidebar(sidebarId, otherState) {
@@ -790,10 +794,15 @@ class UIRoot extends Component {
   }
 
   onFocusChat = e => {
-    this.setSidebar("chat", {
-      chatPrefix: e.detail.prefix,
-      chatAutofocus: true
-    });
+    // Close chat sidebar when hotkey is pressed whilst chat input is not in focus
+    if (this.state.sidebarId === "chat") {
+      this.setSidebar(null);
+    } else {
+      this.setSidebar("chat", {
+        chatPrefix: e.detail.prefix,
+        chatAutofocus: true
+      });
+    }
   };
 
   renderInterstitialPrompt = () => {
@@ -822,9 +831,9 @@ class UIRoot extends Component {
   };
 
   renderEntryStartPanel = () => {
-    const { hasAcceptedProfile, hasChangedName } = this.props.store.state.activity;
+    const { hasAcceptedProfile, hasChangedNameOrPronouns } = this.props.store.state.activity;
     const isLockedDownDemo = isLockedDownDemoRoom();
-    const promptForNameAndAvatarBeforeEntry = this.props.hubIsBound ? !hasAcceptedProfile : !hasChangedName;
+    const promptForNameAndAvatarBeforeEntry = this.props.hubIsBound ? !hasAcceptedProfile : !hasChangedNameOrPronouns;
 
     // TODO: What does onEnteringCanceled do?
     return (
@@ -1190,7 +1199,14 @@ class UIRoot extends Component {
             label: <FormattedMessage id="more-menu.preferences" defaultMessage="Preferences" />,
             icon: SettingsIcon,
             onClick: () => this.setState({ showPrefs: true })
-          }
+          },
+          (this.props.breakpoint === "sm" || this.props.breakpoint === "md") &&
+            isLockedDownDemo && {
+              id: "see-plans",
+              label: <FormattedMessage id="more-menu.see-plans-cta" defaultMessage="See Plans" />,
+              icon: { src: hubsLogo, alt: "Logo" },
+              href: "https://hubs.mozilla.com/#subscribe"
+            }
         ].filter(item => item)
       },
       {
@@ -1578,12 +1594,15 @@ class UIRoot extends Component {
                 }
                 modal={this.state.dialog}
                 toolbarLeft={
-                  <InvitePopoverContainer
-                    hub={this.props.hub}
-                    hubChannel={this.props.hubChannel}
-                    scene={this.props.scene}
-                    store={this.props.store}
-                  />
+                  <>
+                    <InvitePopoverContainer
+                      hub={this.props.hub}
+                      hubChannel={this.props.hubChannel}
+                      scene={this.props.scene}
+                      store={this.props.store}
+                    />
+                    {isLockedDownDemo && <SeePlansCTA />}
+                  </>
                 }
                 toolbarCenter={
                   <>
@@ -1632,6 +1651,7 @@ class UIRoot extends Component {
                     {!isLockedDownDemo && (
                       <ChatToolbarButton
                         onClick={() => this.toggleSidebar("chat", { chatPrefix: "", chatAutofocus: false })}
+                        selected={this.state.sidebarId === "chat"}
                       />
                     )}
                     {entered && isMobileVR && (
@@ -1660,10 +1680,16 @@ class UIRoot extends Component {
                         icon={<LeaveIcon />}
                         label={<FormattedMessage id="toolbar.leave-room-button" defaultMessage="Leave" />}
                         preset="cancel"
+                        selected={!!this.state.leaving}
                         onClick={() => {
+                          this.setState({ leaving: true });
                           this.showNonHistoriedDialog(LeaveRoomModal, {
                             destinationUrl: "/",
-                            reason: LeaveReason.leaveRoom
+                            reason: LeaveReason.leaveRoom,
+                            onClose: () => {
+                              this.setState({ leaving: false });
+                              this.closeDialog();
+                            }
                           });
                         }}
                       />
@@ -1674,6 +1700,14 @@ class UIRoot extends Component {
               />
             )}
           </div>
+          {this.props.showBitECSBasedClientRefreshPrompt && (
+            <div className={styles.bitecsBasedClientRefreshPrompt}>
+              <FormattedMessage
+                id="ui-root.bitecs-based-client-refresh-prompt"
+                defaultMessage="This page will be reloaded in five seconds because the room owner toggled the bitECS based client activation flag."
+              />
+            </div>
+          )}
         </ReactAudioContext.Provider>
       </MoreMenuContextProvider>
     );
@@ -1687,21 +1721,23 @@ function UIRootHooksWrapper(props) {
 
   useEffect(() => {
     const el = document.getElementById("preload-overlay");
-    el.classList.add("loaded");
+    if (el) {
+      el.classList.add("loaded");
 
-    const sceneEl = props.scene;
+      const sceneEl = props.scene;
 
-    sceneEl.classList.add(roomLayoutStyles.scene);
+      sceneEl.classList.add(roomLayoutStyles.scene);
 
-    // Remove the preload overlay after the animation has finished.
-    const timeout = setTimeout(() => {
-      el.remove();
-    }, 500);
+      // Remove the preload overlay after the animation has finished.
+      const timeout = setTimeout(() => {
+        el.remove();
+      }, 500);
 
-    return () => {
-      clearTimeout(timeout);
-      sceneEl.classList.remove(roomLayoutStyles.scene);
-    };
+      return () => {
+        clearTimeout(timeout);
+        sceneEl.classList.remove(roomLayoutStyles.scene);
+      };
+    }
   }, [props.scene]);
 
   return (

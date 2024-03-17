@@ -1,34 +1,58 @@
 /** @jsx createElementEntity */
 import { createElementEntity } from "../utils/jsx-entity";
 import { ProjectionMode } from "./projection-mode";
-import { VideoTexture } from "three";
 import { renderAsEntity } from "../utils/jsx-entity";
 import { loadAudioTexture } from "../utils/load-audio-texture";
 import { HubsWorld } from "../app";
+import { HubsVideoTexture } from "../textures/HubsVideoTexture";
+import { Networked, NetworkedVideo, ObjectMenuTarget } from "../bit-components";
+import { ObjectMenuTargetFlags } from "../inflators/object-menu-target";
+import { EntityID } from "./networking-types";
+import { addComponent } from "bitecs";
 
-export function* loadAudio(world: HubsWorld, url: string) {
-  const { texture, ratio }: { texture: VideoTexture; ratio: number } = yield loadAudioTexture(url);
+type Params = {
+  loop?: boolean;
+  autoPlay?: boolean;
+  controls?: boolean;
+  projection?: ProjectionMode;
+};
 
-  // TODO: VideoTexture.image must be content that be played
-  //       in video-system. And it is also used to render.
-  //       It is audio here so the object will be rendered as
-  //       black. Audio icon must be rendered. Fix this.
+const DEFAULTS: Required<Params> = {
+  loop: true,
+  autoPlay: true,
+  controls: true,
+  projection: ProjectionMode.FLAT
+};
 
-  return renderAsEntity(
+export function* loadAudio(world: HubsWorld, eid: EntityID, url: string, params: Params, isNetworked: boolean) {
+  const { loop, autoPlay, controls, projection } = Object.assign({}, DEFAULTS, params);
+  const { texture, ratio, video }: { texture: HubsVideoTexture; ratio: number; video: HTMLVideoElement } =
+    yield loadAudioTexture(url, loop, autoPlay);
+
+  ObjectMenuTarget.flags[eid] |= ObjectMenuTargetFlags.Flat;
+
+  const audioEid = renderAsEntity(
     world,
     <entity
       name="Audio"
-      networked
-      networkedVideo
       grabbable={{ cursor: true, hand: false }}
       // Audio and Video are handled very similarly in 3D scene
       // so create as video
+      objectMenuTarget={{ isFlat: true }}
       video={{
         texture,
         ratio,
-        autoPlay: true,
-        projection: ProjectionMode.FLAT
+        projection,
+        video,
+        controls
       }}
     ></entity>
   );
+
+  if (isNetworked) {
+    addComponent(world, Networked, audioEid);
+    addComponent(world, NetworkedVideo, audioEid);
+  }
+
+  return audioEid;
 }

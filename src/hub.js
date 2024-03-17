@@ -139,8 +139,8 @@ import "./components/avatar-inspect-collider";
 import "./components/video-texture-target";
 import "./components/mirror";
 
-import ReactDOM from "react-dom";
 import React from "react";
+import { createRoot } from "react-dom/client";
 import { Router, Route } from "react-router-dom";
 import { createBrowserHistory, createMemoryHistory } from "history";
 import { pushHistoryState } from "./utils/history";
@@ -188,16 +188,16 @@ import PinningHelper from "./utils/pinning-helper";
 import { sleep } from "./utils/async-utils";
 import { platformUnsupported } from "./support";
 import { renderAsEntity } from "./utils/jsx-entity";
-import { VideoMenuPrefab } from "./prefabs/video-menu";
-import { ObjectMenuPrefab } from "./prefabs/object-menu";
+import { VideoMenuPrefab, loadVideoMenuButtonIcons } from "./prefabs/video-menu";
+import { loadObjectMenuButtonIcons, ObjectMenuPrefab } from "./prefabs/object-menu";
+import { loadMirrorMenuButtonIcons, MirrorMenuPrefab } from "./prefabs/mirror-menu";
+import { loadPDFMenuButtonIcons } from "./prefabs/pdf-menu";
 import { LinkHoverMenuPrefab } from "./prefabs/link-hover-menu";
 import { PDFMenuPrefab } from "./prefabs/pdf-menu";
 import { loadWaypointPreviewModel, WaypointPreview } from "./prefabs/waypoint-preview";
 import { preload } from "./utils/preload";
 
 window.APP = new App();
-renderAsEntity(APP.world, VideoMenuPrefab());
-renderAsEntity(APP.world, VideoMenuPrefab());
 function addToScene(entityDef, visible) {
   return getScene().then(scene => {
     const eid = renderAsEntity(APP.world, entityDef);
@@ -206,11 +206,17 @@ function addToScene(entityDef, visible) {
     obj.visible = !!visible;
   });
 }
-preload(addToScene(PDFMenuPrefab(), false));
-preload(addToScene(ObjectMenuPrefab(), false));
-preload(addToScene(ObjectMenuPrefab(), false));
+preload(loadPDFMenuButtonIcons().then(() => addToScene(PDFMenuPrefab(), false)));
+preload(loadObjectMenuButtonIcons().then(() => addToScene(ObjectMenuPrefab(), false)));
+preload(loadMirrorMenuButtonIcons().then(() => addToScene(MirrorMenuPrefab(), false)));
 preload(addToScene(LinkHoverMenuPrefab(), false));
 preload(loadWaypointPreviewModel().then(() => addToScene(WaypointPreview(), false)));
+preload(
+  loadVideoMenuButtonIcons().then(() => {
+    addToScene(VideoMenuPrefab(), false);
+    addToScene(VideoMenuPrefab(), false);
+  })
+);
 
 const store = window.APP.store;
 store.update({ preferences: { shouldPromptForRefresh: false } }); // Clear flag that prompts for refresh from preference screen
@@ -267,6 +273,7 @@ import { SFU } from "./available-sfu";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL } from "./sfu-adapter";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
+import { shouldUseNewLoader } from "./utils/bit-utils";
 
 const PHOENIX_RELIABLE_NAF = "phx-reliable";
 NAF.options.firstSyncSource = PHOENIX_RELIABLE_NAF;
@@ -289,6 +296,8 @@ try {
 const isBotMode = qsTruthy("bot");
 const isTelemetryDisabled = qsTruthy("disable_telemetry");
 const isDebug = qsTruthy("debug");
+
+let root;
 
 if (!isBotMode && !isTelemetryDisabled) {
   registerTelemetry("/hub", "Room Landing Page");
@@ -345,7 +354,7 @@ function mountUI(props = {}) {
     qsTruthy("allow_idle") || (process.env.NODE_ENV === "development" && !qs.get("idle_timeout"));
   const forcedVREntryType = qsVREntryType;
 
-  ReactDOM.render(
+  root.render(
     <WrappedIntlProvider>
       <ThemeProvider store={store}>
         <Router history={history}>
@@ -373,8 +382,7 @@ function mountUI(props = {}) {
           />
         </Router>
       </ThemeProvider>
-    </WrappedIntlProvider>,
-    document.getElementById("ui-root")
+    </WrappedIntlProvider>
   );
 }
 
@@ -406,10 +414,15 @@ export async function getSceneUrlForHub(hub) {
     sceneUrl = document.querySelector("a-scene").is("entered") ? sceneUrl : loadingEnvironment;
   } else if (isLegacyBundle) {
     // Deprecated
-    const res = await fetch(sceneUrl);
-    const data = await res.json();
-    const baseURL = new URL(THREE.LoaderUtils.extractUrlBase(sceneUrl), window.location.href);
-    sceneUrl = new URL(data.assets[0].src, baseURL).href;
+    try {
+      const res = await fetch(sceneUrl);
+      const data = await res.json();
+      const baseURL = new URL(THREE.LoaderUtils.extractUrlBase(sceneUrl), window.location.href);
+      sceneUrl = new URL(data.assets[0].src, baseURL).href;
+    } catch (e) {
+      sceneUrl = loadingEnvironment;
+      console.error("Error fetching the scene: ", e);
+    }
   } else {
     sceneUrl = proxiedUrlFor(sceneUrl);
   }
@@ -420,7 +433,7 @@ export async function updateEnvironmentForHub(hub, entryManager) {
   console.log("Updating environment for hub");
   const sceneUrl = await getSceneUrlForHub(hub);
 
-  if (qsTruthy("newLoader")) {
+  if (shouldUseNewLoader()) {
     console.log("Using new loading path for scenes.");
     swapActiveScene(APP.world, sceneUrl);
     return;
@@ -531,8 +544,8 @@ export async function updateEnvironmentForHub(hub, entryManager) {
   }
 }
 
-export async function updateUIForHub(hub, hubChannel) {
-  remountUI({ hub, entryDisallowed: !hubChannel.canEnterRoom(hub) });
+export async function updateUIForHub(hub, hubChannel, showBitECSBasedClientRefreshPrompt = false) {
+  remountUI({ hub, entryDisallowed: !hubChannel.canEnterRoom(hub), showBitECSBasedClientRefreshPrompt });
 }
 
 function onConnectionError(entryManager, connectError) {
@@ -588,10 +601,17 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
   // console.log(`Dialog host: ${hub.host}:${hub.port}`);
   console.log(`Dialog host: ${hub.host}`);
 
+  // Mute media until the scene has been fully loaded.
+  // We intentionally want voice to be unmuted.
+  const audioSystem = scene.systems["hubs-systems"].audioSystem;
+  audioSystem.setMediaGainOverride(0);
   remountUI({
     messageDispatch: messageDispatch,
     onSendMessage: messageDispatch.dispatch,
-    onLoaded: () => store.executeOnLoadActions(scene),
+    onLoaded: () => {
+      audioSystem.setMediaGainOverride(1);
+      store.executeOnLoadActions(scene);
+    },
     onMediaSearchResultEntrySelected: (entry, selectAction) =>
       scene.emit("action_selected_media_result_entry", { entry, selectAction }),
     onMediaSearchCancelled: entry => scene.emit("action_media_search_cancelled", entry),
@@ -620,7 +640,7 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
   scene.addEventListener(
     "didConnectToNetworkedScene",
     () => {
-      if (qsTruthy("newLoader")) {
+      if (shouldUseNewLoader()) {
         loadSavedEntityStates(APP.hubChannel);
         loadLegacyRoomObjects(hub.hub_id);
       } else {
@@ -746,6 +766,11 @@ async function runBotMode(scene, entryManager) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  if (!root) {
+    const container = document.getElementById("ui-root");
+    root = createRoot(container);
+  }
+
   if (isOAuthModal) {
     return;
   }
@@ -1415,8 +1440,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     const userInfo = hubChannel.presence.state[session_id];
     const displayName = (userInfo && userInfo.metas[0].profile.displayName) || "API";
 
+    let showBitECSBasedClientRefreshPrompt = false;
+
+    if (!!hub.user_data?.hubs_use_bitecs_based_client !== !!window.APP.hub.user_data?.hubs_use_bitecs_based_client) {
+      showBitECSBasedClientRefreshPrompt = true;
+      setTimeout(() => {
+        document.location.reload();
+      }, 5000);
+    }
+
     window.APP.hub = hub;
-    updateUIForHub(hub, hubChannel);
+    updateUIForHub(hub, hubChannel, showBitECSBasedClientRefreshPrompt);
 
     if (
       stale_fields.includes("scene") ||

@@ -3,9 +3,9 @@ import { updateEnvironmentForHub, getSceneUrlForHub, updateUIForHub, remountUI }
 import { SFU } from "./available-sfu";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
-import qsTruthy from "./utils/qs_truthy";
 import { localClientID, pendingMessages, pendingParts } from "./bit-systems/networking";
 import { storedUpdates } from "./bit-systems/network-receive-system";
+import { shouldUseNewLoader } from "./utils/bit-utils";
 
 function unloadRoomObjects() {
   document.querySelectorAll("[pinnable]").forEach(el => {
@@ -30,7 +30,7 @@ function loadRoomObjects(hubId) {
   objectsScene.appendChild(objectsEl);
 }
 
-export async function changeHub(hubId, addToHistory = true, waypoint = null) {
+export async function changeHub(hubId, addToHistory = true, waypoint = "") {
   if (hubId === APP.hub.hub_id) {
     console.log("Change hub called with the current hub id. This is a noop.");
     return;
@@ -88,7 +88,7 @@ export async function changeHub(hubId, addToHistory = true, waypoint = null) {
   NAF.entities.removeRemoteEntities();
   await NAF.connection.adapter.disconnect();
   await APP.sfu.disconnect();
-  if (!qsTruthy("newLoader")) {
+  if (!shouldUseNewLoader()) {
     unloadRoomObjects();
   }
   NAF.connection.connectedClients = {};
@@ -107,7 +107,7 @@ export async function changeHub(hubId, addToHistory = true, waypoint = null) {
     // TODO: With newLoader (and new net code), we need to clear any network state
     // that we applied to scene-owned entities before transitioning to the new room.
     // For now, just unload scene even if the room we're going to has the same scene.
-    qsTruthy("newLoader") ||
+    shouldUseNewLoader() ||
     document.querySelector("#environment-scene").childNodes[0].components["gltf-model-plus"].data.src !==
       (await getSceneUrlForHub(hub))
   ) {
@@ -152,7 +152,7 @@ export async function changeHub(hubId, addToHistory = true, waypoint = null) {
 
   await Promise.all([APP.sfu.connect(connectOption), NAF.connection.adapter.connect()]);
 
-  if (qsTruthy("newLoader")) {
+  if (shouldUseNewLoader()) {
     loadSavedEntityStates(APP.hubChannel);
     loadLegacyRoomObjects(hubId);
   } else {

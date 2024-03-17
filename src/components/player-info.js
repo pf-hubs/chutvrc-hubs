@@ -5,6 +5,8 @@ import defaultAvatar from "../assets/models/DefaultAvatar.glb";
 import { MediaDevicesEvents } from "../utils/media-devices-utils";
 import { createHeadlessModelForSkinnedMesh } from "../utils/three-utils";
 import { Layers } from "../camera-layers";
+import { addComponent, removeComponent } from "bitecs";
+import { LocalAvatar, RemoteAvatar } from "../bit-components";
 
 function ensureAvatarNodes(json) {
   const { nodes } = json;
@@ -49,6 +51,7 @@ AFRAME.registerComponent("player-info", {
 
     this.isLocalPlayerInfo = this.el.id === "avatar-rig";
     this.playerSessionId = null;
+    this.displayName = null;
 
     if (!this.isLocalPlayerInfo) {
       NAF.utils.getNetworkedEntity(this.el).then(networkedEntity => {
@@ -56,17 +59,20 @@ AFRAME.registerComponent("player-info", {
         const playerPresence = window.APP.hubChannel.presence.state[this.playerSessionId];
         if (playerPresence) {
           this.permissions = playerPresence.metas[0].permissions;
+          this.displayName = playerPresence.metas[0].profile.displayName;
         }
       });
     }
 
     registerComponentInstance(this, "player-info");
+    addComponent(APP.world, this.isLocalPlayerInfo ? LocalAvatar : RemoteAvatar, this.el.object3D.eid);
   },
 
   remove() {
     const avatarEl = this.el.querySelector("[avatar-audio-source]");
     APP.isAudioPaused.delete(avatarEl);
     deregisterComponentInstance(this, "player-info");
+    removeComponent(APP.world, this.isLocalPlayerInfo ? LocalAvatar : RemoteAvatar, this.el.object3D.eid);
   },
 
   onAvatarModelLoaded(e) {

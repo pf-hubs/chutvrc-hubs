@@ -1,4 +1,4 @@
-import { defineQuery, enterQuery, exitQuery } from "bitecs";
+import { defineQuery, enterQuery, exitQuery, removeComponent } from "bitecs";
 import { ParticleEmitter } from "lib-hubs/packages/three-particle-emitter/lib/esm/index";
 import { Texture } from "three";
 
@@ -11,24 +11,29 @@ import { resolveUrl, textureLoader } from "../utils/media-utils";
 function* setTexture(world: HubsWorld, eid: number) {
   let src = APP.sid2str.get(ParticleEmitterTag.src[eid]);
 
-  const result: URL = yield resolveUrl(src);
-  let canonicalUrl = result.origin;
+  try {
+    const result: URL = yield resolveUrl(src);
+    let canonicalUrl = result.origin;
 
-  // handle protocol relative urls
-  if (canonicalUrl.startsWith("//")) {
-    canonicalUrl = location.protocol + canonicalUrl;
+    // handle protocol relative urls
+    if (canonicalUrl.startsWith("//")) {
+      canonicalUrl = location.protocol + canonicalUrl;
+    }
+
+    // todo: we don't need to proxy for many things if the canonical URL has permissive CORS headers
+    src = proxiedUrlFor(canonicalUrl);
+
+    const texture: Texture = yield textureLoader.loadAsync(src);
+
+    const particleEmitter: ParticleEmitter = world.eid2obj.get(eid)! as ParticleEmitter;
+    particleEmitter.material.uniforms.map.value = texture;
+    particleEmitter.visible = true;
+
+    particleEmitter.updateParticles();
+  } catch (e) {
+    console.error(`Error loading particle image: ${src}`);
+    removeComponent(world, ParticleEmitterTag, eid);
   }
-
-  // todo: we don't need to proxy for many things if the canonical URL has permissive CORS headers
-  src = proxiedUrlFor(canonicalUrl);
-
-  const texture: Texture = yield textureLoader.loadAsync(src);
-
-  const particleEmitter: ParticleEmitter = world.eid2obj.get(eid)! as ParticleEmitter;
-  particleEmitter.material.uniforms.map.value = texture;
-  particleEmitter.visible = true;
-
-  particleEmitter.updateParticles();
 }
 
 const particleEmitterQuery = defineQuery([ParticleEmitterTag]);

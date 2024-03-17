@@ -85,6 +85,7 @@ const createMaterial = () => {
   }
 };
 
+const navMeshesQuery = defineQuery([NavMesh]);
 getScene().then(() => {
   const webGLVersion = getWebGLVersion(APP.scene!.renderer);
   if (webGLVersion < "2.0") {
@@ -99,14 +100,17 @@ getScene().then(() => {
   (APP.store as any).addEventListener("statechanged", () => {
     isEnabled = APP.store.state.preferences.showAudioDebugPanel;
     isEnabled && createMaterial();
-    defineQuery([NavMesh])(APP.world).forEach(navEid => {
-      if (unsupported) return;
+
+    if (unsupported) return;
+    const navMeshes = navMeshesQuery(APP.world);
+    if (navMeshes.length > 0) {
       if (isEnabled) {
-        addDebugMaterial(APP.world, navEid);
+        addDebugMaterial(APP.world, navMeshes[0]);
       } else {
-        removeDebugMaterial(APP.world, navEid);
+        removeDebugMaterial(APP.world, navMeshes[0]);
       }
-    });
+    }
+
     if (!isEnabled && debugMaterial) {
       disposeMaterial(debugMaterial);
       debugMaterial = null;
@@ -117,11 +121,13 @@ getScene().then(() => {
 });
 
 const addDebugMaterial = (world: HubsWorld, navEid: number) => {
-  if (nav2mat.has(navEid)) return;
   const obj = world.eid2obj.get(navEid);
   if (obj) {
-    const navMesh = obj as Mesh;
+    // Some older scenes have the nav-mesh component as an ancestor of the mesh itself
+    // TODO the "as any" here is because of incorrect type definition for getObjectByProperty. It was fixed in r145
+    const navMesh = obj.getObjectByProperty("isMesh", true as any) as Mesh;
     navMesh.visible = isEnabled;
+    if (nav2mat.has(navEid)) return;
     nav2mat.set(navEid, navMesh.material);
     navMesh.material = debugMaterial!;
     navMesh.material.needsUpdate = true;
@@ -130,11 +136,13 @@ const addDebugMaterial = (world: HubsWorld, navEid: number) => {
 };
 
 const removeDebugMaterial = (world: HubsWorld, navEid: number) => {
-  if (!nav2mat.has(navEid)) return;
   const obj = world.eid2obj.get(navEid);
   if (obj) {
-    const navMesh = obj as Mesh;
+    // Some older scenes have the nav-mesh component as an ancestor of the mesh itself
+    // TODO the "as any" here is because of incorrect type definition for getObjectByProperty. It was fixed in r145
+    const navMesh = obj.getObjectByProperty("isMesh", true as any) as Mesh;
     navMesh.visible = false;
+    if (!nav2mat.has(navEid)) return;
     navMesh.material = nav2mat.get(navEid)!;
     nav2mat.delete(navEid);
     (navMesh.material as Material).needsUpdate = true;
@@ -151,16 +159,26 @@ const navMeshEnterQuery = enterQuery(navMeshQuery);
 const navMeshExitQuery = exitQuery(navMeshQuery);
 export function audioDebugSystem(world: HubsWorld) {
   if (unsupported) return;
-  navMeshExitQuery(world).forEach(navEid => {
-    removeDebugMaterial(world, navEid);
-  });
+
+  const exitedNavMeshes = navMeshExitQuery(world);
+  if (exitedNavMeshes.length > 0) {
+    removeDebugMaterial(APP.world, exitedNavMeshes[0]);
+  }
+
+  const enteredNavMeshes = navMeshEnterQuery(world);
+  if (enteredNavMeshes.length > 0) {
+    if (isEnabled) {
+      addDebugMaterial(APP.world, enteredNavMeshes[0]);
+    }
+  }
   if (isEnabled && uniforms) {
-    navMeshEnterQuery(world).forEach(navEid => {
-      isEnabled && addDebugMaterial(world, navEid);
-    });
     let idx = 0;
     APP.audios.forEach((audio: AudioObject3D, audioEmitterId: ElOrEid) => {
-      if (APP.isAudioPaused.has(audioEmitterId) || APP.mutedState.has(audioEmitterId)) {
+      if (
+        APP.isAudioPaused.has(audioEmitterId) ||
+        APP.mutedState.has(audioEmitterId) ||
+        APP.linkedMutedState.has(audioEmitterId)
+      ) {
         return;
       }
       if (idx >= maxDebugEmitters) return;

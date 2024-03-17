@@ -7,7 +7,6 @@ import HubChannel from "./hub-channel";
 import { queueEntityStateAsMessage } from "./listen-for-network-messages";
 import { networkableComponents, schemas } from "./network-schemas";
 import { CreateMessage, EntityID, NetworkID, StorableUpdateMessage } from "./networking-types";
-import qsTruthy from "./qs_truthy";
 import { deleteTheDeletableAncestor } from "../bit-systems/delete-entity-system";
 
 export type EntityState = {
@@ -29,6 +28,9 @@ export type CreateEntityStatePayload = {
   nid: NetworkID;
   create_message: CreateMessage;
   updates: UpdateEntityStatePayload[];
+  file_id?: string;
+  file_access_token?: string;
+  promotion_token?: string;
 };
 
 export type DeleteEntityStatePayload = {
@@ -44,13 +46,23 @@ export function hasSavedEntityState(world: HubsWorld, eid: EntityID) {
 
 export async function createEntityState(hubChannel: HubChannel, world: HubsWorld, eid: EntityID) {
   const payload = createEntityStatePayload(world, eid);
+  return createEntityStateWithPayload(hubChannel, world, payload);
+}
+
+export async function createEntityStateWithPayload(
+  hubChannel: HubChannel,
+  world: HubsWorld,
+  payload: CreateEntityStatePayload
+) {
   // console.log("save_entity_state",  payload);
-  return push(hubChannel, "save_entity_state", payload);
+  return push(hubChannel, "save_entity_state", payload).catch(err => {
+    console.warn("Failed to save entity state", err);
+  });
 }
 
 export async function updateEntityState(hubChannel: HubChannel, world: HubsWorld, eid: EntityID) {
   const payload = updateEntityStatePayload(world, eid);
-  // console.log("update_entity_state",  payload);
+  // console.log("update_entity_state", payload);
   return push(hubChannel, "update_entity_state", payload);
 }
 
@@ -64,6 +76,12 @@ export async function deleteEntityState(hubChannel: HubChannel, world: HubsWorld
   const payload: DeleteEntityStatePayload = {
     nid: APP.getString(Networked.id[eid])! as NetworkID
   };
+  const {
+    initialData: { fileId }
+  } = createMessageDatas.get(eid)!;
+  if (fileId) {
+    payload.file_id = fileId;
+  }
   // console.log("delete_entity_state",  payload);
   return push(hubChannel, "delete_entity_state", payload);
 }
@@ -110,14 +128,9 @@ function push(hubChannel: HubChannel, command: HubChannelCommand, payload?: HubC
   if (!localClientID) {
     throw new Error("Cannot get/set entity states without a local client ID.");
   }
-  if (qsTruthy("entity_state_api")) {
-    return new Promise((resolve, reject) => {
-      hubChannel.channel.push(command, payload).receive("ok", resolve).receive("error", reject);
-    });
-  } else {
-    console.warn("Entity state API is inactive. Would have sent:", { command, payload });
-    return Promise.reject();
-  }
+  return new Promise((resolve, reject) => {
+    hubChannel.channel.push(command, payload).receive("ok", resolve).receive("error", reject);
+  });
 }
 
 function listEntityStates(hubChannel: HubChannel) {
@@ -143,11 +156,23 @@ function createEntityStatePayload(world: HubsWorld, rootEid: EntityID): CreateEn
     }
   });
 
-  return {
+  const payload = {
     nid: rootNid,
     create_message,
     updates
-  };
+  } as CreateEntityStatePayload;
+
+  const {
+    prefabName,
+    initialData: { fileId, src }
+  } = createMessageDatas.get(rootEid)!;
+
+  if (prefabName == "media" && fileId && src) {
+    const fileAccessToken = new URL(src).searchParams.get("token") as string;
+    payload.file_id = fileId;
+    payload.file_access_token = fileAccessToken;
+  }
+  return payload;
 }
 
 const networkedQuery = defineQuery([Networked]);

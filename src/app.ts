@@ -70,6 +70,7 @@ export function getScene() {
 
 interface HubDescription {
   hub_id: string;
+  user_data?: any;
 }
 
 const dialogAdapter = new DialogAdapter();
@@ -95,6 +96,7 @@ export class App {
   supplementaryAttenuation = new Map<ElOrEid, number>();
   clippingState = new Set<ElOrEid>();
   mutedState = new Set<ElOrEid>();
+  linkedMutedState = new Set<ElOrEid>();
   isAudioPaused = new Set<ElOrEid>();
   audioDebugPanelOverrides = new Map<SourceType, Partial<AudioSettings>>();
   sceneAudioDefaults = new Map<SourceType, Partial<AudioSettings>>();

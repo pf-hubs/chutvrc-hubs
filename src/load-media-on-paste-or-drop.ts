@@ -1,9 +1,10 @@
-import { createNetworkedEntity } from "./utils/create-networked-entity";
+import { createNetworkedMedia } from "./utils/create-networked-entity";
 import { upload, parseURL } from "./utils/media-utils";
 import { guessContentType } from "./utils/media-url-utils";
 import { AElement } from "aframe";
 import { Vector3 } from "three";
 import qsTruthy from "./utils/qs_truthy";
+import { shouldUseNewLoader } from "./utils/bit-utils";
 
 type UploadResponse = {
   file_id: string;
@@ -23,7 +24,7 @@ export function spawnFromUrl(text: string) {
     console.warn(`Could not parse URL. Ignoring pasted text:\n${text}`);
     return;
   }
-  const eid = createNetworkedEntity(APP.world, "media", {
+  const eid = createNetworkedMedia(APP.world, {
     src: text,
     recenter: true,
     resize: !qsTruthy("noResize"),
@@ -43,14 +44,12 @@ export async function spawnFromFileList(files: FileList) {
       .then(function (response: UploadResponse) {
         const srcUrl = new URL(response.origin);
         srcUrl.searchParams.set("token", response.meta.access_token);
-        window.APP.store.update({
-          uploadPromotionTokens: [{ fileId: response.file_id, promotionToken: response.meta.promotion_token }]
-        });
         return {
           src: srcUrl.href,
           recenter: true,
           resize: !qsTruthy("noResize"),
           animateLoad: true,
+          fileId: response.file_id,
           isObjectMenuTarget: true
         };
       })
@@ -65,7 +64,7 @@ export async function spawnFromFileList(files: FileList) {
         };
       });
 
-    const eid = createNetworkedEntity(APP.world, "media", params);
+    const eid = createNetworkedMedia(APP.world, params);
     const avatarPov = (document.querySelector("#avatar-pov-node")! as AElement).object3D;
     const obj = APP.world.eid2obj.get(eid)!;
     obj.position.copy(avatarPov.localToWorld(new Vector3(0, 0, -1.5)));
@@ -74,6 +73,7 @@ export async function spawnFromFileList(files: FileList) {
 }
 
 async function onPaste(e: ClipboardEvent) {
+  if (!shouldUseNewLoader()) return;
   if (!(AFRAME as any).scenes[0].is("entered")) {
     return;
   }
@@ -96,6 +96,10 @@ async function onPaste(e: ClipboardEvent) {
 
 let lastDebugScene: string;
 function onDrop(e: DragEvent) {
+  if (!shouldUseNewLoader()) return;
+
+  e.preventDefault();
+
   if (!(AFRAME as any).scenes[0].is("entered")) {
     return;
   }
@@ -111,17 +115,13 @@ function onDrop(e: DragEvent) {
 
   const files = e.dataTransfer?.files;
   if (files && files.length) {
-    e.preventDefault();
     return spawnFromFileList(files);
   }
   const url = e.dataTransfer?.getData("url") || e.dataTransfer?.getData("text");
   if (url) {
-    e.preventDefault();
     return spawnFromUrl(url);
   }
 }
 
-if (qsTruthy("newLoader")) {
-  document.addEventListener("paste", onPaste);
-  document.addEventListener("drop", onDrop);
-}
+document.addEventListener("paste", onPaste);
+document.addEventListener("drop", onDrop);

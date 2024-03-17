@@ -1,4 +1,5 @@
 /* eslint-disable react/prop-types */
+/* eslint-disable react/no-unknown-property */
 /** @jsx createElementEntity */
 import cameraModelSrc from "../assets/camera_tool.glb";
 import { Layers } from "../camera-layers";
@@ -185,6 +186,8 @@ export function CubeMediaFramePrefab() {
       }}
       physicsShape={{ fit: Fit.MANUAL, type: Shape.BOX, halfExtents: [0.5, 0.5, 0.5] }}
       object3D={new THREE.Mesh(new THREE.BoxBufferGeometry(), new THREE.MeshStandardMaterial())}
+      deletable
+      hoverableVisuals
     >
       <entity mediaFrame position={[0, 1, 0]} />
     </entity>

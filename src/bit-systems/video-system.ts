@@ -1,11 +1,13 @@
-import { addComponent, defineQuery, enterQuery, exitQuery, hasComponent } from "bitecs";
-import { Mesh, MeshStandardMaterial } from "three";
+import { addComponent, defineQuery, enterQuery, entityExists, exitQuery, hasComponent, removeComponent } from "bitecs";
+import { Mesh } from "three";
 import { HubsWorld } from "../app";
 import {
   AudioParams,
   AudioSettingsChanged,
   MediaLoaded,
   MediaVideo,
+  MediaVideoData,
+  MediaVideoUpdated,
   Networked,
   NetworkedVideo,
   Owned
@@ -15,12 +17,13 @@ import { AudioSystem } from "../systems/audio-system";
 import { findAncestorWithComponent } from "../utils/bit-utils";
 import { Emitter2Audio, Emitter2Params, makeAudioEntity } from "./audio-emitter-system";
 import { takeSoftOwnership } from "../utils/take-soft-ownership";
+import { crNextFrame } from "../utils/coroutine";
 
 enum Flags {
   PAUSED = 1 << 0
 }
 
-const OUT_OF_SYNC_SEC = 5;
+export const OUT_OF_SYNC_SEC = 5;
 const networkedVideoQuery = defineQuery([Networked, NetworkedVideo]);
 const networkedVideoEnterQuery = enterQuery(networkedVideoQuery);
 const mediaVideoQuery = defineQuery([MediaVideo]);
@@ -31,8 +34,8 @@ const mediaLoadedQuery = enterQuery(mediaLoadStatusQuery);
 export function videoSystem(world: HubsWorld, audioSystem: AudioSystem) {
   mediaVideoEnterQuery(world).forEach(function (videoEid) {
     const videoObj = world.eid2obj.get(videoEid) as Mesh;
-    const video = (videoObj.material as MeshStandardMaterial).map!.image as HTMLVideoElement;
-    if (MediaVideo.autoPlay[videoEid]) {
+    const video = MediaVideoData.get(videoEid)!;
+    if (video.autoplay) {
       video.play().catch(() => {
         // Need to deal with the fact play() may fail if user has not interacted with browser yet.
         console.error("Error auto-playing video.");
@@ -60,6 +63,7 @@ export function videoSystem(world: HubsWorld, audioSystem: AudioSystem) {
     audioParamsEid && APP.audioOverrides.delete(audioParamsEid);
     Emitter2Params.delete(videoEid);
     Emitter2Audio.delete(videoEid);
+    MediaVideoData.delete(videoEid);
   });
 
   networkedVideoEnterQuery(world).forEach(function (eid) {
@@ -69,20 +73,39 @@ export function videoSystem(world: HubsWorld, audioSystem: AudioSystem) {
   });
 
   networkedVideoQuery(world).forEach(function (eid) {
-    const video = (world.eid2obj.get(eid) as any).material.map.image as HTMLVideoElement;
+    const video = MediaVideoData.get(eid)!;
     if (hasComponent(world, Owned, eid)) {
-      NetworkedVideo.time[eid] = video.currentTime;
+      const now = performance.now();
+      if (now - MediaVideo.lastUpdate[eid] > 1000) {
+        NetworkedVideo.time[eid] = video.currentTime;
+        MediaVideo.lastUpdate[eid] = now;
+      }
       let flags = 0;
       flags |= video.paused ? Flags.PAUSED : 0;
       NetworkedVideo.flags[eid] = flags;
     } else {
       const networkedPauseState = !!(NetworkedVideo.flags[eid] & Flags.PAUSED);
       if (networkedPauseState !== video.paused) {
-        video.paused ? video.play() : video.pause();
+        video.paused
+          ? video.play().catch(() => {
+              // Need to deal with the fact play() may fail if user has not interacted with browser yet.
+              console.error("Error playing video.");
+            })
+          : video.pause();
+        addComponent(world, MediaVideoUpdated, eid);
       }
       if (networkedPauseState || Math.abs(NetworkedVideo.time[eid] - video.currentTime) > OUT_OF_SYNC_SEC) {
         video.currentTime = NetworkedVideo.time[eid];
+        addComponent(world, MediaVideoUpdated, eid);
       }
     }
+  });
+  mediaVideoQuery(world).forEach(eid => {
+    // We need to delay this a frame to give a chance to other services to process this event
+    crNextFrame().then(() => {
+      if (entityExists(world, eid)) {
+        removeComponent(world, MediaVideoUpdated, eid);
+      }
+    });
   });
 }

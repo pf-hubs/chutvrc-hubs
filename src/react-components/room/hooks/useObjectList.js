@@ -1,11 +1,21 @@
 import React, { useState, useEffect, useContext, createContext, useCallback, Children, cloneElement } from "react";
 import PropTypes from "prop-types";
-import { mediaSort, getMediaType } from "../../../utils/media-sorting.js";
+import { mediaSort, mediaSortAframe, getMediaType, getMediaTypeAframe } from "../../../utils/media-sorting.js";
+import { anyEntityWith, shouldUseNewLoader } from "../../../utils/bit-utils";
+import { addComponent, defineQuery, hasComponent, removeComponent } from "bitecs";
+import { Inspected, MediaInfo } from "../../../bit-components.js";
 
-function getDisplayString(el) {
+function getUrl(eid) {
+  return hasComponent(APP.world, MediaInfo, eid) ? APP.getString(MediaInfo.accessibleUrl[eid]) : "";
+}
+
+function getUrlAframe(el) {
   // Having a listed-media component does not guarantee the existence of a media-loader component,
   // so don't crash if there isn't one.
-  const url = (el.components["media-loader"] && el.components["media-loader"].data.src) || "";
+  return (el.components["media-loader"] && el.components["media-loader"].data.src) || "";
+}
+
+function getDisplayString(url) {
   const split = url.split("/");
   const resourceName = split[split.length - 1].split("?")[0];
   let httpIndex = -1;
@@ -46,12 +56,22 @@ function handleInspect(scene, object, callback) {
 
   callback(object);
 
-  if (object.el.object3D !== cameraSystem.inspectable) {
-    if (cameraSystem.inspectable) {
-      cameraSystem.uninspect(false);
+  if (shouldUseNewLoader()) {
+    const inspected = anyEntityWith(APP.world, Inspected);
+    if (inspected != object.eid) {
+      if (inspected) {
+        removeComponent(APP.world, Inspected, inspected);
+      }
+      addComponent(APP.world, Inspected, object.eid);
     }
+  } else {
+    if (object.el.object3D !== cameraSystem.inspectable) {
+      if (cameraSystem.inspectable) {
+        cameraSystem.uninspect(false);
+      }
 
-    cameraSystem.inspect(object.el, 1.5, false);
+      cameraSystem.inspect(object.el.object3D, 1.5, false);
+    }
   }
 }
 
@@ -60,13 +80,24 @@ function handleDeselect(scene, object, callback) {
 
   callback(null);
 
-  cameraSystem.uninspect(false);
+  if (shouldUseNewLoader()) {
+    const inspected = anyEntityWith(APP.world, Inspected);
+    if (inspected) {
+      removeComponent(APP.world, Inspected, inspected);
+    }
+    if (object) {
+      addComponent(APP.world, Inspected, object.eid);
+    }
+  } else {
+    cameraSystem.uninspect(false);
 
-  if (object) {
-    cameraSystem.inspect(object.el, 1.5, false);
+    if (object) {
+      cameraSystem.inspect(object.el.object3D, 1.5, false);
+    }
   }
 }
 
+const queryListedMedia = defineQuery([MediaInfo]);
 export function ObjectListProvider({ scene, children }) {
   const [objects, setObjects] = useState([]);
   const [focusedObject, setFocusedObject] = useState(null); // The object currently shown in the viewport
@@ -76,14 +107,38 @@ export function ObjectListProvider({ scene, children }) {
 
   useEffect(() => {
     function updateMediaEntities() {
-      const objects = scene.systems["listed-media"].els.sort(mediaSort).map(el => ({
-        id: el.object3D.id,
-        name: getDisplayString(el),
-        type: getMediaType(el),
-        el
-      }));
+      if (shouldUseNewLoader()) {
+        const objects = queryListedMedia(APP.world)
+          .sort(mediaSort)
+          .map(eid => ({
+            id: APP.world.eid2obj.get(eid)?.id,
+            name: getDisplayString(getUrl(eid)),
+            type: getMediaType(eid),
+            eid: eid
+          }));
+        setObjects(objects);
 
-      setObjects(objects);
+        const inspected = anyEntityWith(APP.world, Inspected);
+        if (!inspected || !objects.find(o => o.eid === inspected)) {
+          setSelectedObject(null);
+        }
+      } else {
+        const objects = scene.systems["listed-media"].els.sort(mediaSortAframe).map(el => ({
+          id: el.object3D.id,
+          name: getDisplayString(getUrlAframe(el)),
+          type: getMediaTypeAframe(el),
+          eid: el.eid,
+          el
+        }));
+        setObjects(objects);
+
+        const cameraSystem = scene.systems["hubs-systems"].cameraSystem;
+        const inspectedEl = cameraSystem.inspectable && cameraSystem.inspectable.el;
+
+        if (!inspectedEl || !objects.find(o => o.el === inspectedEl)) {
+          setSelectedObject(null);
+        }
+      }
     }
 
     let timeout;
@@ -102,29 +157,50 @@ export function ObjectListProvider({ scene, children }) {
       scene.removeEventListener("listed_media_changed", updateMediaEntities);
       clearTimeout(timeout);
     };
-  }, [scene, setObjects]);
+  }, [scene, setObjects, setSelectedObject]);
 
   useEffect(() => {
     function onInspectTargetChanged() {
-      const cameraSystem = scene.systems["hubs-systems"].cameraSystem;
+      if (shouldUseNewLoader()) {
+        const inspected = anyEntityWith(APP.world, Inspected);
 
-      const inspectedEl = cameraSystem.inspectable && cameraSystem.inspectable.el;
+        if (inspected) {
+          const object = objects.find(o => o.eid === inspected);
 
-      if (inspectedEl) {
-        const object = objects.find(o => o.el === inspectedEl);
-
-        if (object) {
-          setSelectedObject(object);
+          if (object) {
+            setSelectedObject(object);
+          } else {
+            setSelectedObject({
+              id: APP.world.eid2obj.get(inspected)?.id,
+              name: getDisplayString(getUrl(inspected)),
+              type: getMediaType(inspected),
+              eid: inspected
+            });
+          }
         } else {
-          setSelectedObject({
-            id: inspectedEl.object3D.id,
-            name: getDisplayString(inspectedEl),
-            type: getMediaType(inspectedEl),
-            el: inspectedEl
-          });
+          setSelectedObject(null);
         }
       } else {
-        setSelectedObject(null);
+        const cameraSystem = scene.systems["hubs-systems"].cameraSystem;
+        const inspectedEl = cameraSystem.inspectable && cameraSystem.inspectable.el;
+
+        if (inspectedEl) {
+          const object = objects.find(o => o.el === inspectedEl);
+
+          if (object) {
+            setSelectedObject(object);
+          } else {
+            setSelectedObject({
+              id: inspectedEl.object3D.id,
+              name: getDisplayString(getUrlAframe(inspectedEl)),
+              type: getMediaTypeAframe(inspectedEl),
+              eid: inspectedEl.eid,
+              el: inspectedEl
+            });
+          }
+        } else {
+          setSelectedObject(null);
+        }
       }
     }
 

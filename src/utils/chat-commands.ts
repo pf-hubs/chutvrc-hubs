@@ -3,8 +3,8 @@ import { Object3D } from "three";
 import { HubsWorld } from "../app";
 import { moveToSpawnPoint } from "../bit-systems/waypoint";
 import { CharacterControllerSystem } from "../systems/character-controller-system";
-import { createNetworkedEntity } from "./create-networked-entity";
-import qsTruthy from "./qs_truthy";
+import { createNetworkedMedia } from "./create-networked-entity";
+import { shouldUseNewLoader } from "./bit-utils";
 
 function checkFlag(args: string[], flag: string) {
   return !!args.find(s => s === flag);
@@ -40,6 +40,7 @@ const FLAG_ANIMATE_LOAD = "--animate";
 const FLAG_NO_OBJECT_MENU = "--no-menu";
 const ADD_FLAGS = [FLAG_RESIZE, FLAG_RECENTER, FLAG_ANIMATE_LOAD, FLAG_NO_OBJECT_MENU];
 export function add(world: HubsWorld, avatarPov: Object3D, args: string[]) {
+  if (!APP.hubChannel!.can("spawn_and_move_media")) return;
   args = args.filter(arg => arg);
   if (args.length) {
     const initialData = {
@@ -50,7 +51,7 @@ export function add(world: HubsWorld, avatarPov: Object3D, args: string[]) {
       isObjectMenuTarget: !checkFlag(args, FLAG_NO_OBJECT_MENU)
     };
     console.log("Adding media", initialData);
-    const eid = createNetworkedEntity(world, "media", initialData);
+    const eid = createNetworkedMedia(world, initialData);
     const obj = APP.world.eid2obj.get(eid)!;
     obj.position.copy(avatarPov.localToWorld(new THREE.Vector3(0, 0, -1.5)));
     obj.lookAt(avatarPov.getWorldPosition(new THREE.Vector3()));
@@ -102,7 +103,7 @@ export function respawn(world: HubsWorld, scene: AScene, characterController: Ch
     return;
   }
 
-  if (!qsTruthy("newLoader")) {
+  if (!shouldUseNewLoader()) {
     console.error("This command only works with the newLoader query string parameter.");
     return;
   }

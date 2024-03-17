@@ -1,12 +1,33 @@
-import { addComponent, defineQuery, entityExists, hasComponent } from "bitecs";
+import { addComponent, defineQuery, entityExists, hasComponent, removeComponent } from "bitecs";
 import { Text } from "troika-three-text";
 import type { HubsWorld } from "../app";
-import { EntityStateDirty, HoveredRemoteRight, Interacted, MediaPDF, NetworkedPDF, PDFMenu } from "../bit-components";
+import {
+  CursorRaycastable,
+  Deleting,
+  EntityStateDirty,
+  HoveredRemoteRight,
+  Interacted,
+  MediaLoader,
+  MediaPDF,
+  MediaPDFUpdated,
+  MediaSnapped,
+  NetworkedPDF,
+  ObjectMenuTransform,
+  PDFMenu
+} from "../bit-components";
 import { anyEntityWith, findAncestorWithComponent } from "../utils/bit-utils";
 import type { EntityID } from "../utils/networking-types";
 import { takeOwnership } from "../utils/take-ownership";
-import { setMatrixWorld } from "../utils/three-utils";
 import { PDFResourcesMap } from "./pdf-system";
+import { ObjectMenuTransformFlags } from "../inflators/object-menu-transform";
+
+function setCursorRaycastable(world: HubsWorld, menu: EntityID, enable: boolean) {
+  let change = enable ? addComponent : removeComponent;
+  change(world, CursorRaycastable, menu);
+  change(world, CursorRaycastable, PDFMenu.prevButtonRef[menu]);
+  change(world, CursorRaycastable, PDFMenu.nextButtonRef[menu]);
+  change(world, CursorRaycastable, PDFMenu.snapRef[menu]);
+}
 
 function clicked(world: HubsWorld, eid: EntityID) {
   return hasComponent(world, Interacted, eid);
@@ -42,13 +63,6 @@ function findPDFMenuTarget(world: HubsWorld, menu: EntityID, sceneIsFrozen: bool
   }
 }
 
-function moveToTarget(world: HubsWorld, menu: EntityID) {
-  const targetObj = world.eid2obj.get(PDFMenu.targetRef[menu])!;
-  targetObj.updateMatrices();
-  const menuObj = world.eid2obj.get(menu)!;
-  setMatrixWorld(menuObj, targetObj.matrixWorld);
-}
-
 function wrapAround(n: number, min: number, max: number) {
   // Wrap around [min, max] inclusively
   // Assumes that n is only 1 more than max or 1 less than min
@@ -56,39 +70,54 @@ function wrapAround(n: number, min: number, max: number) {
 }
 
 function setPage(world: HubsWorld, eid: EntityID, pageNumber: number) {
-  takeOwnership(world, eid);
-  addComponent(world, EntityStateDirty, eid);
-  NetworkedPDF.pageNumber[eid] = wrapAround(pageNumber, 1, PDFResourcesMap.get(eid)!.pdf.numPages);
+  if (hasComponent(world, NetworkedPDF, eid)) {
+    takeOwnership(world, eid);
+    addComponent(world, EntityStateDirty, eid);
+  }
+  addComponent(world, MediaPDFUpdated, eid);
+  MediaPDFUpdated.pageNumber[eid] = wrapAround(pageNumber, 1, PDFResourcesMap.get(eid)!.pdf.numPages);
 }
 
 function handleClicks(world: HubsWorld, menu: EntityID) {
   if (clicked(world, PDFMenu.nextButtonRef[menu])) {
     const pdf = PDFMenu.targetRef[menu];
-    setPage(world, pdf, NetworkedPDF.pageNumber[pdf] + 1);
+    setPage(world, pdf, MediaPDF.pageNumber[pdf] + 1);
   } else if (clicked(world, PDFMenu.prevButtonRef[menu])) {
     const pdf = PDFMenu.targetRef[menu];
-    setPage(world, pdf, NetworkedPDF.pageNumber[pdf] - 1);
+    setPage(world, pdf, MediaPDF.pageNumber[pdf] - 1);
+  } else if (clicked(world, PDFMenu.snapRef[menu])) {
+    const pdf = PDFMenu.targetRef[menu];
+    addComponent(world, MediaSnapped, pdf);
   }
 }
 
 function flushToObject3Ds(world: HubsWorld, menu: EntityID, frozen: boolean) {
   const target = PDFMenu.targetRef[menu];
-  const visible = !!(target && !frozen);
+  let visible = !!(target && !frozen);
+
+  const loader = findAncestorWithComponent(world, MediaLoader, target);
+  if (loader && hasComponent(world, Deleting, loader)) {
+    visible = false;
+  }
 
   const obj = world.eid2obj.get(menu)!;
   obj.visible = visible;
 
-  [PDFMenu.prevButtonRef[menu], PDFMenu.nextButtonRef[menu]].forEach(buttonRef => {
-    const buttonObj = world.eid2obj.get(buttonRef)!;
-    // Parent visibility doesn't block raycasting, so we must set each button to be invisible
-    // TODO: Ensure that children of invisible entities aren't raycastable
-    buttonObj.visible = visible;
-  });
+  // TODO We are handling menus visibility in a similar way for all the object menus, we
+  // should probably refactor this to a common object-menu-visibility-system
+  if (visible) {
+    ObjectMenuTransform.targetObjectRef[menu] = target;
+    ObjectMenuTransform.flags[menu] |= ObjectMenuTransformFlags.Enabled;
+  } else {
+    ObjectMenuTransform.flags[menu] &= ~ObjectMenuTransformFlags.Enabled;
+  }
 
   if (target) {
     const numPages = PDFResourcesMap.get(target)!.pdf.numPages;
-    (world.eid2obj.get(PDFMenu.pageLabelRef[menu]) as Text).text = `${NetworkedPDF.pageNumber[target]} / ${numPages}`;
+    (world.eid2obj.get(PDFMenu.pageLabelRef[menu]) as Text).text = `${MediaPDF.pageNumber[target]} / ${numPages}`;
   }
+
+  setCursorRaycastable(world, menu, visible);
 }
 
 const hoveredQuery = defineQuery([HoveredRemoteRight]);
@@ -96,7 +125,6 @@ export function pdfMenuSystem(world: HubsWorld, sceneIsFrozen: boolean) {
   const menu = anyEntityWith(world, PDFMenu)!;
   findPDFMenuTarget(world, menu, sceneIsFrozen);
   if (PDFMenu.targetRef[menu]) {
-    moveToTarget(world, menu);
     handleClicks(world, menu);
   }
   flushToObject3Ds(world, menu, sceneIsFrozen);

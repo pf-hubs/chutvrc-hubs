@@ -2,12 +2,12 @@ import { addComponent, defineQuery, enterQuery, exitQuery } from "bitecs";
 import { HubsWorld } from "../app";
 import { FloatyObject, Held, HeldRemoteRight, Interacted, ObjectSpawner } from "../bit-components";
 import { FLOATY_OBJECT_FLAGS } from "../systems/floaty-object-system";
-import { sleep } from "../utils/async-utils";
 import { coroutine } from "../utils/coroutine";
-import { createNetworkedEntity } from "../utils/create-networked-entity";
+import { createNetworkedMedia } from "../utils/create-networked-entity";
 import { EntityID } from "../utils/networking-types";
 import { setMatrixWorld } from "../utils/three-utils";
-import { animateScale, waitForMediaLoaded } from "./media-loading";
+import { animateScale } from "./media-loading";
+import { sleep } from "../utils/async-utils";
 
 export enum OBJECT_SPAWNER_FLAGS {
   /** Apply gravity to spawned objects */
@@ -15,12 +15,15 @@ export enum OBJECT_SPAWNER_FLAGS {
 }
 
 function* spawnObjectJob(world: HubsWorld, spawner: EntityID) {
-  const spawned = createNetworkedEntity(world, "media", {
-    src: APP.getString(ObjectSpawner.src[spawner]),
+  if (!APP.hubChannel!.can("spawn_and_move_media")) return;
+
+  const spawned = createNetworkedMedia(world, {
+    src: APP.getString(ObjectSpawner.src[spawner])!,
     recenter: false,
     resize: false,
     animateLoad: false,
-    isObjectMenuTarget: true
+    isObjectMenuTarget: true,
+    moveParentNotObject: true
   });
 
   if (ObjectSpawner.flags[spawner] & OBJECT_SPAWNER_FLAGS.APPLY_GRAVITY) {
@@ -35,13 +38,8 @@ function* spawnObjectJob(world: HubsWorld, spawner: EntityID) {
   const spawnedObj = world.eid2obj.get(spawned)!;
   setMatrixWorld(spawnedObj, spawnerObj.matrixWorld);
 
-  yield* waitForMediaLoaded(world, spawned);
-  spawnerObj.visible = false;
-  yield sleep(1000);
-  spawnerObj.visible = true;
-
-  // TODO we should come up with a nicer way to get at the media that was loaded by a MediaLoader
-  yield* animateScale(world, spawnerObj.children[0]!.eid!);
+  yield sleep(100);
+  yield* animateScale(world, spawner);
 }
 
 // TODO type for coroutine

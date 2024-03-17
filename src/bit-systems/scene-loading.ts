@@ -4,13 +4,15 @@ import { Mesh } from "three";
 import { HubsWorld } from "../app";
 import {
   EnvironmentSettings,
+  HeightFieldTag,
   NavMesh,
   Networked,
   PhysicsShape,
   SceneLoader,
   ScenePreviewCamera,
   SceneRoot,
-  Skybox
+  Skybox,
+  TrimeshTag
 } from "../bit-components";
 import Sky from "../components/skybox";
 import { Fit, inflatePhysicsShape, Shape } from "../inflators/physics-shape";
@@ -39,6 +41,8 @@ export function swapActiveScene(world: HubsWorld, src: string) {
   (document.querySelector("#environment-scene") as AElement).object3D.add(world.eid2obj.get(newScene)!);
 }
 
+const navMeshesQuery = defineQuery([NavMesh]);
+
 function* loadScene(
   world: HubsWorld,
   loaderEid: EntityID,
@@ -64,6 +68,7 @@ function* loadScene(
     add(world, scene, loaderEid);
     setNetworkedDataWithoutRoot(world, APP.getString(Networked.id[loaderEid])!, scene);
 
+    let hasMesh = false;
     let sceneEl = APP.scene!;
     let isHighDensity = false;
     let skybox: Sky | undefined;
@@ -71,20 +76,12 @@ function* loadScene(
       if ((o as Mesh).isMesh) {
         // TODO animated objects should not be static
         (o as Mesh).reflectionProbeMode = "static";
+        hasMesh ||= true;
       }
       if ((o as any).isReflectionProbe) {
         o.updateMatrices();
         // TODO: In three.js, update reflection probes so that boxes are defined in local space.
         (o as any).box.applyMatrix4(o.matrixWorld);
-      }
-      if (hasComponent(world, NavMesh, o.eid!)) {
-        // TODO the "as any" here is because of incorrect type definition for getObjectByProperty. It was fixed in r145
-        const navMesh = o.getObjectByProperty("isMesh", true as any) as Mesh;
-        // Some older scenes have the nav-mesh component as an ancestor of the mesh itself
-        if (navMesh !== o) {
-          console.warn("The `nav-mesh` component should be placed directly on a mesh.");
-        }
-        sceneEl.systems.nav.loadMesh(navMesh, "character");
       }
 
       if (!skybox && hasComponent(world, Skybox, o.eid!)) {
@@ -104,21 +101,39 @@ function* loadScene(
       }
     });
 
-    if (!findChildWithComponent(world, PhysicsShape, scene)) {
-      let navMeshEid;
-      if (isHighDensity) {
-        navMeshEid = findChildWithComponent(world, NavMesh, scene);
+    // Find and load a nav-mesh
+    let navMesh;
+    let navMeshEid;
+    const navMeshes = navMeshesQuery(APP.world);
+    if (navMeshes.length > 0) {
+      navMeshEid = navMeshes[0];
+    }
+    if (navMeshEid) {
+      const navMeshObj = world.eid2obj.get(navMeshEid);
+      // TODO the "as any" here is because of incorrect type definition for getObjectByProperty. It was fixed in r145
+      navMesh = navMeshObj?.getObjectByProperty("isMesh", true as any) as Mesh;
+      // Some older scenes have the nav-mesh component as an ancestor of the mesh itself
+      if (navMesh !== navMeshObj) {
+        console.warn("The `nav-mesh` component should be placed directly on a mesh.");
       }
+      if (navMesh) {
+        navMesh.visible = false;
+        sceneEl.systems.nav.loadMesh(navMesh, "character");
+      }
+    }
 
-      if (navMeshEid) {
-        console.log(`Mesh density exceeded, using floor plan only`);
-        inflatePhysicsShape(world, navMeshEid, {
+    // Create scene physics
+    if (findChildWithComponent(world, TrimeshTag, scene) || findChildWithComponent(world, HeightFieldTag, scene)) {
+      console.log("heightfield or trimesh found on scene");
+    } else {
+      if (isHighDensity && navMesh) {
+        inflatePhysicsShape(world, navMesh.eid!, {
           type: Shape.MESH,
           margin: 0.01,
           fit: Fit.ALL,
           includeInvisible: true
         });
-      } else if (!isHighDensity) {
+      } else if (!isHighDensity && hasMesh) {
         inflatePhysicsShape(world, scene, {
           type: Shape.MESH,
           margin: 0.01,

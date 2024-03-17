@@ -81,6 +81,20 @@ import { mixerAnimatableSystem } from "../bit-systems/mixer-animatable";
 import { loopAnimationSystem } from "../bit-systems/loop-animation";
 import { SFU } from "../available-sfu";
 import { avatarIkSystem } from "../bit-systems/avatar-bones-system";
+import { linkSystem } from "../bit-systems/link-system";
+import { objectMenuTransformSystem } from "../bit-systems/object-menu-transform-system";
+import { bitPenCompatSystem } from "./bit-pen-system";
+import { sfxButtonSystem } from "../bit-systems/sfx-button-system";
+import { sfxMediaSystem } from "../bit-systems/sfx-media-system";
+import { hoverableVisualsSystem } from "../bit-systems/hoverable-visuals-system";
+import { linkedMenuSystem } from "../bit-systems/linked-menu-system";
+import { followInFovSystem } from "../bit-systems/follow-in-fov-system";
+import { linkedMediaSystem } from "../bit-systems/linked-media-system";
+import { linkedVideoSystem } from "../bit-systems/linked-video-system";
+import { linkedPDFSystem } from "../bit-systems/linked-pdf-system";
+import { inspectSystem } from "../bit-systems/inspect-system";
+import { snapMediaSystem } from "../bit-systems/snap-media-system";
+import { scaleWhenGrabbedSystem } from "../bit-systems/scale-when-grabbed-system";
 
 declare global {
   interface Window {
@@ -190,8 +204,7 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   onOwnershipLost(world);
   sceneLoadingSystem(world, hubsSystems.environmentSystem, hubsSystems.characterController);
   mediaLoadingSystem(world);
-
-  physicsCompatSystem(world, hubsSystems.physicsSystem);
+  sfxMediaSystem(world, aframeSystems["hubs-systems"].soundEffectsSystem);
 
   networkedTransformSystem(world);
 
@@ -200,7 +213,14 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   interactionSystem(world, hubsSystems.cursorTargettingSystem, t, aframeSystems);
 
   buttonSystems(world);
+  sfxButtonSystem(world, aframeSystems["hubs-systems"].soundEffectsSystem);
+
+  physicsCompatSystem(world, hubsSystems.physicsSystem);
+  hubsSystems.physicsSystem.tick(dt);
   constraintsSystem(world, hubsSystems.physicsSystem);
+  floatyObjectSystem(world);
+
+  hoverableVisualsSystem(world);
 
   // We run this earlier in the frame so things have a chance to override properties run by animations
   hubsSystems.animationMixerSystem.tick(dt);
@@ -223,8 +243,6 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   hubsSystems.positionAtBorderSystem.tick();
   hubsSystems.twoPointStretchingSystem.tick();
 
-  floatyObjectSystem(world);
-
   hubsSystems.holdableButtonSystem.tick();
   hubsSystems.hoverButtonSystem.tick();
   hubsSystems.drawingMenuSystem.tick();
@@ -239,7 +257,6 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   hubsSystems.soundEffectsSystem.tick();
   hubsSystems.scenePreviewCameraSystem.tick();
   scenePreviewCameraSystem(world, hubsSystems.cameraSystem);
-  hubsSystems.physicsSystem.tick(dt);
   hubsSystems.inspectYourselfSystem.tick(hubsSystems.el, aframeSystems.userinput, hubsSystems.cameraSystem);
   hubsSystems.cameraSystem.tick(hubsSystems.el, dt);
   cameraToolSystem(world);
@@ -250,10 +267,12 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   uvScrollSystem(world);
   hubsSystems.shadowSystem.tick();
   objectMenuSystem(world, sceneEl.is("frozen"), APP.hubChannel!);
-  videoMenuSystem(world, aframeSystems.userinput);
+  linkedMenuSystem(world);
+  videoMenuSystem(world, aframeSystems.userinput, sceneEl.is("frozen"));
   videoSystem(world, hubsSystems.audioSystem);
   pdfMenuSystem(world, sceneEl.is("frozen"));
-  linkHoverMenuSystem(world);
+  linkSystem(world);
+  linkHoverMenuSystem(world, sceneEl.is("frozen"));
   pdfSystem(world);
   mediaFramesSystem(world, hubsSystems.physicsSystem);
   hubsSystems.audioZonesSystem.tick(hubsSystems.el);
@@ -265,6 +284,14 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   simpleWaterSystem(world);
   linearTransformSystem(world);
   quackSystem(world);
+  followInFovSystem(world);
+  linkedMediaSystem(world);
+  linkedVideoSystem(world);
+  linkedPDFSystem(world);
+  inspectSystem(world, hubsSystems.cameraSystem);
+  scaleWhenGrabbedSystem(world, aframeSystems.userinput);
+
+  objectMenuTransformSystem(world);
 
   mixerAnimatableSystem(world);
   loopAnimationSystem(world);
@@ -274,6 +301,9 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
 
   videoTextureSystem(world);
   audioDebugSystem(world);
+
+  bitPenCompatSystem(world, aframeSystems["pen-tools"]);
+  snapMediaSystem(world, aframeSystems["hubs-systems"].soundEffectsSystem);
 
   deleteEntitySystem(world, aframeSystems.userinput);
   destroyAtExtremeDistanceSystem(world);
