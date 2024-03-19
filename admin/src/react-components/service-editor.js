@@ -15,6 +15,8 @@ import Snackbar from "@material-ui/core/Snackbar";
 import SnackbarContent from "@material-ui/core/SnackbarContent";
 import TextField from "@material-ui/core/TextField";
 import Switch from "@material-ui/core/Switch";
+import Select from "@material-ui/core/Select";
+import MenuItem from "@material-ui/core/MenuItem";
 import Typography from "@material-ui/core/Typography";
 import Icon from "@material-ui/core/Icon";
 import IconButton from "@material-ui/core/IconButton";
@@ -84,6 +86,9 @@ const styles = withCommonStyles(theme => {
       "& .switch": {
         marginTop: "-0.1em"
       }
+    },
+    listInput: {
+      margin: "2em 0"
     },
     longInput: {
       "& textarea": {
@@ -177,6 +182,7 @@ class ConfigurationEditor extends Component {
       config[service] = await this.getConfig(service);
     }
 
+    console.log(config);
     this.setState({ config });
   }
 
@@ -367,6 +373,29 @@ class ConfigurationEditor extends Component {
     );
   }
 
+  renderListInput(path, descriptor, currentValue) {
+    const displayPath = path.join(" > ");
+    return (
+      <div key={displayPath} className={this.props.classes.listInput}>
+        <label>{descriptor.name}</label>
+        <br />
+        <Select
+          className="list"
+          value={currentValue || descriptor.default}
+          label={descriptor.name || displayPath}
+          onChange={ev => this.onChange(path, ev.target.value)}
+        >
+          {descriptor.choices.map(choice => (
+            <MenuItem key={descriptor.name + " listItem " + choice.value} value={choice.value}>
+              {choice.label}
+            </MenuItem>
+          ))}
+        </Select>
+        <span className={this.props.classes.inputDescription}>{descriptor.description}</span>
+      </div>
+    );
+  }
+
   renderColorInput(path, descriptor, currentValue) {
     const displayPath = path.join(" > ");
     return (
@@ -388,7 +417,7 @@ class ConfigurationEditor extends Component {
   renderConfigurable(path, descriptor, currentValue) {
     switch (descriptor.type) {
       case "list":
-        return null;
+        return this.renderListInput(path, descriptor, currentValue);
       case "file":
         return this.renderFileInput(path, descriptor, currentValue);
       case "boolean":

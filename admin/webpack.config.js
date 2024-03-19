@@ -147,7 +147,7 @@ module.exports = (env, argv) => {
       },
       host: process.env.HOST_IP || "0.0.0.0",
       port: process.env.PORT || "8989",
-      allowedHosts: [host, internalHostname],
+      allowedHosts: "all", // [host, internalHostname],
       headers: {
         "Access-Control-Allow-Origin": "*"
       },
