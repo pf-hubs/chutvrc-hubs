@@ -197,22 +197,27 @@ export function RoomSettingsSidebar({
             />
           </div>
         </InputField>
-        {configs.isAdmin() && (
+        {configs.isAdmin() && (room.allow_switch_sfu || true) && (
           <RadioInputField
             label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu" defaultMessage="WebRTC SFU" />}
             fullWidth
-            description="Don't change this setting unless you know what you are doing!"
+            description="Select the WebRTC SFU to use for this room"
           >
             <RadioInputOption
               name="sfu"
               value="0"
-              label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-sora" defaultMessage="Sora" />}
+              label={
+                <FormattedMessage
+                  id="room-settings-sidebar.webrtc-sfu-sora"
+                  defaultMessage="Dialog (Mediasoup-based)"
+                />
+              }
               ref={register}
             />
             <RadioInputOption
               name="sfu"
               value="1"
-              label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-dialog" defaultMessage="Dialog" />}
+              label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-dialog" defaultMessage="Sora" />}
               ref={register}
             />
           </RadioInputField>
