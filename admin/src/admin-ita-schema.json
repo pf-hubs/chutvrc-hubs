@@ -250,6 +250,17 @@
   },
   "reticulum": {
     "webrtc-settings": {
+      "default_sfu": {
+        "type": "list",
+        "default": 0,
+        "choices": [
+          { "value": 0, "label": "Dialog (Mediasoup-based)" },
+          { "value": 1, "label": "Sora" }
+        ],
+        "category": "webrtc",
+        "name": "Default WebRTC SFU",
+        "description": "Set the default WebRTC SFU for every newly created room"
+      },
       "allow_switch_sfu": {
         "type": "boolean",
         "default": true,

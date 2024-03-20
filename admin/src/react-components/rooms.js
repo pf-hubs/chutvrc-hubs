@@ -214,8 +214,8 @@ export const RoomEdit = withStyles(styles)(props => {
         <SelectInput
           source="sfu"
           choices={[
-            { id: 0, name: "Sora" },
-            { id: 1, name: "Dialog (Mediasoup-based)" }
+            { id: 0, name: "Dialog (Mediasoup-based)" },
+            { id: 1, name: "Sora" }
           ]}
         />
       </SimpleForm>
