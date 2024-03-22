@@ -195,6 +195,17 @@ export function RoomSettingsSidebar({
               label={<FormattedMessage id="room-settings-sidebar.fly" defaultMessage="Allow flying" />}
               {...register("member_permissions.fly")}
             />
+            {configs.isAdmin() && (room.allow_fullbody_avatar || true) && (
+              <ToggleInput
+                label={
+                  <FormattedMessage
+                    id="room-settings-sidebar.allow-fullbody-avatar"
+                    defaultMessage="Allow Full-body Avatar"
+                  />
+                }
+                {...register("member_permissions.allow-fullbody-avatar")}
+              />
+            )}
           </div>
         </InputField>
         {configs.isAdmin() && (room.allow_switch_sfu || true) && (
