@@ -267,6 +267,20 @@
         "category": "webrtc",
         "name": "Allow switch WebRTC SFU",
         "description": "Allowing room manager to switch WebRTC SFU"
+      },
+      "sora_project_id": {
+        "type": "string",
+        "default": "",
+        "category": "webrtc",
+        "name": "Sora project ID",
+        "description": "To use Sora in your Hubs, please form a contract with the Sora Cloud service and fill in your project ID here."
+      },
+      "sora_bearer_token": {
+        "type": "string",
+        "default": "",
+        "category": "webrtc",
+        "name": "Sora bearer token",
+        "description": "To use Sora in your Hubs, please form a contract with the Sora Cloud service and fill in your bearer token here."
       }
     },
     "avatar-settings": {
