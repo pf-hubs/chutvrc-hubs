@@ -13,7 +13,8 @@ const schemaCategories = [
   "theme",
   "links",
   "auth",
-  "webrtc"
+  "webrtc",
+  "avatar"
 ];
 const serviceNames = configs.CONFIGURABLE_SERVICES.split(",");
 let currentAuthToken = null;
@@ -48,6 +49,8 @@ function getCategoryDisplayName(category) {
       return "Auth";
     case "webrtc":
       return "WebRTC";
+    case "avatar":
+      return "AVATAR";
     default:
       return null;
   }
