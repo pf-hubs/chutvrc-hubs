@@ -678,6 +678,20 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
 
       switch (data.sfu) {
         case 1:
+          APP.usingSfu = SFU.SORA;
+          APP.sfu = APP.sora;
+          listenSfuConnection(scene);
+          registerNetworkSchemas();
+          APP.sfu.connect({
+            clientId: data.session_id,
+            channelId: data.sora_channel_id,
+            signalingUrl: data.sora_signaling_url,
+            accessToken: data.sora_access_token,
+            scene,
+            debug: data.sora_is_debug
+          });
+          break;
+        default:
           APP.usingSfu = SFU.DIALOG;
           APP.sfu = APP.dialog;
           listenSfuConnection(scene);
@@ -691,20 +705,6 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
             forceTcp: qs.get("force_tcp"),
             forceTurn: qs.get("force_turn"),
             iceTransportPolicy: qs.get("force_tcp") || qs.get("force_turn") ? "relay" : "all"
-          });
-          break;
-        default:
-          APP.usingSfu = SFU.SORA;
-          APP.sfu = APP.sora;
-          listenSfuConnection(scene);
-          registerNetworkSchemas();
-          APP.sfu.connect({
-            clientId: data.session_id,
-            channelId: data.sora_channel_id,
-            signalingUrl: data.sora_signaling_url,
-            accessToken: data.sora_access_token,
-            scene,
-            debug: data.sora_is_debug
           });
           break;
       }

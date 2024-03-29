@@ -124,6 +124,17 @@ export async function changeHub(hubId, addToHistory = true, waypoint = "") {
 
   switch (data.sfu) {
     case 1:
+      APP.usingSfu = SFU.SORA;
+      APP.sfu = APP.sora;
+      connectOption = {
+        clientId: data.session_id,
+        channelId: data.sora_channel_id,
+        signalingUrl: data.sora_signaling_url,
+        accessToken: data.sora_access_token,
+        debug: data.sora_is_debug
+      };
+      break;
+    default:
       APP.usingSfu = SFU.DIALOG;
       APP.sfu = APP.dialog;
       connectOption = {
@@ -135,17 +146,6 @@ export async function changeHub(hubId, addToHistory = true, waypoint = "") {
         forceTcp: APP.sfu._forceTcp,
         forceTurn: APP.sfu._forceTurn,
         iceTransportPolicy: APP.sfu._iceTransportPolicy
-      };
-      break;
-    default:
-      APP.usingSfu = SFU.SORA;
-      APP.sfu = APP.sora;
-      connectOption = {
-        clientId: data.session_id,
-        channelId: data.sora_channel_id,
-        signalingUrl: data.sora_signaling_url,
-        accessToken: data.sora_access_token,
-        debug: data.sora_is_debug
       };
       break;
   }

@@ -285,17 +285,6 @@ AFRAME.registerComponent("ik-controller", {
       if (neck) neck.matrixNeedsUpdate = true;
       if (head) head.matrixNeedsUpdate = true;
       if (chest) chest.matrixNeedsUpdate = true;
-
-      // const worldPos = new Vector3();
-      // const worldRot = new Quaternion();
-      // const worldScale = new Vector3();
-      // head.matrixWorld.decompose(worldPos, worldRot, worldScale);
-      // console.log("=========");
-      // console.log(head.position);
-      // console.log(head.matrixWorld);
-      // console.log(worldPos);
-      // console.log(worldRot);
-      // console.log("=========");
     }
 
     const { leftHand, rightHand } = this;

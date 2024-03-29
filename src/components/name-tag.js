@@ -9,6 +9,8 @@ import { createPlaneBufferGeometry, setMatrixWorld } from "../utils/three-utils"
 import { textureLoader } from "../utils/media-utils";
 
 import handRaisedIconSrc from "../assets/hud/hand-raised.png";
+import { AvatarComponent } from "../bit-components";
+import { SFU } from "../available-sfu";
 
 const DEBUG = qsTruthy("debug");
 const NAMETAG_BACKGROUND_PADDING = 0.05;
@@ -137,12 +139,14 @@ AFRAME.registerComponent("name-tag", {
     const worldPos = new THREE.Vector3();
     const mat = new THREE.Matrix4();
     return function (t) {
-      if (!this.isAvatarReady) {
-        this.nametag.visible = false;
-        return;
-      }
+      // console.log("this.isAvatarReady : " + this.isAvatarReady);
+      // console.log("this.nametag.visible : " + this.nametag.visible);
+      // if (!this.isAvatarReady) {
+      //   this.nametag.visible = false;
+      //   return;
+      // }
       this.wasTalking = this.isTalking;
-      this.isTalking = this.audioAnalyzer.avatarIsTalking;
+      this.isTalking = this.audioAnalyzer?.avatarIsTalking || false;
 
       if (this.shouldBeVisible) {
         this.nametag.visible = true;
@@ -173,11 +177,21 @@ AFRAME.registerComponent("name-tag", {
         this.modBadge.visible = this.isOwner && !this.isRecording;
         this.handRaised.visible = this.isHandRaised;
 
-        this.neck.getWorldPosition(worldPos);
-        worldPos.setY(this.nametagElPosY + this.ikRoot.position.y);
-        mat.copy(this.nametag.matrixWorld);
-        mat.setPosition(worldPos);
-        setMatrixWorld(this.nametag, mat);
+        if (!this.neck && this.ikRoot) {
+          this.neck = APP.world.eid2obj.get(
+            AvatarComponent.neck[
+              APP.sfu._avatarSyncHelper._client2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))
+            ]
+          );
+        }
+        if (this.ikRoot) {
+          this.neck?.getWorldPosition(worldPos);
+          // if (APP.usingSfu === SFU.DIALOG) worldPos.setY(this.nametagElPosY + this.ikRoot.position.y);
+          worldPos.setY(this.nametagElPosY + this.ikRoot.position.y + 2);
+          mat.copy(this.nametag.matrixWorld);
+          mat.setPosition(worldPos);
+          setMatrixWorld(this.nametag, mat);
+        }
       } else {
         this.nametag.visible = false;
       }
@@ -187,22 +201,25 @@ AFRAME.registerComponent("name-tag", {
         this.avatarAABBHelper.matrixNeedsUpdate = true;
         this.avatarAABBHelper.updateMatrixWorld(true);
       }
+
+      // console.log(this.nametag.position);
     };
   })(),
 
   play() {
     this.el.parentEl.addEventListener("model-loading", this.onModelLoading);
     this.el.parentEl.addEventListener("model-loaded", this.onModelLoaded);
-    this.el.parentEl.addEventListener("ik-first-tick", this.onModelIkFirstTick);
+    // this.el.parentEl.addEventListener("ik-first-tick", this.onModelIkFirstTick);
     this.el.sceneEl.addEventListener("presence_updated", this.onPresenceUpdated);
     window.APP.store.addEventListener("statechanged", this.onStateChanged);
     this.el.sceneEl.systems["hubs-systems"].nameTagSystem.register(this);
+    this.onModelIkFirstTick(); // TODO: call after client enter room & model loaded
   },
 
   pause() {
     this.el.parentEl.removeEventListener("model-loading", this.onModelLoading);
     this.el.parentEl.removeEventListener("model-loaded", this.onModelLoaded);
-    this.el.parentEl.removeEventListener("ik-first-tick", this.onModelIkFirstTick);
+    // this.el.parentEl.removeEventListener("ik-first-tick", this.onModelIkFirstTick);
     this.el.sceneEl.removeEventListener("presence_updated", this.onPresenceUpdated);
     window.APP.store.removeEventListener("statechanged", this.onStateChanged);
     this.el.sceneEl.systems["hubs-systems"].nameTagSystem.unregister(this);
@@ -287,8 +304,12 @@ AFRAME.registerComponent("name-tag", {
   async onModelIkFirstTick() {
     await nextTick();
     this.ikRoot = findAncestorWithComponent(this.el, "ik-root").object3D;
-    this.neck = this.ikRoot.el.querySelector(".Neck").object3D;
-    this.audioAnalyzer = this.ikRoot.el.querySelector(".AvatarRoot").components["networked-audio-analyser"];
+    this.ikRoot.el.object3D.visible = true;
+    this.neck = APP.world.eid2obj.get(
+      AvatarComponent.neck[APP.sfu._avatarSyncHelper._client2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
+    );
+    // this.ikRoot.el.querySelector(".Neck").object3D;
+    this.audioAnalyzer = this.ikRoot.el.querySelector(".model").components["networked-audio-analyser"];
 
     this.updateElements();
     this.isAvatarReady = true;

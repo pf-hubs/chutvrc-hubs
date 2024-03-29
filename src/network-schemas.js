@@ -44,50 +44,47 @@ function registerNetworkSchemas() {
         selector: ".right-controller",
         component: "visible"
       }
-    ].concat(
-      APP.usingSfu === SFU.SORA
-        ? []
-        : [
-            {
-              component: "position",
-              requiresNetworkUpdate: vectorRequiresUpdate(0.001)
-            },
-            {
-              component: "rotation",
-              requiresNetworkUpdate: vectorRequiresUpdate(0.5)
-            },
-            {
-              selector: ".camera",
-              component: "position",
-              requiresNetworkUpdate: vectorRequiresUpdate(0.001)
-            },
-            {
-              selector: ".camera",
-              component: "rotation",
-              requiresNetworkUpdate: vectorRequiresUpdate(0.5)
-            },
-            {
-              selector: ".left-controller",
-              component: "position",
-              requiresNetworkUpdate: vectorRequiresUpdate(0.001)
-            },
-            {
-              selector: ".left-controller",
-              component: "rotation",
-              requiresNetworkUpdate: vectorRequiresUpdate(0.5)
-            },
-            {
-              selector: ".right-controller",
-              component: "position",
-              requiresNetworkUpdate: vectorRequiresUpdate(0.001)
-            },
-            {
-              selector: ".right-controller",
-              component: "rotation",
-              requiresNetworkUpdate: vectorRequiresUpdate(0.5)
-            }
-          ]
-    )
+    ]
+    // .concat([
+    //   {
+    //     component: "position",
+    //     requiresNetworkUpdate: vectorRequiresUpdate(0.001)
+    //   },
+    //   {
+    //     component: "rotation",
+    //     requiresNetworkUpdate: vectorRequiresUpdate(0.5)
+    //   },
+    //   {
+    //     selector: ".camera",
+    //     component: "position",
+    //     requiresNetworkUpdate: vectorRequiresUpdate(0.001)
+    //   },
+    //   {
+    //     selector: ".camera",
+    //     component: "rotation",
+    //     requiresNetworkUpdate: vectorRequiresUpdate(0.5)
+    //   },
+    //   {
+    //     selector: ".left-controller",
+    //     component: "position",
+    //     requiresNetworkUpdate: vectorRequiresUpdate(0.001)
+    //   },
+    //   {
+    //     selector: ".left-controller",
+    //     component: "rotation",
+    //     requiresNetworkUpdate: vectorRequiresUpdate(0.5)
+    //   },
+    //   {
+    //     selector: ".right-controller",
+    //     component: "position",
+    //     requiresNetworkUpdate: vectorRequiresUpdate(0.001)
+    //   },
+    //   {
+    //     selector: ".right-controller",
+    //     component: "rotation",
+    //     requiresNetworkUpdate: vectorRequiresUpdate(0.5)
+    //   }
+    // ])
   });
 
   NAF.schemas.add({

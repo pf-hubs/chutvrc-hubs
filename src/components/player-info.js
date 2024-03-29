@@ -161,7 +161,8 @@ AFRAME.registerComponent("player-info", {
 
   applyProperties(e) {
     const modelEl = this.el.querySelector(".model");
-    if (this.data.avatarSrc && modelEl) {
+    // if (APP.usingSfu === SFU.DIALOG && this.data.avatarSrc && modelEl) {
+    if (modelEl.components["gltf-model-plus"] && this.data.avatarSrc && modelEl) {
       modelEl.components["gltf-model-plus"].jsonPreprocessor = ensureAvatarNodes;
       modelEl.setAttribute("gltf-model-plus", "src", this.data.avatarSrc);
     }

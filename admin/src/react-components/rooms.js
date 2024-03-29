@@ -23,7 +23,7 @@ import {
   refreshView
 } from "react-admin";
 
-const sfuList = ["sora", "dialog"];
+const sfuList = ["dialog", "sora"];
 
 const styles = {
   hide: { display: "none" },

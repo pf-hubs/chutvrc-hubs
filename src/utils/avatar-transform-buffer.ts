@@ -2,6 +2,7 @@ import { AElement } from "aframe";
 import { Euler, Object3D, Vector3 } from "three";
 import { floatToUInt8, radToUInt8 } from "./uint8-parser";
 import { encodeAvatarTransform } from "./avatar-utils";
+import { InputTransform } from "../bit-systems/avatar-bones-system";
 
 export enum AvatarPart {
   RIG = "RIG",
@@ -12,9 +13,9 @@ export enum AvatarPart {
 
 export const avatarPartTypes = [AvatarPart.RIG, AvatarPart.HEAD, AvatarPart.LEFT, AvatarPart.RIGHT];
 
-export type Transform = {
-  position: Vector3;
-  rotation: Euler;
+type Transform = {
+  pos: Vector3;
+  rot: Euler;
 };
 
 export type AvatarObjects = {
@@ -27,6 +28,13 @@ type AvatarTransforms = {
 
 type AvatarEncodedTransforms = {
   [part in AvatarPart]: Uint8Array;
+};
+
+const avatarTypeToStr = {
+  [AvatarPart.RIG]: "rig",
+  [AvatarPart.HEAD]: "hmd",
+  [AvatarPart.LEFT]: "leftController",
+  [AvatarPart.RIGHT]: "rightController"
 };
 
 export class AvatarTransformBuffer {
@@ -45,22 +53,28 @@ export class AvatarTransformBuffer {
     };
     this._lastAvatarTransform = {
       [AvatarPart.RIG]: {
-        position: rig.object3D.position.clone(),
-        rotation: rig.object3D.rotation.clone()
+        pos: rig.object3D.position.clone(),
+        rot: rig.object3D.rotation.clone()
       },
       [AvatarPart.HEAD]: {
-        position: head.object3D.position.clone(),
-        rotation: head.object3D.rotation.clone()
+        pos: head.object3D.position.clone(),
+        rot: head.object3D.rotation.clone()
       },
       [AvatarPart.LEFT]: {
-        position: left.object3D.position.clone(),
-        rotation: left.object3D.rotation.clone()
+        pos: left.object3D.position.clone(),
+        rot: left.object3D.rotation.clone()
       },
       [AvatarPart.RIGHT]: {
-        position: right.object3D.position.clone(),
-        rotation: right.object3D.rotation.clone()
+        pos: right.object3D.position.clone(),
+        rot: right.object3D.rotation.clone()
       }
     };
+    // this._avatarInputTransform = {
+    //   [AvatarPart.RIG]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
+    //   [AvatarPart.HEAD]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
+    //   [AvatarPart.LEFT]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
+    //   [AvatarPart.RIGHT]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } }
+    // };
     this._encodedAvatarTransform = {
       [AvatarPart.RIG]: new Uint8Array(45),
       [AvatarPart.HEAD]: new Uint8Array(45),
@@ -69,16 +83,20 @@ export class AvatarTransformBuffer {
     };
   }
 
-  // return true if updated, false if not
+  isUpdateAvatarTransformUpdated(part: AvatarPart) {
+    return (
+      this.isPositionUpdated(this._avatarObj[part].position, this._lastAvatarTransform[part].pos) ||
+      this.isRotationUpdated(this._avatarObj[part].rotation, this._lastAvatarTransform[part].rot)
+    );
+  }
+
   updateAvatarTransform(part: AvatarPart) {
-    if (
-      !this.isPositionUpdated(this._avatarObj[part].position, this._lastAvatarTransform[part].position) &&
-      !this.isRotationUpdated(this._avatarObj[part].rotation, this._lastAvatarTransform[part].rotation)
-    )
-      return false;
-    this._lastAvatarTransform[part].position.copy(this._avatarObj[part].position);
-    this._lastAvatarTransform[part].rotation.copy(this._avatarObj[part].rotation);
-    return true;
+    this._lastAvatarTransform[part].pos.copy(this._avatarObj[part].position);
+    this._lastAvatarTransform[part].rot.copy(this._avatarObj[part].rotation);
+  }
+
+  getAvatarTransform(part: AvatarPart) {
+    return this._lastAvatarTransform[part];
   }
 
   getEncodedAvatarTransform(part: AvatarPart) {

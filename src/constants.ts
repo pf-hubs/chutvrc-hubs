@@ -70,154 +70,176 @@ export const boneNameKeywords = {
     side: [],
     position: [],
     typeWithPosition: [],
-    typeWithoutPosition: ["root"],
-    parentsWithSimilarName: []
+    typeWithoutPosition: ["root", "armature"],
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.Hips]: {
     side: [],
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["hips", "bip", "pelvis"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.Spine]: {
     side: [],
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["spine"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.Chest]: {
     side: [],
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["chest", "spine"],
-    parentsWithSimilarName: [BoneType.Spine]
+    parentsWithSimilarName: [BoneType.Spine],
+    parent: null
   },
   [BoneType.Neck]: {
     side: [],
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["neck"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.Head]: {
     side: [],
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["head"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.LeftEye]: {
     side: boneNameSideKeywords.left,
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["eye"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.RightEye]: {
     side: boneNameSideKeywords.right,
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["eye"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.LeftUpperLeg]: {
     side: boneNameSideKeywords.left,
     position: ["upper", "up"],
     typeWithPosition: ["leg"],
     typeWithoutPosition: ["thigh"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: BoneType.Hips
   },
   [BoneType.LeftLowerLeg]: {
     side: boneNameSideKeywords.left,
     position: ["lower", "low", "fore"],
     typeWithPosition: ["leg"],
     typeWithoutPosition: ["leg", "calf", "knee"],
-    parentsWithSimilarName: [BoneType.LeftUpperLeg]
+    parentsWithSimilarName: [BoneType.LeftUpperLeg],
+    parent: null
   },
   [BoneType.LeftFoot]: {
     side: boneNameSideKeywords.left,
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["foot", "shoe"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.RightUpperLeg]: {
     side: boneNameSideKeywords.right,
     position: ["upper", "up"],
     typeWithPosition: ["leg"],
     typeWithoutPosition: ["thigh"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: BoneType.Hips
   },
   [BoneType.RightLowerLeg]: {
     side: boneNameSideKeywords.right,
     position: ["lower", "low", "fore"],
     typeWithPosition: ["leg"],
     typeWithoutPosition: ["leg", "calf", "knee"],
-    parentsWithSimilarName: [BoneType.RightUpperLeg]
+    parentsWithSimilarName: [BoneType.RightUpperLeg],
+    parent: null
   },
   [BoneType.RightFoot]: {
     side: boneNameSideKeywords.right,
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["foot", "shoe"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.LeftShoulder]: {
     side: boneNameSideKeywords.left,
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["shoulder", "clavicle"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.LeftUpperArm]: {
     side: boneNameSideKeywords.left,
     position: ["upper", "up"],
     typeWithPosition: ["arm"],
     typeWithoutPosition: ["arm"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.LeftLowerArm]: {
     side: boneNameSideKeywords.left,
     position: ["lower", "low", "fore"],
     typeWithPosition: ["arm"],
     typeWithoutPosition: ["elbow"],
-    parentsWithSimilarName: [BoneType.LeftUpperArm]
+    parentsWithSimilarName: [BoneType.LeftUpperArm],
+    parent: null
   },
   [BoneType.LeftHand]: {
     side: boneNameSideKeywords.left,
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["hand", "wrist"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.RightShoulder]: {
     side: boneNameSideKeywords.right,
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["shoulder", "clavicle"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.RightUpperArm]: {
     side: boneNameSideKeywords.right,
     position: ["upper", "up"],
     typeWithPosition: ["arm"],
     typeWithoutPosition: ["arm"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   },
   [BoneType.RightLowerArm]: {
     side: boneNameSideKeywords.right,
     position: ["lower", "low", "fore"],
     typeWithPosition: ["arm"],
     typeWithoutPosition: ["elbow"],
-    parentsWithSimilarName: [BoneType.RightUpperArm]
+    parentsWithSimilarName: [BoneType.RightUpperArm],
+    parent: null
   },
   [BoneType.RightHand]: {
     side: boneNameSideKeywords.right,
     position: [],
     typeWithPosition: [],
     typeWithoutPosition: ["hand", "wrist"],
-    parentsWithSimilarName: []
+    parentsWithSimilarName: [],
+    parent: null
   }
 };

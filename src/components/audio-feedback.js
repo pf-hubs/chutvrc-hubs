@@ -64,7 +64,7 @@ AFRAME.registerComponent("networked-audio-analyser", {
       { once: true }
     );
 
-    this.playerSessionId = findAncestorWithComponent(this.el, "player-info").components["player-info"].playerSessionId;
+    this.playerSessionId = findAncestorWithComponent(this.el, "player-info")?.components["player-info"].playerSessionId;
     registerComponentInstance(this, "networked-audio-analyser");
   },
 
@@ -76,6 +76,10 @@ AFRAME.registerComponent("networked-audio-analyser", {
   tick: function (t) {
     if (!this.disableUpdates) {
       this._updateAnalysis(t);
+      if (!this.playerSessionId)
+        this.playerSessionId = findAncestorWithComponent(this.el, "player-info").components[
+          "player-info"
+        ].playerSessionId;
     }
   },
 
