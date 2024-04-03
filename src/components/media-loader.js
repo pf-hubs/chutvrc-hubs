@@ -352,6 +352,12 @@ AFRAME.registerComponent("media-loader", {
       if (src.charAt(0) === "#") {
         src = this.data.src = `${window.location.origin}${window.location.pathname}${window.location.search}${src}`;
       }
+      const _isHubsAvatarUrl = await isHubsAvatarUrl(src);
+
+      if (_isHubsAvatarUrl) {
+        const tmpParsedUrl = new URL(src);
+        src = `${tmpParsedUrl.origin}/api/v1${tmpParsedUrl.pathname}/avatar.gltf`;
+      }
 
       let canonicalUrl = src;
       let canonicalAudioUrl = null; // set non-null only if audio track is separated from video track (eg. 360 video)
@@ -366,11 +372,17 @@ AFRAME.registerComponent("media-loader", {
       const isLocalAsset =
         isNonCorsProxyDomain(parsedUrl.hostname) &&
         !(await isHubsDestinationUrl(src)) &&
-        !(await isHubsAvatarUrl(src)) &&
+        !_isHubsAvatarUrl &&
         !src.match(hubsRoomRegex)?.groups.id &&
         !src.match(localHubsRoomRegex)?.groups.id;
 
-      if (this.data.resolve && !src.startsWith("data:") && !src.startsWith("hubs:") && !isLocalAsset) {
+      if (
+        this.data.resolve &&
+        !src.startsWith("data:") &&
+        !src.startsWith("hubs:") &&
+        !isLocalAsset &&
+        !_isHubsAvatarUrl
+      ) {
         const is360 = !!(this.data.mediaOptions.projection && this.data.mediaOptions.projection.startsWith("360"));
         const quality = getDefaultResolveQuality(is360);
         const result = await resolveUrl(src, quality, version, forceLocalRefresh);
@@ -562,6 +574,7 @@ AFRAME.registerComponent("media-loader", {
             modelToWorldScale: this.data.fitToBox ? 0.0001 : 1.0
           })
         );
+        this.el.setAttribute("ai-chatbot", { displayText: true });
       } else if (contentType.startsWith("text/html")) {
         this.el.removeAttribute("gltf-model-plus");
         this.el.removeAttribute("media-video");
