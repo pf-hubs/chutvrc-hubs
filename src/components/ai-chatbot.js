@@ -18,13 +18,12 @@ AFRAME.registerComponent("ai-chatbot", {
     this.position = this.el.object3D.position;
     this.isBoneMapped = false;
     this.animationTimer = 0;
-    // this.leftHand = this.el.object3D.
     this.responsesLog = [];
 
     // 音声認識
     const SpeechRec = window.webkitSpeechRecognition || window.SpeechRecognition;
     this.recognition = new SpeechRec();
-    this.recognition.lang = "en";
+    this.recognition.lang = "ja";
     this.recognition.continuous = true;
     this.recognition.onresult = ({ results }) => {
       const userPrompt = results[0][0].transcript;
@@ -33,6 +32,8 @@ AFRAME.registerComponent("ai-chatbot", {
     };
 
     this.initTextCanvas();
+
+    this.camera = document.querySelector("#avatar-rig");
   },
 
   tick: function (time, timeDelta) {
@@ -53,7 +54,15 @@ AFRAME.registerComponent("ai-chatbot", {
     }
 
     this.position = this.el.object3D.position;
-    this.textCanvasMesh.position.set(this.position.x, this.position.y + 0.3, this.position.z);
+    this.el.object3D.lookAt(this.camera.object3D.position);
+    this.el.object3D.rotateX(-1);
+    this.el.object3D.rotation._onChangeCallback();
+    if (this.textCanvasMesh) {
+      this.textCanvasMesh.position.set(this.position.x, this.position.y + 0.3, this.position.z);
+      this.textCanvasMesh.lookAt(this.camera.object3D.position);
+      this.textCanvasMesh.rotateX(-1);
+      this.textCanvasMesh.rotation._onChangeCallback();
+    }
     const interaction = AFRAME.scenes[0].systems.interaction;
     const isInteracting = interaction.isHeld(this.networkedEntity || this.el);
 
@@ -106,7 +115,7 @@ AFRAME.registerComponent("ai-chatbot", {
 
         // 音声読み上げ
         const uttr = new SpeechSynthesisUtterance();
-        uttr.lang = "en";
+        uttr.lang = "ja";
         uttr.onstart = () => {
           console.log("Start answering...");
           // TODO: talk animation
@@ -115,7 +124,12 @@ AFRAME.registerComponent("ai-chatbot", {
             const textWidth = context.measureText(textResponse).width;
             textCanvas.width = textWidth;
             textCanvas.height = 30;
-            context.fillText(textResponse, 0, 24);
+            context.fillStyle = "rgba(255, 255, 255, 0.3)"; // Background color
+            context.fillRect(0, 0, textWidth + 10, 30);
+
+            // Draw text
+            context.fillStyle = "white"; // Text color
+            context.fillText(textResponse, 3, 20);
             const texture = new THREE.Texture(textCanvas);
             texture.needsUpdate = true;
 
@@ -165,11 +179,16 @@ AFRAME.registerComponent("ai-chatbot", {
     this.textCanvas.width = 0;
     this.textCanvas.height = 30;
 
-    const defaultText = "Click me to ask questions";
+    const defaultText = "私にマウスを押しながら話してみてください";
     const defaultTextWidth = context.measureText(defaultText).width;
     this.textCanvas.width = defaultTextWidth;
     this.textCanvas.height = 30;
-    context.fillText(defaultText, 0, 24);
+    context.fillStyle = "rgba(255, 255, 255, 0.3)"; // Background color
+    context.fillRect(0, 0, defaultTextWidth + 10, 30);
+
+    // Draw text
+    context.fillStyle = "white"; // Text color
+    context.fillText(defaultText, 3, 20);
     const texture = new THREE.Texture(this.textCanvas);
     texture.needsUpdate = true;
 
