@@ -1,10 +1,52 @@
 # [Mozilla Hubs](https://hubs.mozilla.com/)
 
-[![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0) [![Build Status](https://travis-ci.org/mozilla/hubs.svg?branch=master)](https://travis-ci.org/mozilla/hubs) [![Discord](https://img.shields.io/discord/498741086295031808)](https://discord.gg/CzAbuGu)
+[![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
+
+<!-- [![Build Status](https://travis-ci.org/mozilla/hubs.svg?branch=master)](https://travis-ci.org/mozilla/hubs)
+[![Discord](https://img.shields.io/discord/498741086295031808)](https://discord.gg/CzAbuGu) -->
 
 The client-side code for [Mozilla Hubs](https://hubs.mozilla.com/), an online 3D collaboration platform that works for desktop, mobile, and VR platforms.
 
 [Learn more about Hubs](https://hubs.mozilla.com/docs/welcome.html)
+
+This version is developed by VR Research Educational Center, The University of Tokyo.
+
+## Instruction of local build (on Mac, tested with M1 Mac)
+
+Please check [this gist](https://gist.github.com/YHhaoareyou/199410454695d804db5fe7f569d055f0) for local build / development.
+
+We have also succeeded to run our Hubs on a server with Ubuntu, and its build instruction is also planned to be released soon.
+Before that, you can refer to [this instruction by albirrkarim](https://github.com/albirrkarim/mozilla-hubs-installation-detailed/blob/main/VPS_FOR_HUBS.md).
+
+## Features implemented by UTokyo
+
+#### Alternative WebRTC SFU: Sora
+
+- Dialog is set as the default; Sora is a proprietary service provided by Shiguredou inc. and is currently available only for customers in Japan. Check their website for details.
+
+  - To adopt it, please register on your own and fill in the value of your Sora project id and Sora bearer token at the Server Settings in the admin page.
+  - You can also set them in Reticulum's secret file (e.g. `config/dev.secret.exs`) as follows:
+
+  ```
+  use Mix.Config
+
+  config :ret, Ret.SoraChannelResolver,
+    bearer_token: "YOUR_SORA_CLOUD_BEARER_TOKEN",
+    project_id: "YOUR_SORA_CLOUD_PROJECT_ID"
+  ```
+
+- Room manager can choose which SFU to use for each room in the bottom of the room edit menu.
+- At the Server Settings in the admin page, admin can set the default SFU for all newly created rooms and the availability to switching SFU for every room.
+
+#### Synchronizing avatar transform with WebRTC DataChannel
+
+- This feature is adapted to both Dialog and Sora. That is, avatar transforms will be synchronized through DataChannel no matter you are using Dialog or Sora as the SFU.
+- We have adapted the management of avatars to BitECS on our own, independent from Hubs' official BitECS implementation. We are planning to migrate our implementation to the official one soon.
+
+#### Use of full-body avatars
+
+- Currently, only humanoid avatars made by ReadyPlayerMe or VRoid (with filename extension changed from .vrm to .glb) were confirmed to be compatible to this feature. Avatars made with other tool may not behave normally for now, and we will keep trying to improve the implementation to accommodate more kinds of full-body humanoid avatars.
+- There may also be problems in IK for full-body avatars, especially around wrists. We will improve it as soon as possible
 
 ## Getting Started
 
@@ -59,18 +101,16 @@ Contributors are expected to abide by the project's [Code of Conduct](./CODE_OF_
 
 ## Additional Resources
 
-* [Reticulum](https://github.com/mozilla/reticulum) - Phoenix-based backend for managing state and presence.
-* [NAF Janus Adapter](https://github.com/mozilla/naf-janus-adapter) - A [Networked A-Frame](https://github.com/networked-aframe) adapter for the Janus SFU service.
-* [Janus Gateway](https://github.com/meetecho/janus-gateway) - A WebRTC proxy used for centralizing network traffic in this client.
-* [Janus SFU Plugin](https://github.com/mozilla/janus-plugin-sfu) - Plugins for Janus which enables it to act as a SFU.
-* [Hubs-Ops](https://github.com/mozilla/hubs-ops) - Infrastructure as code + management tools for running necessary backend services on AWS.
+- [Reticulum](https://github.com/mozilla/reticulum) - Phoenix-based backend for managing state and presence.
+- [NAF Janus Adapter](https://github.com/mozilla/naf-janus-adapter) - A [Networked A-Frame](https://github.com/networked-aframe) adapter for the Janus SFU service.
+- [Janus Gateway](https://github.com/meetecho/janus-gateway) - A WebRTC proxy used for centralizing network traffic in this client.
+- [Janus SFU Plugin](https://github.com/mozilla/janus-plugin-sfu) - Plugins for Janus which enables it to act as a SFU.
+- [Hubs-Ops](https://github.com/mozilla/hubs-ops) - Infrastructure as code + management tools for running necessary backend services on AWS.
 
 ## Privacy
 
 Mozilla and Hubs believe that privacy is fundamental to a healthy internet. Read our [privacy policy](https://www.mozilla.org/en-US/privacy/hubs/) for more info.
 
-
 ## License
 
 Hubs is licensed with the [Mozilla Public License 2.0](./LICENSE)
-
