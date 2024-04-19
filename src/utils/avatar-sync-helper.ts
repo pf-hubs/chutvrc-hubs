@@ -125,9 +125,7 @@ export class AvatarSyncHelper {
     // Load self-avatar after entering scene
     getAvatarSrc(avatarId).then((avatarSrc: string) => {
       loadModel(avatarSrc).then(gltf => {
-        if (
-          createAvatarBoneEntities(APP.world, gltf.scene, clientId, this._avatarEid2ClientId, this._client2AvatarEid)
-        ) {
+        if (createAvatarBoneEntities(gltf.scene, clientId, this._avatarEid2ClientId, this._client2AvatarEid)) {
           APP.world.scene.add(gltf.scene);
         }
       });

@@ -198,11 +198,10 @@ export const createSelfAvatarBoneEntities = (world: HubsWorld, avatar: Object3D)
 };
 
 export const createAvatarBoneEntities = (
-  world: HubsWorld,
   avatar: Object3D,
-  clientId: string,
-  avatarEid2ClientId: Map<number, string>,
-  clientId2AvatarEid: Map<string, number>
+  clientId?: string,
+  avatarEid2ClientId?: Map<number, string>,
+  clientId2AvatarEid?: Map<string, number>
 ): number | null => {
   const avatarBoneMap = mapAvatarBone(avatar);
   const boneType2Eid = new Map<BoneType, number>();
@@ -211,20 +210,20 @@ export const createAvatarBoneEntities = (
 
   var boneEid;
   for (const boneType of Object.values(BoneType)) {
-    boneEid = createBoneEntity(world, avatarBoneMap.get(boneType as BoneType), avatarRoot, boneType as BoneType);
+    boneEid = createBoneEntity(APP.world, avatarBoneMap.get(boneType as BoneType), avatarRoot, boneType as BoneType);
     if (boneEid) boneType2Eid.set(boneType as BoneType, boneEid);
   }
 
   if (boneType2Eid.size > 0) {
     const avatarEid = createAvatarEntity(APP.world, boneType2Eid, clientId, avatarEid2ClientId);
     if (avatarEid) {
-      avatarEid2ClientId.set(avatarEid, clientId);
-      clientId2AvatarEid.set(clientId, avatarEid);
-      addObject3DComponent(world, avatarEid, avatar);
+      if (clientId && avatarEid2ClientId) avatarEid2ClientId.set(avatarEid, clientId);
+      if (clientId && clientId2AvatarEid) clientId2AvatarEid.set(clientId, avatarEid);
+      addObject3DComponent(APP.world, avatarEid, avatar);
 
       // const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
       // const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
-      APP.world.eid2Ik.set(avatarEid, new AvatarIkManager(world, avatarEid));
+      APP.world.eid2Ik.set(avatarEid, new AvatarIkManager(APP.world, avatarEid));
 
       // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
       // let neckPos = avatarBoneMap.get(BoneType.Neck)?.position;
