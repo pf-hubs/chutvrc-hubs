@@ -16,6 +16,7 @@ The client-side code for chutvrc, forked from [Mozilla Hubs](https://hubs.mozill
 - Currently, only humanoid avatars made by ReadyPlayerMe or VRoid (with filename extension changed from .vrm to .glb) were confirmed to be compatible to this feature.
 - Avatars made with other tool may not behave normally for now, and we will keep trying to improve the implementation to accommodate more kinds of full-body humanoid avatars.
 - There may also be problems in Inverse Kinematics(IK) for full-body avatars, especially around wrists. We are planning for improvements.
+- Currently tests are mainly done using Meta Quest 3, using controller or bare hand. Hand tracking implementation from other devices are planned for further development.
 
 ### BitECS implementation
 
