@@ -1,31 +1,37 @@
-# [Mozilla Hubs](https://hubs.mozilla.com/)
+# chutvrc
 
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
 
 <!-- [![Build Status](https://travis-ci.org/mozilla/hubs.svg?branch=master)](https://travis-ci.org/mozilla/hubs)
 [![Discord](https://img.shields.io/discord/498741086295031808)](https://discord.gg/CzAbuGu) -->
 
-The client-side code for [Mozilla Hubs](https://hubs.mozilla.com/), an online 3D collaboration platform that works for desktop, mobile, and VR platforms.
+The client-side code for chutvrc, forked from [Mozilla Hubs](https://hubs.mozilla.com/), an online 3D collaboration platform that works for desktop, mobile, and VR platforms.
 
-[Learn more about Hubs](https://hubs.mozilla.com/docs/welcome.html)
+<!--[Learn more about Hubs](https://hubs.mozilla.com/docs/welcome.html)-->
 
-This version is developed by VR Research Educational Center, The University of Tokyo.
+## chutvrc features
 
-## Instruction of local build (on Mac, tested with M1 Mac)
+### Full-body avatars
 
-Please check [this gist](https://gist.github.com/YHhaoareyou/199410454695d804db5fe7f569d055f0) for local build / development.
+- Currently, only humanoid avatars made by ReadyPlayerMe or VRoid (with filename extension changed from .vrm to .glb) were confirmed to be compatible to this feature.
+- Avatars made with other tool may not behave normally for now, and we will keep trying to improve the implementation to accommodate more kinds of full-body humanoid avatars.
+- There may also be problems in Inverse Kinematics(IK) for full-body avatars, especially around wrists. We are planning for improvements.
+- Currently tests are mainly done using Meta Quest 3, using controller or bare hand. Hand tracking implementation from other devices are planned for further development.
 
-We have also succeeded to run our Hubs on a server with Ubuntu, and its build instruction is also planned to be released soon.
-Before that, you can refer to [this instruction by albirrkarim](https://github.com/albirrkarim/mozilla-hubs-installation-detailed/blob/main/VPS_FOR_HUBS.md).
+### BitECS implementation
 
-## Features implemented by UTokyo
+- Management of avatars to BitECS were implemented independent from Mozilla Hubs' official BitECS implementation.
+- Migration of implementation with the Mozilla Hubs' BitECS implementation is planned.
 
-#### Alternative WebRTC SFU: Sora
+### Alternative WebRTC SFU
 
-- Dialog is set as the default; Sora is a proprietary service provided by Shiguredou inc. and is currently available only for customers in Japan. Check their website for details.
+- Feature for third-party WebRTC SFU solutions for environments hard to host and maintain performance with Dialog (Dialog is set as the default preference)
+- chutvrc has implementation of Sora, a proprietary service provided by Shiguredou inc., currently available only for customers in Japan (Check their website for details)
 
-  - To adopt it, please register on your own and fill in the value of your Sora project id and Sora bearer token at the Server Settings in the admin page.
-  - You can also set them in Reticulum's secret file (e.g. `config/dev.secret.exs`) as follows:
+#### How to use Sora
+
+- Please register on your own and fill in the value of your Sora project id and Sora bearer token at the Server Settings in the admin page
+- You can also set them in Reticulum's secret file (e.g. `config/dev.secret.exs`) as follows:
 
   ```
   use Mix.Config
@@ -35,18 +41,41 @@ Before that, you can refer to [this instruction by albirrkarim](https://github.c
     project_id: "YOUR_SORA_CLOUD_PROJECT_ID"
   ```
 
-- Room manager can choose which SFU to use for each room in the bottom of the room edit menu.
+- If it is enabled at the admin page, Room manager can choose which WebRTC SFU to use for each room at room edit menu.
 - At the Server Settings in the admin page, admin can set the default SFU for all newly created rooms and the availability to switching SFU for every room.
 
-#### Synchronizing avatar transform with WebRTC DataChannel
+### Synchronizing avatar transform with WebRTC DataChannel
 
-- This feature is adapted to both Dialog and Sora. That is, avatar transforms will be synchronized through DataChannel no matter you are using Dialog or Sora as the SFU.
-- We have adapted the management of avatars to BitECS on our own, independent from Hubs' official BitECS implementation. We are planning to migrate our implementation to the official one soon.
+- This feature is adapted to both Dialog and Sora.
+- With this feature enabled, avatar transforms will be transmitted through DataChannel no matter you are using Dialog or Sora as the SFU.
+- It is an experimental implementation considering it is logical to have body language and voice real-time communication transmitted within the same protocol.
 
-#### Use of full-body avatars
+## Instruction for local build
 
-- Currently, only humanoid avatars made by ReadyPlayerMe or VRoid (with filename extension changed from .vrm to .glb) were confirmed to be compatible to this feature. Avatars made with other tool may not behave normally for now, and we will keep trying to improve the implementation to accommodate more kinds of full-body humanoid avatars.
-- There may also be problems in IK for full-body avatars, especially around wrists. We will improve it as soon as possible
+### For Apple Mac (tested with M1 Mac)
+
+Please check [this gist](https://gist.github.com/YHhaoareyou/199410454695d804db5fe7f569d055f0) for local build / development.
+
+### For Ubuntu 
+
+Build instruction are planned to be released soon.
+
+Until that, you can refer to [this instruction by albirrkarim](https://github.com/albirrkarim/mozilla-hubs-installation-detailed/blob/main/VPS_FOR_HUBS.md).
+
+## Funding and Sponsor
+
+- chutvrc is sponsored and developed for [CHANGE Project](https://change.kawasaki-net.ne.jp/en/), by a research team at the [Virtual Reality Educational Research Center](https://vr.u-tokyo.ac.jp/), The University of Tokyo.
+- You can support this development through the GitHub Sponsor button which is linked to the [UTokyo Foundation](https://utf.u-tokyo.ac.jp/en).
+- Please write in the donation purpose "For Virtual Reality Educational Research Center, chutvrc related research/educational purpose".
+  - Please be aware that 30% of the amount of donation will be used by the university administration office.
+
+---
+
+Below is the original README for Mozilla Hubs, which most information are also useful for chutvrc.
+
+It will be updated to migration information considering the current status of Mozilla Hubs, which is planned to shutdown at the end of May 2024.
+
+---
 
 ## Getting Started
 
@@ -57,7 +86,6 @@ If you would like to deploy a custom client to your existing Hubs Cloud instance
 If you would like to contribute to the main fork of the Hubs client please see the [contributor guide](./CONTRIBUTING.md).
 
 If you just want to check out how Hubs works and make your own modifications continue on to our Quick Start Guide.
-
 ### Quick Start
 
 [Install NodeJS](https://nodejs.org) if you haven't already. We use 16.16.0 on our build servers. If you work on multiple javascript projects it may be useful to use something like [NVM](https://github.com/nvm-sh/nvm) to manage multiple versions of node for you.
