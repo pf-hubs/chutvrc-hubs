@@ -217,13 +217,15 @@ export const createAvatarBoneEntities = (
   if (boneType2Eid.size > 0) {
     const avatarEid = createAvatarEntity(APP.world, boneType2Eid, clientId, avatarEid2ClientId);
     if (avatarEid) {
-      if (clientId && avatarEid2ClientId) avatarEid2ClientId.set(avatarEid, clientId);
-      if (clientId && clientId2AvatarEid) clientId2AvatarEid.set(clientId, avatarEid);
-      addObject3DComponent(APP.world, avatarEid, avatar);
+      if (clientId) {
+        if (avatarEid2ClientId) avatarEid2ClientId.set(avatarEid, clientId);
+        if (clientId2AvatarEid) clientId2AvatarEid.set(clientId, avatarEid);
+        addObject3DComponent(APP.world, avatarEid, avatar);
+      }
 
       // const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
       // const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
-      APP.world.eid2Ik.set(avatarEid, new AvatarIkManager(APP.world, avatarEid));
+      APP.world.eid2Ik.set(avatarEid, new AvatarIkManager(APP.world, avatarEid, !clientId?.length));
 
       // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
       // let neckPos = avatarBoneMap.get(BoneType.Neck)?.position;

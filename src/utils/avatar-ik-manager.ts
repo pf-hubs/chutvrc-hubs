@@ -27,6 +27,7 @@ export class AvatarIkManager {
   private isInputReady: boolean;
   private isSelfAvatar: boolean;
   private isHalfBody: boolean;
+  private isNPC: boolean;
   private hips2HeadDist: number;
 
   private headIK: HeadIk;
@@ -35,7 +36,7 @@ export class AvatarIkManager {
   private leftLegIK: LegIk;
   private rightLegIK: LegIk;
 
-  constructor(world: HubsWorld, avatarEid: number) {
+  constructor(world: HubsWorld, avatarEid: number, isNPC?: boolean) {
     const head = world.eid2obj.get(AvatarComponent.head[avatarEid]);
     const spine = world.eid2obj.get(AvatarComponent.spine[avatarEid]);
     this.hipsBone = world.eid2obj.get(AvatarComponent.hips[avatarEid]);
@@ -51,6 +52,7 @@ export class AvatarIkManager {
     this.rootPos = new Vector3();
     this.isInputReady = false;
     this.isSelfAvatar = false;
+    this.isNPC = isNPC || false;
 
     let headWorldPos = new Vector3();
     let hipsWorldPos = new Vector3();
@@ -148,7 +150,7 @@ export class AvatarIkManager {
     if (this.rootBone.parent && !this.rootBone.parent?.visible) this.rootBone.parent.visible = true;
 
     this.rootInput = poseInput.rig;
-    this.updateRootAndHipsTransform(poseInput.hmd);
+    if (!this.isNPC) this.updateRootAndHipsTransform(poseInput.hmd);
 
     this.headIK?.solve(poseInput.hmd, poseInput.hmd, this.isVR, this.isSelfAvatar);
     this.leftArmIK?.solve(poseInput.leftController, poseInput.hmd, this.isVR, this.isSelfAvatar);

@@ -3,6 +3,8 @@ import { AiChatbot } from "../bit-components";
 import { mapAvatarBone } from "../utils/map-avatar-bones";
 import { BoneType } from "../constants";
 import { getFormattedPrompt, parseAiOutput } from "../utils/ai-chatbot-io-formatter";
+import { Vector3 } from "three";
+import { createAvatarBoneEntities } from "../bit-systems/avatar-bones-system";
 
 AFRAME.registerComponent("ai-chatbot", {
   schema: {
@@ -15,7 +17,7 @@ AFRAME.registerComponent("ai-chatbot", {
 
     this.isAnswering = false;
     this.isListening = false;
-    this.apiKey = "your-openai-api-key";
+    this.apiKey = "your-openai-api";
     this.position = this.el.object3D.position;
     this.isBoneMapped = false;
     this.thinkingAnimationTimer = 0;
@@ -35,6 +37,16 @@ AFRAME.registerComponent("ai-chatbot", {
         localRotation: {}
       }
     };
+    this.originalWorldPosition = {
+      head: new Vector3(),
+      leftHand: new Vector3(),
+      rightHand: new Vector3()
+    };
+    this.goalWorldPosition = {
+      head: new Vector3(),
+      leftHand: new Vector3(),
+      rightHand: new Vector3()
+    };
     this.speakingPose = null;
 
     // 音声認識
@@ -50,42 +62,47 @@ AFRAME.registerComponent("ai-chatbot", {
     this.initTextCanvas();
 
     this.camera = document.querySelector("#avatar-rig");
+
+    const sphere = new THREE.SphereGeometry(0.01);
+    const object = new THREE.Mesh(sphere, new THREE.MeshBasicMaterial(0xff0000));
+    const box = new THREE.BoxHelper(object, 0xffff00);
+    this.headHint = box;
+    APP.world.scene.add(this.headHint);
+    this.leftHint = box.clone();
+    APP.world.scene.add(this.leftHint);
+    this.rightHint = box.clone();
+    APP.world.scene.add(this.rightHint);
   },
 
   tick: function (time, timeDelta) {
     if (!this.isBoneMapped && this.el.object3D) {
       const boneMap = mapAvatarBone(
-        this.el.object3D
-          .getObjectByName("AuxScene")
-          ?.getObjectByName("AvatarRoot")
-          ?.getObjectByName("AvatarRoot")
-          ?.getObjectByName("AvatarRoot") || this.el.object3D
+        this.el.object3D.getObjectByName("AuxScene")?.getObjectByName("AvatarRoot")?.getObjectByName("AvatarRoot") ||
+          this.el.object3D
       );
       if (boneMap.get(BoneType.Head) && boneMap.get(BoneType.LeftHand) && boneMap.get(BoneType.RightHand)) {
         this.head = boneMap.get(BoneType.Head);
         this.leftHand = boneMap.get(BoneType.LeftHand);
         this.rightHand = boneMap.get(BoneType.RightHand);
+
         this.originalPose = {
           head: { localPosition: this.head.position.clone(), localRotation: this.head.rotation.clone() },
           leftHand: { localPosition: this.leftHand.position.clone(), localRotation: this.leftHand.rotation.clone() },
           rightHand: { localPosition: this.rightHand.position.clone(), localRotation: this.rightHand.rotation.clone() }
         };
-        // console.log(this.originalPose);
-        // this.eid = createAvatarBoneEntities(
-        //   this.el.object3D
-        //     .getObjectByName("AuxScene")
-        //     ?.getObjectByName("AvatarRoot")
-        //     ?.getObjectByName("AvatarRoot")
-        //     ?.getObjectByName("AvatarRoot") || this.el.object3D
-        // );
+
+        this.eid = createAvatarBoneEntities(
+          this.el.object3D.getObjectByName("AuxScene")?.getObjectByName("AvatarRoot")?.getObjectByName("AvatarRoot") ||
+            this.el.object3D
+        );
         this.isBoneMapped = true;
       }
     }
 
     this.position = this.el.object3D.position;
-    this.el.object3D.lookAt(this.camera.object3D.position);
-    this.el.object3D.rotateX(-1);
-    this.el.object3D.rotation._onChangeCallback();
+    // this.el.object3D.lookAt(this.camera.object3D.position);
+    // this.el.object3D.rotateX(-1);
+    // this.el.object3D.rotation._onChangeCallback();
     if (this.textCanvasMesh) {
       this.textCanvasMesh.position.set(this.position.x, this.position.y + 0.3, this.position.z);
       this.textCanvasMesh.lookAt(this.camera.object3D.position);
@@ -131,14 +148,65 @@ AFRAME.registerComponent("ai-chatbot", {
     console.log("Thinking...");
   },
 
-  stopThinking: function (startSpeaking = true) {
+  stopThinking: function () {
     this.isThinking = false;
     this.thinkingAnimationTimer = 0;
     console.log("Stop thinking.");
-    if (startSpeaking) {
-      this.isAnswering = true;
-      console.log("Start speaking...");
-    }
+  },
+
+  startSpeaking: function (animation) {
+    this.isAnswering = true;
+
+    this.updateBoneWorldPositions(
+      this.head,
+      this.originalWorldPosition.head,
+      this.goalWorldPosition.head,
+      animation.head
+    );
+    this.updateBoneWorldPositions(
+      this.leftHand,
+      this.originalWorldPosition.leftHand,
+      this.goalWorldPosition.leftHand,
+      animation.leftHand
+    );
+    this.updateBoneWorldPositions(
+      this.rightHand,
+      this.originalWorldPosition.rightHand,
+      this.goalWorldPosition.rightHand,
+      animation.rightHand
+    );
+
+    const headPos = this.goalWorldPosition.head.clone();
+    this.headHint.position.set(headPos.x, headPos.y, headPos.z);
+    this.headHint.updateMatrix();
+
+    const leftPos = this.goalWorldPosition.leftHand.clone();
+    this.leftHint.position.set(leftPos.x, leftPos.y, leftPos.z);
+    this.leftHint.updateMatrix();
+
+    const rightPos = this.goalWorldPosition.rightHand.clone();
+    this.rightHint.position.set(rightPos.x, rightPos.y, rightPos.z);
+    this.rightHint.updateMatrix();
+
+    console.log(animation);
+    console.log(this.goalWorldPosition);
+
+    console.log("Start speaking...");
+  },
+
+  updateBoneWorldPositions: function (bone, originalWorldPos, goalWorldPos, localAnim) {
+    // record original positions
+    bone.getWorldPosition(originalWorldPos);
+    const localPos = bone.position.clone();
+
+    // temporarily switch to animated pose
+    bone.position.set(localAnim.localPosition.x, localAnim.localPosition.y, localAnim.localPosition.z);
+    bone.updateMatrix();
+    bone.getWorldPosition(goalWorldPos);
+
+    // switch back to original positions
+    bone.position.copy(localPos);
+    bone.updateMatrix();
   },
 
   stopSpeaking: function () {
@@ -166,6 +234,7 @@ AFRAME.registerComponent("ai-chatbot", {
           // console.log(animation);
           this.speakingPose = animation;
           this.stopThinking();
+          this.startSpeaking(animation);
 
           // 音声読み上げ
           const uttr = new SpeechSynthesisUtterance();
@@ -278,49 +347,52 @@ AFRAME.registerComponent("ai-chatbot", {
 
   playSpeakingAnimation: function (timeDelta) {
     this.speakingAnimationTimer += timeDelta;
-    this.applyPose(this.head, this.speakingPose.head);
-    this.applyPose(this.leftHand, this.speakingPose.leftHand);
-    this.applyPose(this.rightHand, this.speakingPose.rightHand);
 
-    // APP.world.eid2Ik.get(this.eid)?.updateAvatarBoneIk({
-    //   rig: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
-    //   hmd: {
-    //     pos: {
-    //       x: this.speakingPose.head.localPosition.x,
-    //       y: this.speakingPose.head.localPosition.y,
-    //       z: this.speakingPose.head.localPosition.z
-    //     },
-    //     rot: {
-    //       x: this.speakingPose.head.localRotation.x,
-    //       y: this.speakingPose.head.localRotation.y,
-    //       z: this.speakingPose.head.localRotation.z
-    //     }
-    //   },
-    //   leftController: {
-    //     pos: {
-    //       x: this.speakingPose.leftHand.localPosition.x,
-    //       y: this.speakingPose.leftHand.localPosition.y,
-    //       z: this.speakingPose.leftHand.localPosition.z
-    //     },
-    //     rot: {
-    //       x: this.speakingPose.leftHand.localRotation.x,
-    //       y: this.speakingPose.leftHand.localRotation.y,
-    //       z: this.speakingPose.leftHand.localRotation.z
-    //     }
-    //   },
-    //   rightController: {
-    //     pos: {
-    //       x: this.speakingPose.rightHand.localPosition.x,
-    //       y: this.speakingPose.rightHand.localPosition.y,
-    //       z: this.speakingPose.rightHand.localPosition.z
-    //     },
-    //     rot: {
-    //       x: this.speakingPose.rightHand.localRotation.x,
-    //       y: this.speakingPose.rightHand.localRotation.y,
-    //       z: this.speakingPose.rightHand.localRotation.z
-    //     }
-    //   }
-    // });
+    // this.applyPose(this.head, this.speakingPose.head);
+    // this.applyPose(this.leftHand, this.speakingPose.leftHand);
+    // this.applyPose(this.rightHand, this.speakingPose.rightHand);
+
+    APP.world.eid2Ik.get(this.eid)?.updateAvatarBoneIk({
+      rig: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
+      hmd: {
+        pos: {
+          x: this.goalWorldPosition.head.x,
+          y: this.goalWorldPosition.head.y,
+          z: this.goalWorldPosition.head.z
+        },
+        rot: {
+          x: this.speakingPose.head.localRotation.x,
+          y: this.speakingPose.head.localRotation.y,
+          z: this.speakingPose.head.localRotation.z
+        }
+      },
+      leftController: {
+        pos: {
+          x: this.goalWorldPosition.leftHand.x,
+          y: this.goalWorldPosition.leftHand.y,
+          z: this.goalWorldPosition.leftHand.z
+        },
+        rot: {
+          x: this.speakingPose.leftHand.localRotation.x,
+          y: this.speakingPose.leftHand.localRotation.y,
+          z: this.speakingPose.leftHand.localRotation.z
+        }
+      },
+      rightController: {
+        pos: {
+          x: this.goalWorldPosition.rightHand.x,
+          y: this.goalWorldPosition.rightHand.y,
+          z: this.goalWorldPosition.rightHand.z
+        },
+        rot: {
+          x: this.speakingPose.rightHand.localRotation.x,
+          y: this.speakingPose.rightHand.localRotation.y,
+          z: this.speakingPose.rightHand.localRotation.z
+        }
+      }
+    });
+
+    this.el.object3D.updateMatrixWorld();
   },
 
   applyPose: function (bone, pose) {
@@ -332,8 +404,48 @@ AFRAME.registerComponent("ai-chatbot", {
   },
 
   restoreOriginalPose: function () {
-    this.applyPose(this.head, this.originalPose.head);
-    this.applyPose(this.leftHand, this.originalPose.leftHand);
-    this.applyPose(this.rightHand, this.originalPose.rightHand);
+    // this.applyPose(this.head, this.originalPose.head);
+    // this.applyPose(this.leftHand, this.originalPose.leftHand);
+    // this.applyPose(this.rightHand, this.originalPose.rightHand);
+
+    APP.world.eid2Ik.get(this.eid)?.updateAvatarBoneIk({
+      rig: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
+      hmd: {
+        pos: {
+          x: this.originalWorldPosition.head.x,
+          y: this.originalWorldPosition.head.y,
+          z: this.originalWorldPosition.head.z
+        },
+        rot: {
+          x: this.originalPose.head.localRotation.x,
+          y: this.originalPose.head.localRotation.y,
+          z: this.originalPose.head.localRotation.z
+        }
+      },
+      leftController: {
+        pos: {
+          x: this.originalWorldPosition.leftHand.x,
+          y: this.originalWorldPosition.leftHand.y,
+          z: this.originalWorldPosition.leftHand.z
+        },
+        rot: {
+          x: this.originalPose.leftHand.localRotation.x,
+          y: this.originalPose.leftHand.localRotation.y,
+          z: this.originalPose.leftHand.localRotation.z
+        }
+      },
+      rightController: {
+        pos: {
+          x: this.originalWorldPosition.rightHand.x,
+          y: this.originalWorldPosition.rightHand.y,
+          z: this.originalWorldPosition.rightHand.z
+        },
+        rot: {
+          x: this.originalPose.rightHand.localRotation.x,
+          y: this.originalPose.rightHand.localRotation.y,
+          z: this.originalPose.rightHand.localRotation.z
+        }
+      }
+    });
   }
 });
