@@ -284,12 +284,10 @@ AFRAME.registerComponent("media-loader", {
 
       // TODO this does duplicate work in some cases, but finish() is the only consistent place to do it
       const contentBounds = getBox(this.el.object3D, this.el.getObject3D("mesh")).getSize(new THREE.Vector3());
-      try {
+      if (el.eid) {
         addComponent(APP.world, MediaContentBounds, el.eid);
-      } catch (error) {
-        console.error(error);
+        MediaContentBounds.bounds[el.eid].set(contentBounds.toArray());
       }
-      MediaContentBounds.bounds[el.eid].set(contentBounds.toArray());
 
       el.emit("media-loaded");
     };
