@@ -68,6 +68,11 @@ Until that, you can refer to [this instruction by albirrkarim](https://github.co
 
 ## Funding and Sponsor
 
+<div align="center">
+    <img src=".github/media/vrcenter-logo.png" width="320">
+    <img src=".github/media/change-logo.png" width="320">
+</div>
+
 - chutvrc is sponsored and developed for [CHANGE Project](https://change.kawasaki-net.ne.jp/en/), by a research team at the [Virtual Reality Educational Research Center](https://vr.u-tokyo.ac.jp/), The University of Tokyo.
 - You can support this development through the GitHub Sponsor button which is linked to the [UTokyo Foundation](https://utf.u-tokyo.ac.jp/en).
 - Please write in the donation purpose "For Virtual Reality Educational Research Center, chutvrc related research/educational purpose".
