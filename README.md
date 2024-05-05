@@ -7,6 +7,10 @@
 
 The client-side code for chutvrc, forked from [Mozilla Hubs](https://hubs.mozilla.com/), an online 3D collaboration platform that works for desktop, mobile, and VR platforms.
 
+<div align="center">
+    <img src=".github/media/full-body-avatar-dance.gif" width="320">
+</div>
+
 <!--[Learn more about Hubs](https://hubs.mozilla.com/docs/welcome.html)-->
 
 ## chutvrc features
