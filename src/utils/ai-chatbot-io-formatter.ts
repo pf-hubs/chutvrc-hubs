@@ -33,15 +33,11 @@ export function getFormattedPrompt(prompt: string, pose?: AvatarPose): string {
         animationExplanation: [string],
         animation: {
           head: {
-            localPosition: { x: 0, y: ${pose?.head?.localPosition?.y || 0}, z: 0 },
-            localRotation: { x: [${pose ? pose.head.localRotation.x + " + " : ""} angle in radian], y: [${
-    pose ? pose.head.localRotation.y + " + " : ""
-  } angle in radian], z: [${pose ? pose.head.localRotation.z + " + " : ""} angle in radian] }
+            localPosition: { x: 0, y: 0, z: 0 },
+            localRotation: { x: 0, y: 0, z: 0 }
           },
           leftHand: {
-            localPosition: { x: [number between ${pose ? pose.leftHand.localPosition.x - 0.2 : 0.1} and ${
-    pose ? pose.leftHand.localPosition.x + 0.2 : 0.5
-  }], y: [number between -0.3 and 0.3], z: [number between 0 and 0.3] },
+            localPosition: { x: [number between -0.1 (right) and 0.1 (left)], y: [number between 0 (waist's height) and 0.2 (over head's height)], z: [number between 0 (relaxed, neither front nor back) and 0.1(front)] },
             localRotation: { x: [angle in radian${
               pose ? " (original: " + pose.leftHand.localRotation.x + ")" : ""
             }], y: [angle in radian${
@@ -49,9 +45,7 @@ export function getFormattedPrompt(prompt: string, pose?: AvatarPose): string {
   }], z: [angle in radian${pose ? " (original: " + pose.leftHand.localRotation.z + ")" : ""}] }
           },
           rightHand: {
-            localPosition: { x: [number between ${pose ? pose.rightHand.localPosition.x - 0.2 : -0.5} and ${
-    pose ? pose.rightHand.localPosition.x + 0.2 : -0.1
-  }], y: [number between -0.3 and 0.3], z: [number between 0 and 0.3] },
+            localPosition: { x: [number between -0.1 (right) and 0.1 (left)], y: [number between 0 (waist's height) and 0.2 (head's height)], z: [number between 0 (relaxed, neither front nor back) and 0.1(front)] },
             localRotation: { x: [angle in radian${
               pose ? " (original: " + pose.rightHand.localRotation.x + ")" : ""
             }], y: [angle in radian${
@@ -59,7 +53,7 @@ export function getFormattedPrompt(prompt: string, pose?: AvatarPose): string {
   }], z: [angle in radian${pose ? " (original: " + pose.rightHand.localRotation.z + ")" : ""}] }
           },
           leftFoot: {
-            localPosition: { x: [number between 0 and 0.2], y: 0, z: [number between -0.1 and 0.1] },
+            localPosition: { x: [number between 0.1 (left) and 0], y: [number between 0 and 0.1 (up)], z: [number between 0 and 0.1(front)] },
             localRotation: { x: [angle in radian${
               pose?.leftFoot ? " (original: " + pose.leftFoot.localRotation.x + ")" : ""
             }], y: [angle in radian${
@@ -67,7 +61,7 @@ export function getFormattedPrompt(prompt: string, pose?: AvatarPose): string {
   }], z: [angle in radian${pose?.leftFoot ? " (original: " + pose.leftFoot.localRotation.z + ")" : ""}] }
           },
           rightFoot: {
-            localPosition: { x: [number between -0.2 and 0], y: 0, z: [number between -0.1 and 0.1] },
+            localPosition: { x: [number between -0.1 (right) and 0], y: [number between 0 and 0.1 (up)], z: [number between 0 and 0.1(front)] },
             localRotation: { x: [angle in radian${
               pose?.rightFoot ? " (original: " + pose.rightFoot.localRotation.x + ")" : ""
             }], y: [angle in radian${

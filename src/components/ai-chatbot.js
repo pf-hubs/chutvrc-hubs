@@ -22,6 +22,7 @@ AFRAME.registerComponent("ai-chatbot", {
     this.isBoneMapped = false;
     this.thinkingAnimationTimer = 0;
     this.speakingAnimationTimer = 0;
+    this.restorePoseTimer = 0;
     this.responsesLog = [];
     this.originalPose = {
       head: {
@@ -84,6 +85,7 @@ AFRAME.registerComponent("ai-chatbot", {
         this.head = boneMap.get(BoneType.Head);
         this.leftHand = boneMap.get(BoneType.LeftHand);
         this.rightHand = boneMap.get(BoneType.RightHand);
+        this.root = boneMap.get(BoneType.Root);
 
         this.originalPose = {
           head: { localPosition: this.head.position.clone(), localRotation: this.head.rotation.clone() },
@@ -133,6 +135,14 @@ AFRAME.registerComponent("ai-chatbot", {
     } else {
       this.speakingAnimationTimer = 0;
     }
+
+    if (this.restorePoseTimer > 0) {
+      this.restorePoseTimer += timeDelta * 0.001;
+      this.restoreOriginalPose();
+      if (this.restorePoseTimer > 3) {
+        this.restorePoseTimer = 0;
+      }
+    }
   },
 
   startListening: function () {
@@ -156,6 +166,8 @@ AFRAME.registerComponent("ai-chatbot", {
 
   startSpeaking: function (animation) {
     this.isAnswering = true;
+
+    // TODO: calibration between scene's and bot's coordinates
 
     this.updateBoneWorldPositions(
       this.head,
@@ -189,24 +201,26 @@ AFRAME.registerComponent("ai-chatbot", {
     this.rightHint.updateMatrix();
 
     console.log(animation);
-    console.log(this.goalWorldPosition);
 
     console.log("Start speaking...");
   },
 
-  updateBoneWorldPositions: function (bone, originalWorldPos, goalWorldPos, localAnim) {
+  updateBoneWorldPositions: function (bone, originalWorldPos, goalWorldPos, anim) {
     // record original positions
     bone.getWorldPosition(originalWorldPos);
-    const localPos = bone.position.clone();
+    const posDiff = anim.localPosition;
+    goalWorldPos.set(originalWorldPos.x + posDiff.x, originalWorldPos.y + posDiff.y, originalWorldPos.z + posDiff.z);
+
+    // const localPos = bone.position.clone();
 
     // temporarily switch to animated pose
-    bone.position.set(localAnim.localPosition.x, localAnim.localPosition.y, localAnim.localPosition.z);
-    bone.updateMatrix();
-    bone.getWorldPosition(goalWorldPos);
+    // bone.position.set(localAnim.localPosition.x, localAnim.localPosition.y, localAnim.localPosition.z);
+    // bone.updateMatrix();
+    // bone.getWorldPosition(goalWorldPos);
 
-    // switch back to original positions
-    bone.position.copy(localPos);
-    bone.updateMatrix();
+    // // switch back to original positions
+    // bone.position.copy(localPos);
+    // bone.updateMatrix();
   },
 
   stopSpeaking: function () {
@@ -229,11 +243,11 @@ AFRAME.registerComponent("ai-chatbot", {
       if (xhr.readyState === XMLHttpRequest.DONE) {
         const response = JSON.parse(xhr.responseText);
         try {
-          const { answer, animation } = parseAiOutput(response.choices[0].message.content);
+          const { answer, animationExplanation, animation } = parseAiOutput(response.choices[0].message.content);
 
-          // console.log(animation);
           this.speakingPose = animation;
           this.stopThinking();
+          console.log(animationExplanation);
           this.startSpeaking(animation);
 
           // 音声読み上げ
@@ -271,7 +285,7 @@ AFRAME.registerComponent("ai-chatbot", {
           };
           uttr.onend = () => {
             this.stopSpeaking();
-            this.restoreOriginalPose();
+            this.restorePoseTimer = 0.001;
           };
           uttr.text = answer;
           window.speechSynthesis.speak(uttr);

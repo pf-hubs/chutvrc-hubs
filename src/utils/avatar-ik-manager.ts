@@ -152,11 +152,11 @@ export class AvatarIkManager {
     this.rootInput = poseInput.rig;
     if (!this.isNPC) this.updateRootAndHipsTransform(poseInput.hmd);
 
-    this.headIK?.solve(poseInput.hmd, poseInput.hmd, this.isVR, this.isSelfAvatar);
-    this.leftArmIK?.solve(poseInput.leftController, poseInput.hmd, this.isVR, this.isSelfAvatar);
-    this.rightArmIK?.solve(poseInput.rightController, poseInput.hmd, this.isVR, this.isSelfAvatar);
-    this.leftLegIK?.solve(null, poseInput.hmd, this.isVR, this.isSelfAvatar);
-    this.rightLegIK?.solve(null, poseInput.hmd, this.isVR, this.isSelfAvatar);
+    this.headIK?.solve(poseInput.hmd, poseInput.hmd, this.isVR || this.isNPC, this.isSelfAvatar);
+    this.leftArmIK?.solve(poseInput.leftController, poseInput.hmd, this.isVR || this.isNPC, this.isSelfAvatar);
+    this.rightArmIK?.solve(poseInput.rightController, poseInput.hmd, this.isVR || this.isNPC, this.isSelfAvatar);
+    if (!this.isNPC) this.leftLegIK?.solve(null, poseInput.hmd, this.isVR || this.isNPC, this.isSelfAvatar);
+    if (!this.isNPC) this.rightLegIK?.solve(null, poseInput.hmd, this.isVR || this.isNPC, this.isSelfAvatar);
 
     if (this.isVR) this.rootBone?.updateWorldMatrix(false, true);
   }
