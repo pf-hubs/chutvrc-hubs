@@ -56,6 +56,13 @@ The client-side code for chutvrc, forked from [Mozilla Hubs](https://hubs.mozill
 
 ## Instruction for local build
 
+Chutvrc is tested using the following repositories.
+
+- client-side: [chutvrc](https://github.com/pf-hubs/chutvrc-hubs)
+- server-side: [chutvrc reticulum](https://github.com/pf-hubs/chutvrc-reticulum)
+- WebRTC-side: [chutvrc dialog](https://github.com/pf-hubs/chutvrc-dialog)
+- editor-side: [chutvrc spoke](https://github.com/pf-hubs/chutvrc-spoke)
+
 ### For Apple Mac (tested with M1 Mac)
 
 Please check [this gist](https://gist.github.com/YHhaoareyou/199410454695d804db5fe7f569d055f0) for local build / development.
@@ -75,8 +82,8 @@ Until that, you can refer to [this instruction by albirrkarim](https://github.co
 
 - chutvrc is sponsored and developed for [CHANGE Project](https://change.kawasaki-net.ne.jp/en/), by a research team at the [Virtual Reality Educational Research Center](https://vr.u-tokyo.ac.jp/), The University of Tokyo.
 - You can support this development through the GitHub Sponsor button which is linked to the [UTokyo Foundation](https://utf.u-tokyo.ac.jp/en).
-- Please write in the donation purpose "For Virtual Reality Educational Research Center, chutvrc related research/educational purpose".
-  - Please be aware that 30% of the amount of donation will be used by the university administration office.
+- If you want to support this project only, please write in the donation purpose "For Virtual Reality Educational Research Center, chutvrc related research/educational purpose."
+  - Please be aware that 30% of the amount of donation will be used by the university administration office even if you write the donation purpose.
 
 ---
 
