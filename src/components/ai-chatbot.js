@@ -5,6 +5,7 @@ import { BoneType } from "../constants";
 import { getFormattedPrompt, parseAiOutput } from "../utils/ai-chatbot-io-formatter";
 import { Vector3 } from "three";
 import { createAvatarBoneEntities } from "../bit-systems/avatar-bones-system";
+import { WhisperSTT } from "whisper-speech-to-text";
 
 AFRAME.registerComponent("ai-chatbot", {
   schema: {
@@ -17,7 +18,7 @@ AFRAME.registerComponent("ai-chatbot", {
 
     this.isAnswering = false;
     this.isListening = false;
-    this.apiKey = "your-openai-api";
+    this.apiKey = "your-openai-api-key";
     this.position = this.el.object3D.position;
     this.isBoneMapped = false;
     this.thinkingAnimationTimer = 0;
@@ -51,14 +52,17 @@ AFRAME.registerComponent("ai-chatbot", {
     this.speakingPose = null;
 
     // 音声認識
-    const SpeechRec = window.webkitSpeechRecognition || window.SpeechRecognition;
-    this.recognition = new SpeechRec();
-    this.recognition.lang = "ja";
-    this.recognition.continuous = true;
-    this.recognition.onresult = ({ results }) => {
-      const userPrompt = results[0][0].transcript;
-      this.requestChatAPI(userPrompt, this.textCanvas, this.textCanvasMesh);
-    };
+    this.speechToText = new WhisperSTT(this.apiKey);
+
+    // const SpeechRec = window.webkitSpeechRecognition || window.SpeechRecognition;
+    // this.recognition = new SpeechRec();
+    // this.recognition.lang = "ja";
+    // this.recognition.continuous = true;
+    // this.recognition.onresult = ({ results }) => {
+    //   const userPrompt = results[0][0].transcript;
+    //   console.log("SpeechRecognition:", userPrompt);
+    //   // this.requestChatAPI(userPrompt, this.textCanvas, this.textCanvasMesh);
+    // };
 
     this.initTextCanvas();
 
@@ -147,15 +151,20 @@ AFRAME.registerComponent("ai-chatbot", {
 
   startListening: function () {
     this.isListening = true;
-    this.recognition.start();
+    // this.recognition.start();
+    this.speechToText.startRecording();
     console.log("Ask me something!");
   },
 
   stopListening: function () {
-    this.recognition.stop();
+    // this.recognition.stop();
     this.isListening = false;
     this.isThinking = true;
     console.log("Thinking...");
+    this.speechToText.stopRecording(text => {
+      console.log("Whisper transcription:", text);
+      this.requestChatAPI(text, this.textCanvas, this.textCanvasMesh);
+    });
   },
 
   stopThinking: function () {
