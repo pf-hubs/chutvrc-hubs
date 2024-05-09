@@ -22,32 +22,32 @@ export function getFormattedPrompt(prompt: string, pose?: AvatarPose): string {
 
   According to this request, generate outputs for each of the following instructions, and print the output only in the format at the bottom.
   
-  1. Answer this request in Japanese
-  2. Suppose you have a humanoid body, tell me what specific poses or gestures (by head, arms, and legs) you will use when answering the request. Print only the specific descriptions about the poses or gestures.
-  3. According to the output of the poses or gestures, generate animations in JSON for a humanoid avatar. The height of the avatar equals to 1.7.
+  1. Answer this request in Japanese, and split the answer into array of short strings
+  2. Suppose you have a humanoid body, describe the specific poses or gestures (by head, arms, and legs) you will use in an array of strings (same length as the answers), each of them corresponding to each short string from the answer. Print only the specific descriptions about the poses or gestures.
+  3. According to each output of the described poses or gestures, generate animations for a humanoid avatar in an array of JSONs (same length as the answers).
   
   Only output in this format:
     \`\`\`
       {
-        answer: [string],
-        animationExplanation: [string],
-        animation: {
-          head: {
-            localPosition: { x: 0, y: 0, z: 0 },
-            localRotation: { x: 0, y: 0, z: 0 }
-          },
-          leftHand: {
-            localPosition: { x: [number between -0.1 (right) and 0.1 (left)], y: [number between 0 (waist's height) and 0.2 (over head's height)], z: [number between 0 (relaxed, middle) and 0.1(front)] },
-            localRotation: { x: 0, y: 0, z: 0},
-          rightHand: {
-            localPosition: { x: [number between -0.1 (right) and 0.1 (left)], y: [number between 0 (waist's height) and 0.2 (over head's height)], z: [number between 0 (relaxed, middle) and 0.1(front)] },
-            localRotation: { x: 0, y: 0, z: 0},
-          leftFoot: {
-            localPosition: { x: [number between 0.1 (left) and 0], y: [number between 0 and 0.1 (up)], z: [number between 0 and 0.1(front)] },
-            localRotation: { x: 0, y: 0, z: 0},
-          rightFoot: {
-            localPosition: { x: [number between -0.1 (right) and 0], y: [number between 0 and 0.1 (up)], z: [number between 0 and 0.1(front)] },
-            localRotation: { x: 0, y: 0, z: 0},
+        answers: [array of string],
+        animationExplanations: [array of string],
+        animations: [array of Pose]
+      }
+    \`\`\`
+  while the type Pose is formatted as follows:
+    \`\`\`
+      {
+        head: {
+          localPosition: { x: 0, y: 0, z: 0 },
+          localRotation: { x: 0, y: 0, z: 0 }
+        },
+        leftHand: {
+          localPosition: { x: [number between -0.1 (right) and 0.1 (left)], y: [number between 0 (waist's height) and 0.2 (over head's height)], z: [number between 0 (relaxed, middle) and 0.1(front)] },
+          localRotation: { x: 0, y: 0, z: 0},
+        },
+        rightHand: {
+          localPosition: { x: [number between -0.1 (right) and 0.1 (left)], y: [number between 0 (waist's height) and 0.2 (over head's height)], z: [number between 0 (relaxed, middle) and 0.1(front)] },
+          localRotation: { x: 0, y: 0, z: 0},
         }
       }
     \`\`\`

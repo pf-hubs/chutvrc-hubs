@@ -25,6 +25,7 @@ AFRAME.registerComponent("ai-chatbot", {
     this.thinkingAnimationTimer = 0;
     this.speakingAnimationTimer = 0;
     this.restorePoseTimer = 0;
+    this.posesCounter = 0;
     this.originalPose = {
       head: { localPosition: {}, localRotation: {} },
       leftHand: { localPosition: {}, localRotation: {} },
@@ -122,7 +123,6 @@ AFRAME.registerComponent("ai-chatbot", {
     this.isListening = true;
     if (this.speechToText) this.speechToText.startRecording(); // Whisper speech to text
     if (this.recognition) this.recognition.start(); // Web Speech API SpeechRecognition
-    console.log("Ask me something!");
   },
 
   stopListening: function () {
@@ -142,7 +142,6 @@ AFRAME.registerComponent("ai-chatbot", {
   stopThinking: function () {
     this.isThinking = false;
     this.thinkingAnimationTimer = 0;
-    console.log("Stop thinking.");
   },
 
   startSpeaking: function (animation) {
@@ -181,14 +180,12 @@ AFRAME.registerComponent("ai-chatbot", {
     this.rightHint.position.set(rightPos.x, rightPos.y, rightPos.z);
     this.rightHint.updateMatrix();
 
-    console.log(animation);
-
-    console.log("Start speaking...");
+    // console.log(animation);
   },
 
   updateBoneWorldPositions: function (bone, originalWorldPos, goalWorldPos, anim) {
     // record original positions
-    bone.getWorldPosition(originalWorldPos);
+    if (this.posesCounter === 0) bone.getWorldPosition(originalWorldPos);
     const posDiff = anim.localPosition;
     goalWorldPos.set(originalWorldPos.x + posDiff.x, originalWorldPos.y + posDiff.y, originalWorldPos.z + posDiff.z);
 
@@ -205,7 +202,6 @@ AFRAME.registerComponent("ai-chatbot", {
   },
 
   stopSpeaking: function () {
-    console.log("Speaking done! Anything else?");
     this.isAnswering = false;
     this.speakingAnimationTimer = 0;
   },
@@ -223,26 +219,38 @@ AFRAME.registerComponent("ai-chatbot", {
       if (xhr.readyState === XMLHttpRequest.DONE) {
         const response = JSON.parse(xhr.responseText);
         try {
-          console.log(response);
-          const { answer, animationExplanation, animation } = parseAiOutput(response.choices[0].message.content);
-
-          this.speakingPose = animation;
           this.stopThinking();
-          console.log(animationExplanation);
-          this.startSpeaking(animation);
+          const { answers, animationExplanations, animations } = parseAiOutput(response.choices[0].message.content);
+          console.log(answers);
+          console.log(animationExplanations);
+          console.log(animations);
 
-          // 音声読み上げ
-          const uttr = new SpeechSynthesisUtterance();
-          uttr.lang = "ja";
-          uttr.onstart = () => {
-            this.transcriptCanvas.writeOnCanvas(answer);
-          };
-          uttr.onend = () => {
-            this.stopSpeaking();
-            this.restorePoseTimer = 0.001;
-          };
-          uttr.text = answer;
-          window.speechSynthesis.speak(uttr);
+          const uttrs = [];
+          this.posesCounter = 0;
+
+          for (let i = 0; i < answers.length; i++) {
+            const uttr = new SpeechSynthesisUtterance();
+            uttr.lang = "ja";
+            uttr.onstart = () => {
+              if (this.posesCounter < animations.length) this.speakingPose = animations[this.posesCounter];
+              if (this.posesCounter < answers.length) this.transcriptCanvas.writeOnCanvas(answers[this.posesCounter]);
+              this.startSpeaking(this.speakingPose);
+            };
+            uttr.onend = () => {
+              if (this.posesCounter < answers.length - 1) {
+                this.posesCounter++;
+                uttrs[this.posesCounter].text = answers[this.posesCounter];
+                window.speechSynthesis.speak(uttrs[this.posesCounter]);
+              } else {
+                this.stopSpeaking();
+                this.restorePoseTimer = 0.001;
+              }
+            };
+            uttrs.push(uttr);
+          }
+
+          uttrs[this.posesCounter].text = answers[this.posesCounter];
+          window.speechSynthesis.speak(uttrs[this.posesCounter]);
         } catch (error) {
           console.error(error);
         }
@@ -253,8 +261,8 @@ AFRAME.registerComponent("ai-chatbot", {
 
     xhr.send(
       JSON.stringify({
-        model: "gpt-3.5-turbo", // gpt-3.5-turbo、gpt-4-turbo、text-davinci-003、...
-        max_tokens: 1024,
+        model: "gpt-4-turbo", // gpt-3.5-turbo、gpt-4-turbo、text-davinci-003、...
+        max_tokens: 2048,
         temperature: 1,
         top_p: 1,
         messages: [
@@ -279,10 +287,6 @@ AFRAME.registerComponent("ai-chatbot", {
 
   playSpeakingAnimation: function (timeDelta) {
     this.speakingAnimationTimer += timeDelta;
-
-    // this.applyPose(this.head, this.speakingPose.head);
-    // this.applyPose(this.leftHand, this.speakingPose.leftHand);
-    // this.applyPose(this.rightHand, this.speakingPose.rightHand);
 
     APP.world.eid2Ik.get(this.eid)?.updateAvatarBoneIk({
       rig: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
@@ -327,19 +331,7 @@ AFRAME.registerComponent("ai-chatbot", {
     this.el.object3D.updateMatrixWorld();
   },
 
-  applyPose: function (bone, pose) {
-    if (!bone) return;
-    bone.position.set(pose.localPosition.x, pose.localPosition.y, pose.localPosition.z);
-    bone.rotation.set(pose.localRotation.x, pose.localRotation.y, pose.localRotation.z);
-    bone.rotation._onChangeCallback();
-    bone.updateMatrix();
-  },
-
   restoreOriginalPose: function () {
-    // this.applyPose(this.head, this.originalPose.head);
-    // this.applyPose(this.leftHand, this.originalPose.leftHand);
-    // this.applyPose(this.rightHand, this.originalPose.rightHand);
-
     APP.world.eid2Ik.get(this.eid)?.updateAvatarBoneIk({
       rig: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
       hmd: {
