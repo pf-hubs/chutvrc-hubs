@@ -26,18 +26,9 @@ AFRAME.registerComponent("ai-chatbot", {
     this.speakingAnimationTimer = 0;
     this.restorePoseTimer = 0;
     this.originalPose = {
-      head: {
-        localPosition: {},
-        localRotation: {}
-      },
-      leftHand: {
-        localPosition: {},
-        localRotation: {}
-      },
-      rightHand: {
-        localPosition: {},
-        localRotation: {}
-      }
+      head: { localPosition: {}, localRotation: {} },
+      leftHand: { localPosition: {}, localRotation: {} },
+      rightHand: { localPosition: {}, localRotation: {} }
     };
     this.originalWorldPosition = {
       head: new Vector3(),
@@ -50,33 +41,10 @@ AFRAME.registerComponent("ai-chatbot", {
       rightHand: new Vector3()
     };
     this.speakingPose = null;
-
-    // 音声認識
-    this.speechToText = new WhisperSTT(this.apiKey);
-
-    // const SpeechRec = window.webkitSpeechRecognition || window.SpeechRecognition;
-    // this.recognition = new SpeechRec();
-    // this.recognition.lang = "ja";
-    // this.recognition.continuous = true;
-    // this.recognition.onresult = ({ results }) => {
-    //   const userPrompt = results[0][0].transcript;
-    //   console.log("SpeechRecognition:", userPrompt);
-    //   this.transcriptCanvas.writeOnCanvas(userPrompt);
-    // };
-
+    this.initSpeechToText();
     this.transcriptCanvas = new TranscriptCanvas("私にマウスを押しながら話してみてください");
-
     this.camera = document.querySelector("#avatar-rig");
-
-    const sphere = new THREE.SphereGeometry(0.01);
-    const object = new THREE.Mesh(sphere, new THREE.MeshBasicMaterial(0xff0000));
-    const box = new THREE.BoxHelper(object, 0xffff00);
-    this.headHint = box;
-    APP.world.scene.add(this.headHint);
-    this.leftHint = box.clone();
-    APP.world.scene.add(this.leftHint);
-    this.rightHint = box.clone();
-    APP.world.scene.add(this.rightHint);
+    this.initAnimationTargetHints();
   },
 
   tick: function (time, timeDelta) {
@@ -152,20 +120,23 @@ AFRAME.registerComponent("ai-chatbot", {
 
   startListening: function () {
     this.isListening = true;
-    // this.recognition.start();
-    this.speechToText.startRecording();
+    if (this.speechToText) this.speechToText.startRecording(); // Whisper speech to text
+    if (this.recognition) this.recognition.start(); // Web Speech API SpeechRecognition
     console.log("Ask me something!");
   },
 
   stopListening: function () {
-    // this.recognition.stop();
     this.isListening = false;
     this.isThinking = true;
-    console.log("Thinking...");
-    this.speechToText.stopRecording(text => {
-      console.log("Whisper transcription:", text);
-      this.requestChatAPI(text);
-    });
+
+    if (this.speechToText) {
+      // Whisper speech to text
+      this.speechToText.stopRecording(text => {
+        console.log("Whisper transcription:", text);
+        this.requestChatAPI(text);
+      });
+    }
+    if (this.recognition) this.recognition.stop(); // Web Speech API SpeechRecognition
   },
 
   stopThinking: function () {
@@ -408,5 +379,35 @@ AFRAME.registerComponent("ai-chatbot", {
         }
       }
     });
+  },
+
+  initSpeechToText: function (useWhisper = true) {
+    if (useWhisper) {
+      // Whisper speech to text
+      this.speechToText = new WhisperSTT(this.apiKey);
+    } else {
+      // Web Speech API SpeechRecognition
+      const SpeechRec = window.webkitSpeechRecognition || window.SpeechRecognition;
+      this.recognition = new SpeechRec();
+      this.recognition.lang = "ja";
+      this.recognition.continuous = true;
+      this.recognition.onresult = ({ results }) => {
+        const userPrompt = results[0][0].transcript;
+        console.log("SpeechRecognition:", userPrompt);
+        this.transcriptCanvas.writeOnCanvas(userPrompt);
+      };
+    }
+  },
+
+  initAnimationTargetHints: function () {
+    const sphere = new THREE.SphereGeometry(0.01);
+    const object = new THREE.Mesh(sphere, new THREE.MeshBasicMaterial(0xff0000));
+    const box = new THREE.BoxHelper(object, 0xffff00);
+    this.headHint = box;
+    APP.world.scene.add(this.headHint);
+    this.leftHint = box.clone();
+    APP.world.scene.add(this.leftHint);
+    this.rightHint = box.clone();
+    APP.world.scene.add(this.rightHint);
   }
 });
