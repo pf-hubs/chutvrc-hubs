@@ -31,6 +31,7 @@ export class LimbIk {
   protected isFlippedY: boolean;
   protected isVR: boolean;
   protected isSelfAvatar: boolean;
+  protected isNPC: boolean;
 
   constructor(
     avatarRootBone: Object3D,
@@ -84,13 +85,14 @@ export class LimbIk {
     this.effector.updateMatrix();
   }
 
-  solve(input: Transform | null, cameraTransform: Transform, isVR: boolean, isSelfAvatar: boolean) {
+  solve(input: Transform | null, cameraTransform: Transform, isVR: boolean, isSelfAvatar: boolean, isNPC: boolean) {
     this.isVR = isVR;
     this.isSelfAvatar = isSelfAvatar;
+    this.isNPC = isNPC;
     this.avatarRoot.getWorldPosition(this.avatarRootWorldPos);
     this.updateCurrentInput(input, cameraTransform);
 
-    this.adjustEffectorTransform(input);
+    if (!isNPC) this.adjustEffectorTransform(input); // TODO: remove `if (!isNPC)`
 
     for (let _ = 0; _ < 3; _++) {
       this.base?.ikSolver?.alignBoneWithGoal(this.currentInputPosition);

@@ -36,7 +36,7 @@ export class ArmIk extends LimbIk {
     this.isLeft = isLeft;
     this.isHalfBody = isHalfBody;
     this.isVisible = true;
-    this.inputFilter = new TransformLowPassFilter(0.3, 0.3);
+    this.inputFilter = new TransformLowPassFilter(0.1, 0.1);
     this.isDebug = isDebug;
     this.world = world;
     this.effector.rotation.order = "YXZ";
@@ -45,11 +45,14 @@ export class ArmIk extends LimbIk {
   protected override updateCurrentInput(input: Transform | null, cameraTransform: Transform) {
     this.currentInputPosition
       .set(
-        input && this.isVR ? -input.pos.x : this.isLeft ? 0.3 : -0.3,
-        input && this.isVR ? input.pos.y : 0.9,
-        input && this.isVR ? -input.pos.z : 0
+        input && (this.isVR || this.isNPC) ? -input.pos.x : this.isLeft ? 0.3 : -0.3,
+        input && (this.isVR || this.isNPC) ? input.pos.y : 0.9,
+        input && (this.isVR || this.isNPC) ? -input.pos.z : 0
       )
-      .applyAxisAngle(VECTOR_UP, this.avatarRoot.rotation.y - Math.PI + (this.isVR ? 0 : cameraTransform.rot.y))
+      .applyAxisAngle(
+        VECTOR_UP,
+        this.avatarRoot.rotation.y - Math.PI + (this.isVR || this.isNPC ? 0 : cameraTransform.rot.y)
+      )
       .add(this.avatarRootWorldPos);
   }
 
@@ -64,7 +67,7 @@ export class ArmIk extends LimbIk {
   }
 
   protected override adjustEffectorTransform(input: Transform | null) {
-    if (input && this.isVR && this.avatarRoot) {
+    if (input && (this.isVR || this.isNPC) && this.avatarRoot) {
       let parent = this.effector.parent;
       let targetQ = new Quaternion();
       targetQ.setFromEuler(new Euler(input.rot.x, input.rot.y, input.rot.z, "YXZ"));
@@ -95,29 +98,36 @@ export class ArmIk extends LimbIk {
     this.effector.updateMatrix();
   }
 
-  override solve(input: Transform | null, cameraTransform: Transform, isVR: boolean, isSelfAvatar: boolean) {
-    if (this.isVisible && this.isHalfBody && !this.isVR) {
+  override solve(
+    input: Transform | null,
+    cameraTransform: Transform,
+    isVR: boolean,
+    isSelfAvatar: boolean,
+    isNPC: boolean
+  ) {
+    if (this.isVisible && this.isHalfBody && !this.isVR && !this.isNPC) {
       this.isVisible = false;
       this.effector.position.set(0, 0, 0);
       this.effector.scale.set(0.1, 0.1, 0.1);
       this.effector.updateMatrix();
       return;
-    } else if (!this.isVisible && (!this.isHalfBody || this.isVR)) {
+    } else if (!this.isVisible && (!this.isHalfBody || this.isVR || this.isNPC)) {
       this.isVisible = true;
       this.effector.scale.set(1, 1, 1);
     }
 
-    if (input && isVR && !this.isHalfBody) {
+    if (input && (isVR || isNPC) && !this.isHalfBody) {
       input = this.inputFilter.getTransformWithFilteredPosition(input);
     }
 
     // super.solve(input, cameraTransform, isVR, isSelfAvatar);
     this.isVR = isVR;
     this.isSelfAvatar = isSelfAvatar;
+    this.isNPC = isNPC;
     this.avatarRoot.getWorldPosition(this.avatarRootWorldPos);
     this.updateCurrentInput(input, cameraTransform);
 
-    this.adjustEffectorTransform(input);
+    if (!isNPC) this.adjustEffectorTransform(input); // TODO: remove `if (!isNPC)`
 
     const rotY = this.effector.rotation.y;
     // this.effector.rotation.y = 0;

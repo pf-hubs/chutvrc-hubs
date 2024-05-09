@@ -37,42 +37,28 @@ export function getFormattedPrompt(prompt: string, pose?: AvatarPose): string {
             localRotation: { x: 0, y: 0, z: 0 }
           },
           leftHand: {
-            localPosition: { x: [number between -0.1 (right) and 0.1 (left)], y: [number between 0 (waist's height) and 0.2 (over head's height)], z: [number between 0 (relaxed, neither front nor back) and 0.1(front)] },
-            localRotation: { x: [angle in radian${
-              pose ? " (original: " + pose.leftHand.localRotation.x + ")" : ""
-            }], y: [angle in radian${
-    pose ? " (original: " + pose.leftHand.localRotation.y + ")" : ""
-  }], z: [angle in radian${pose ? " (original: " + pose.leftHand.localRotation.z + ")" : ""}] }
-          },
+            localPosition: { x: [number between -0.1 (right) and 0.1 (left)], y: [number between 0 (waist's height) and 0.2 (over head's height)], z: [number between 0 (relaxed, middle) and 0.1(front)] },
+            localRotation: { x: 0, y: 0, z: 0},
           rightHand: {
-            localPosition: { x: [number between -0.1 (right) and 0.1 (left)], y: [number between 0 (waist's height) and 0.2 (head's height)], z: [number between 0 (relaxed, neither front nor back) and 0.1(front)] },
-            localRotation: { x: [angle in radian${
-              pose ? " (original: " + pose.rightHand.localRotation.x + ")" : ""
-            }], y: [angle in radian${
-    pose ? " (original: " + pose.rightHand.localRotation.y + ")" : ""
-  }], z: [angle in radian${pose ? " (original: " + pose.rightHand.localRotation.z + ")" : ""}] }
-          },
+            localPosition: { x: [number between -0.1 (right) and 0.1 (left)], y: [number between 0 (waist's height) and 0.2 (over head's height)], z: [number between 0 (relaxed, middle) and 0.1(front)] },
+            localRotation: { x: 0, y: 0, z: 0},
           leftFoot: {
             localPosition: { x: [number between 0.1 (left) and 0], y: [number between 0 and 0.1 (up)], z: [number between 0 and 0.1(front)] },
-            localRotation: { x: [angle in radian${
-              pose?.leftFoot ? " (original: " + pose.leftFoot.localRotation.x + ")" : ""
-            }], y: [angle in radian${
-    pose?.leftFoot ? " (original: " + pose.leftFoot.localRotation.y + ")" : ""
-  }], z: [angle in radian${pose?.leftFoot ? " (original: " + pose.leftFoot.localRotation.z + ")" : ""}] }
-          },
+            localRotation: { x: 0, y: 0, z: 0},
           rightFoot: {
             localPosition: { x: [number between -0.1 (right) and 0], y: [number between 0 and 0.1 (up)], z: [number between 0 and 0.1(front)] },
-            localRotation: { x: [angle in radian${
-              pose?.rightFoot ? " (original: " + pose.rightFoot.localRotation.x + ")" : ""
-            }], y: [angle in radian${
-    pose?.rightFoot ? " (original: " + pose.rightFoot.localRotation.y + ")" : ""
-  }], z: [angle in radian${pose?.rightFoot ? " (original: " + pose.rightFoot.localRotation.z + ")" : ""}] }
-          },
+            localRotation: { x: 0, y: 0, z: 0},
         }
       }
     \`\`\`
   `;
 }
+
+// localRotation: { x: [angle in radian${
+//   pose ? " (original: " + pose.leftHand.localRotation.x + ")" : ""
+// }], y: [angle in radian${
+// pose ? " (original: " + pose.leftHand.localRotation.y + ")" : ""
+// }], z: [angle in radian${pose ? " (original: " + pose.leftHand.localRotation.z + ")" : ""}] }
 
 export function parseAiOutput(aiOutput: string): Output {
   if (aiOutput.includes("```")) {
