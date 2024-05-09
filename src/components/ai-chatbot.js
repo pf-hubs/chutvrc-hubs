@@ -6,6 +6,7 @@ import { getFormattedPrompt, parseAiOutput } from "../utils/ai-chatbot-io-format
 import { Vector3 } from "three";
 import { createAvatarBoneEntities } from "../bit-systems/avatar-bones-system";
 import { WhisperSTT } from "whisper-speech-to-text";
+import { TranscriptCanvas } from "../utils/transcript-canvas";
 
 AFRAME.registerComponent("ai-chatbot", {
   schema: {
@@ -24,7 +25,6 @@ AFRAME.registerComponent("ai-chatbot", {
     this.thinkingAnimationTimer = 0;
     this.speakingAnimationTimer = 0;
     this.restorePoseTimer = 0;
-    this.responsesLog = [];
     this.originalPose = {
       head: {
         localPosition: {},
@@ -61,10 +61,10 @@ AFRAME.registerComponent("ai-chatbot", {
     // this.recognition.onresult = ({ results }) => {
     //   const userPrompt = results[0][0].transcript;
     //   console.log("SpeechRecognition:", userPrompt);
-    //   // this.requestChatAPI(userPrompt, this.textCanvas, this.textCanvasMesh);
+    //   this.transcriptCanvas.writeOnCanvas(userPrompt);
     // };
 
-    this.initTextCanvas();
+    this.transcriptCanvas = new TranscriptCanvas("私にマウスを押しながら話してみてください");
 
     this.camera = document.querySelector("#avatar-rig");
 
@@ -109,12 +109,13 @@ AFRAME.registerComponent("ai-chatbot", {
     // this.el.object3D.lookAt(this.camera.object3D.position);
     // this.el.object3D.rotateX(-1);
     // this.el.object3D.rotation._onChangeCallback();
-    if (this.textCanvasMesh) {
-      this.textCanvasMesh.position.set(this.position.x, this.position.y + 0.3, this.position.z);
-      this.textCanvasMesh.lookAt(this.camera.object3D.position);
-      this.textCanvasMesh.rotateX(-1);
-      this.textCanvasMesh.rotation._onChangeCallback();
-    }
+    this.transcriptCanvas.updateTransform(
+      this.position.x,
+      this.position.y + 0.3,
+      this.position.z,
+      this.camera.object3D.position
+    );
+
     const interaction = AFRAME.scenes[0].systems.interaction;
     const isInteracting = interaction.isHeld(this.networkedEntity || this.el);
 
@@ -163,7 +164,7 @@ AFRAME.registerComponent("ai-chatbot", {
     console.log("Thinking...");
     this.speechToText.stopRecording(text => {
       console.log("Whisper transcription:", text);
-      this.requestChatAPI(text, this.textCanvas, this.textCanvasMesh);
+      this.requestChatAPI(text);
     });
   },
 
@@ -239,9 +240,8 @@ AFRAME.registerComponent("ai-chatbot", {
   },
 
   // ChatGPT APIリクエスト
-  requestChatAPI: function (prompt = "", textCanvas = null, textCanvasMesh = null) {
+  requestChatAPI: function (prompt = "") {
     if (!prompt) return;
-    const responsesLog = this.responsesLog;
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "https://api.openai.com/v1/chat/completions");
@@ -252,6 +252,7 @@ AFRAME.registerComponent("ai-chatbot", {
       if (xhr.readyState === XMLHttpRequest.DONE) {
         const response = JSON.parse(xhr.responseText);
         try {
+          console.log(response);
           const { answer, animationExplanation, animation } = parseAiOutput(response.choices[0].message.content);
 
           this.speakingPose = animation;
@@ -263,34 +264,7 @@ AFRAME.registerComponent("ai-chatbot", {
           const uttr = new SpeechSynthesisUtterance();
           uttr.lang = "ja";
           uttr.onstart = () => {
-            // TODO: talk animation
-            if (textCanvas && textCanvasMesh) {
-              const context = textCanvas.getContext("2d");
-              const textWidth = context.measureText(answer).width;
-              textCanvas.width = textWidth;
-              textCanvas.height = 30;
-              context.fillStyle = "rgba(255, 255, 255, 0.3)"; // Background color
-              context.fillRect(0, 0, textWidth + 10, 30);
-
-              // Draw text
-              context.fillStyle = "white"; // Text color
-              context.fillText(answer, 3, 20);
-              const texture = new THREE.Texture(textCanvas);
-              texture.needsUpdate = true;
-
-              textCanvasMesh.material = new THREE.MeshBasicMaterial({
-                map: texture,
-                side: THREE.DoubleSide
-              });
-              textCanvasMesh.material.transparent = true;
-              if (responsesLog.length > 0) {
-                const lastTextWidth = context.measureText(responsesLog[responsesLog.length - 1]).width;
-                textCanvasMesh.geometry.scale(30 / lastTextWidth, 1, 1);
-              }
-              textCanvasMesh.geometry.scale(textWidth / 30, 1, 1);
-              textCanvasMesh.needsUpdate;
-              responsesLog.push(answer);
-            }
+            this.transcriptCanvas.writeOnCanvas(answer);
           };
           uttr.onend = () => {
             this.stopSpeaking();
@@ -308,8 +282,8 @@ AFRAME.registerComponent("ai-chatbot", {
 
     xhr.send(
       JSON.stringify({
-        model: "gpt-3.5-turbo", // gpt-3.5-turbo、text-davinci-003、その他
-        max_tokens: 512,
+        model: "gpt-3.5-turbo", // gpt-3.5-turbo、gpt-4-turbo、text-davinci-003、...
+        max_tokens: 1024,
         temperature: 1,
         top_p: 1,
         messages: [
@@ -321,42 +295,6 @@ AFRAME.registerComponent("ai-chatbot", {
         response_format: { type: "json_object" }
       })
     );
-  },
-
-  initTextCanvas: function () {
-    this.textCanvas = document.createElement("canvas");
-    const context = this.textCanvas.getContext("2d");
-    context.font = "24px sans-serif";
-    this.textCanvas.width = 0;
-    this.textCanvas.height = 30;
-
-    const defaultText = "私にマウスを押しながら話してみてください";
-    const defaultTextWidth = context.measureText(defaultText).width;
-    this.textCanvas.width = defaultTextWidth;
-    this.textCanvas.height = 30;
-    context.fillStyle = "rgba(255, 255, 255, 0.3)"; // Background color
-    context.fillRect(0, 0, defaultTextWidth + 10, 30);
-
-    // Draw text
-    context.fillStyle = "white"; // Text color
-    context.fillText(defaultText, 3, 20);
-    const texture = new THREE.Texture(this.textCanvas);
-    texture.needsUpdate = true;
-
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      side: THREE.DoubleSide
-    });
-    material.transparent = true;
-    this.textCanvasMesh = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), material);
-    this.textCanvasMesh.name = "Chatbot answer";
-    APP.world.scene.add(this.textCanvasMesh);
-    this.textCanvasMesh.scale.set(0.005, 0.005, 1);
-    this.textCanvasMesh.material.transparent = true;
-
-    this.textCanvasMesh.geometry.scale(defaultTextWidth / 30, 1, 1);
-    this.textCanvasMesh.needsUpdate;
-    this.responsesLog.push(defaultText);
   },
 
   playThinkingAnimation: function (timeDelta) {
