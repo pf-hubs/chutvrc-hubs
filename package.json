@@ -113,7 +113,7 @@
     "nipplejs": "github:mozillareality/nipplejs#mr-social-client/master",
     "node-ensure": "0.0.0",
     "normalize.css": "^8.0.1",
-    "pdfjs-dist": "^2.14.305",
+    "pdfjs-dist": "^4.2.67",
     "phoenix": "github:gfodor/phoenix-js#master",
     "postprocessing": "^6.28.7",
     "prop-types": "^15.7.2",
