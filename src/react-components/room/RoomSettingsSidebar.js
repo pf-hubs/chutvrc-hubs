@@ -43,8 +43,6 @@ export function RoomSettingsSidebar({
     defaultValues: room
   });
 
-  console.log(room);
-
   const entryMode = watch("entry_mode");
   const spawnAndMoveMedia = watch("member_permissions.spawn_and_move_media");
 
