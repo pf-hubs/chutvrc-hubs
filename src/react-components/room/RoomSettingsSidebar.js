@@ -43,6 +43,8 @@ export function RoomSettingsSidebar({
     defaultValues: room
   });
 
+  console.log(room);
+
   const entryMode = watch("entry_mode");
   const spawnAndMoveMedia = watch("member_permissions.spawn_and_move_media");
 
@@ -203,7 +205,7 @@ export function RoomSettingsSidebar({
                     defaultMessage="Allow Full-body Avatar"
                   />
                 }
-                {...register("member_permissions.allow-fullbody-avatar")}
+                {...register("allow_fullbody_avatar")}
               />
             )}
           </div>
@@ -215,16 +217,28 @@ export function RoomSettingsSidebar({
             description="Select the WebRTC SFU to use for this room"
           >
             <RadioInputOption
-              name="sfu"
-              value="0"
+              value={0}
               label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-dialog" defaultMessage="Dialog" />}
-              ref={register}
+              description={
+                <FormattedMessage
+                  id="room-settings-sidebar.webrtc-sfu-dialog-description"
+                  defaultMessage="Mediasoup based WebRTC SFU, developed by Mozilla"
+                />
+              }
+              error={errors?.sfu?.message}
+              {...register("sfu")}
             />
             <RadioInputOption
-              name="sfu"
-              value="1"
+              value={1}
               label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-sora" defaultMessage="Sora" />}
-              ref={register}
+              description={
+                <FormattedMessage
+                  id="room-settings-sidebar.webrtc-sfu-sora-description"
+                  defaultMessage="Provided by Shiguredou inc. (License required)"
+                />
+              }
+              error={errors?.sfu?.message}
+              {...register("sfu")}
             />
           </RadioInputField>
         )}
