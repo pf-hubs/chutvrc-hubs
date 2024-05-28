@@ -183,7 +183,9 @@ export class AvatarSyncHelper {
   private setSelfIsVrFlag() {
     this._client2VrMode.set(
       this._sfu._clientId,
-      AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting
+      AFRAME.scenes[0]?.renderer
+        ? AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting
+        : false
     );
   }
 
@@ -192,7 +194,13 @@ export class AvatarSyncHelper {
       "#isVR",
       this._sfu._clientId +
         "|" +
-        (AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting ? "1" : "0")
+        ((
+          AFRAME.scenes[0]?.renderer
+            ? AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting
+            : false
+        )
+          ? "1"
+          : "0")
     );
   }
 }
