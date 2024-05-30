@@ -22,34 +22,20 @@ export function getFormattedPrompt(prompt: string, pose?: AvatarPose): string {
 
   According to this request, generate outputs for each of the following instructions, and print the output only in the format at the bottom.
   
-  1. Answer this request in Japanese, and split the answer into array of short strings
+  1. Answer this request in Japanese, and split the answer into array of strings (at most 5 strings), just as human needs to rest while speaking.
   2. Suppose you have a humanoid body, describe the specific poses or gestures (by head, arms, and legs) you will use in an array of strings (same length as the answers), each of them corresponding to each short string from the answer. Print only the specific descriptions about the poses or gestures.
-  3. According to each output of the described poses or gestures, generate animations for a humanoid avatar in an array of JSONs (same length as the answers).
+  3. According to each output of the described poses or gestures, generate animations for a humanoid avatar in an array of number arrays (same length as the answers).
   
-  Only output in this format:
+  Only output in this JSON format:
     \`\`\`
       {
-        answers: [array of string],
-        animationExplanations: [array of string],
-        animations: [array of Pose]
+        ans: [(Response to instruction 1) answer to the request in the format of an array of string],
+        ani: [(Response to instruction 3) array of ANIMATIONS]
       }
     \`\`\`
-  while the type Pose is formatted as follows:
+  while the type ANIMATIONS is formatted as follows:
     \`\`\`
-      {
-        head: {
-          localPosition: { x: 0, y: 0, z: 0 },
-          localRotation: { x: 0, y: 0, z: 0 }
-        },
-        leftHand: {
-          localPosition: { x: [number between -0.1 (right) and 0.1 (left)], y: [number between 0 (waist's height) and 0.2 (over head's height)], z: [number between 0 (relaxed, middle) and 0.1(front)] },
-          localRotation: { x: 0, y: 0, z: 0},
-        },
-        rightHand: {
-          localPosition: { x: [number between -0.1 (right) and 0.1 (left)], y: [number between 0 (waist's height) and 0.2 (over head's height)], z: [number between 0 (relaxed, middle) and 0.1(front)] },
-          localRotation: { x: 0, y: 0, z: 0},
-        }
-      }
+    [(head local position x), (head local position y), (head local position z), (head local rotation x), (head local rotation y), (head local rotation z), (left hand local position x as a number between -0.1 (right) and 0.1 (left)), (left hand local position y as a number between 0 (waist's height) and 0.2 (over head's height)), (left hand local position z as a number between 0 (relaxed, middle) and 0.1(front)), (left hand local rotation x), (left hand local rotation y), (left hand local rotation z), (right hand local position x as a number between -0.1 (right) and 0.1 (left)), (right hand local position y as a number between 0 (waist's height) and 0.2 (over head's height)), (right hand local position z as a number between 0 (relaxed, middle) and 0.1(front)), (right hand local rotation x), (right hand local rotation y), (right hand local rotation z)]
     \`\`\`
   `;
 }

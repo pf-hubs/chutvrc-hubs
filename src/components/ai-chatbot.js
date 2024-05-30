@@ -19,7 +19,7 @@ AFRAME.registerComponent("ai-chatbot", {
 
     this.isAnswering = false;
     this.isListening = false;
-    this.apiKey = "your-openai-api-key";
+    this.apiKey = process.env.OPENAI_API_KEY;
     this.position = this.el.object3D.position;
     this.isBoneMapped = false;
     this.thinkingAnimationTimer = 0;
@@ -220,26 +220,28 @@ AFRAME.registerComponent("ai-chatbot", {
         const response = JSON.parse(xhr.responseText);
         try {
           this.stopThinking();
-          const { answers, animationExplanations, animations } = parseAiOutput(response.choices[0].message.content);
-          console.log(answers);
-          console.log(animationExplanations);
-          console.log(animations);
+          // const { answers, animationExplanations, animations } = parseAiOutput(response.choices[0].message.content);
+          console.log(response.choices);
+          const { ans, ani } = parseAiOutput(response.choices[0].message.content);
+          console.log(ans);
+          // console.log(animationExplanations);
+          console.log(ani);
 
           const uttrs = [];
           this.posesCounter = 0;
 
-          for (let i = 0; i < answers.length; i++) {
+          for (let i = 0; i < ans.length; i++) {
             const uttr = new SpeechSynthesisUtterance();
             uttr.lang = "ja";
             uttr.onstart = () => {
-              if (this.posesCounter < animations.length) this.speakingPose = animations[this.posesCounter];
-              if (this.posesCounter < answers.length) this.transcriptCanvas.writeOnCanvas(answers[this.posesCounter]);
+              if (this.posesCounter < ani.length) this.speakingPose = this.parseRawAnim(ani[this.posesCounter]);
+              if (this.posesCounter < ans.length) this.transcriptCanvas.writeOnCanvas(ans[this.posesCounter]);
               this.startSpeaking(this.speakingPose);
             };
             uttr.onend = () => {
-              if (this.posesCounter < answers.length - 1) {
+              if (this.posesCounter < ans.length - 1) {
                 this.posesCounter++;
-                uttrs[this.posesCounter].text = answers[this.posesCounter];
+                uttrs[this.posesCounter].text = ans[this.posesCounter];
                 window.speechSynthesis.speak(uttrs[this.posesCounter]);
               } else {
                 this.stopSpeaking();
@@ -249,7 +251,7 @@ AFRAME.registerComponent("ai-chatbot", {
             uttrs.push(uttr);
           }
 
-          uttrs[this.posesCounter].text = answers[this.posesCounter];
+          uttrs[this.posesCounter].text = ans[this.posesCounter];
           window.speechSynthesis.speak(uttrs[this.posesCounter]);
         } catch (error) {
           console.error(error);
@@ -261,7 +263,7 @@ AFRAME.registerComponent("ai-chatbot", {
 
     xhr.send(
       JSON.stringify({
-        model: "gpt-4-turbo", // gpt-3.5-turbo、gpt-4-turbo、text-davinci-003、...
+        model: "gpt-4o", // gpt-3.5-turbo、gpt-4-turbo、text-davinci-003、...
         max_tokens: 2048,
         temperature: 1,
         top_p: 1,
@@ -371,6 +373,23 @@ AFRAME.registerComponent("ai-chatbot", {
         }
       }
     });
+  },
+
+  parseRawAnim: function (rawAnim) {
+    return {
+      head: {
+        localPosition: { x: rawAnim[0], y: rawAnim[1], z: rawAnim[2] },
+        localRotation: { x: rawAnim[3], y: rawAnim[4], z: rawAnim[5] }
+      },
+      leftHand: {
+        localPosition: { x: rawAnim[6], y: rawAnim[7], z: rawAnim[8] },
+        localRotation: { x: rawAnim[9], y: rawAnim[10], z: rawAnim[11] }
+      },
+      rightHand: {
+        localPosition: { x: rawAnim[12], y: rawAnim[13], z: rawAnim[14] },
+        localRotation: { x: rawAnim[15], y: rawAnim[16], z: rawAnim[17] }
+      }
+    };
   },
 
   initSpeechToText: function (useWhisper = true) {
