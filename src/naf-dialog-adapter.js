@@ -1080,11 +1080,19 @@ export class DialogAdapter extends SfuAdapter {
   }
 
   broadcast(channel, message) {
-    this._dataProducers.get(channel)?.send(new TextEncoder().encode(message));
+    try {
+      this._dataProducers.get(channel)?.send(new TextEncoder().encode(message));
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   broadcastUint8(channel, message) {
-    this._dataProducers.get(channel)?.send(message);
+    try {
+      this._dataProducers.get(channel)?.send(message);
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   emitRTCEvent(level, tag, msgFunc) {

@@ -320,11 +320,19 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   broadcast(channel: string, message: string) {
-    this._sendrecv?.sendMessage(channel, new TextEncoder().encode(message));
+    try {
+      this._sendrecv?.sendMessage(channel, new TextEncoder().encode(message));
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   broadcastUint8(channel: string, message: Uint8Array) {
-    this._sendrecv?.sendMessage(channel, message);
+    try {
+      this._sendrecv?.sendMessage(channel, message);
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   emitRTCEvent(level: string, tag: string, msgFunc: () => void) {

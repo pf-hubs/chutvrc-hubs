@@ -19,7 +19,7 @@ const TYPE_IMG_PNG = { type: "image/png" };
  * Then the path to the worker script
  */
 pdfjs.GlobalWorkerOptions.workerSrc =
-  require("!!file-loader?outputPath=assets/js&name=[name]-[hash].js!pdfjs-dist/build/pdf.worker.min.js").default;
+  require("!!file-loader?outputPath=assets/js&name=[name]-[hash].js!pdfjs-dist/build/pdf.worker.min.mjs").default;
 
 AFRAME.registerComponent("media-pdf", {
   schema: {
