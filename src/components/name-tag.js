@@ -10,7 +10,6 @@ import { textureLoader } from "../utils/media-utils";
 
 import handRaisedIconSrc from "../assets/hud/hand-raised.png";
 import { AvatarComponent } from "../bit-components";
-import { SFU } from "../available-sfu";
 
 const DEBUG = qsTruthy("debug");
 const NAMETAG_BACKGROUND_PADDING = 0.05;
@@ -114,13 +113,16 @@ AFRAME.registerComponent("name-tag", {
 
     this.updateTheme();
 
-    NAF.utils.getNetworkedEntity(this.el).then(networkedEntity => {
-      this.playerSessionId = NAF.utils.getCreator(networkedEntity);
-      const playerPresence = window.APP.hubChannel.presence.state[this.playerSessionId];
-      if (playerPresence) {
-        this.updateFromPresenceMeta(playerPresence.metas[0]);
-      }
-    });
+    NAF.utils
+      .getNetworkedEntity(this.el)
+      .then(networkedEntity => {
+        this.playerSessionId = NAF.utils.getCreator(networkedEntity);
+        const playerPresence = window.APP.hubChannel.presence.state[this.playerSessionId];
+        if (playerPresence) {
+          this.updateFromPresenceMeta(playerPresence.metas[0]);
+        }
+      })
+      .catch(err => console.error(err));
 
     if (DEBUG) {
       this.avatarAABBHelper = new THREE.Box3Helper(this.avatarAABB, 0xffff00);

@@ -4,6 +4,7 @@ import { debug as newDebug } from "debug";
 import { MediaDevices } from "./utils/media-devices-utils";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
+import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
 
 // Used for VP9 webcam video.
 //const VIDEO_KSVC_ENCODINGS = [{ scalabilityMode: "S3T3_KEY" }];
@@ -324,6 +325,7 @@ export class DialogAdapter extends SfuAdapter {
             accept();
 
             this.resolvePendingMediaRequestForTrack(peerId, consumer.track);
+            this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(new MediaStream([consumer.track]));
 
             // Notify of an stream update event
             this.emit("stream_updated", peerId, kind);

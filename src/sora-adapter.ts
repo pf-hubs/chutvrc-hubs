@@ -3,6 +3,7 @@ import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 import { MediaDevices } from "./utils/media-devices-utils";
 import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
+import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
 const debug = newDebug("naf-dialog-adapter:debug");
 
 type ConnectProps = {
@@ -26,6 +27,7 @@ export class SoraAdapter extends SfuAdapter {
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
   _avatarSyncHelper: AvatarSyncHelper;
+  crossRoomStreamerAudioSource: CrossRoomStreamerAudioSource;
 
   constructor() {
     super();
@@ -98,6 +100,8 @@ export class SoraAdapter extends SfuAdapter {
       if (!this._remoteMediaStreams.has(stream.id)) {
         this._remoteMediaStreams.set(stream.id, stream);
       }
+
+      this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(new MediaStream(stream.getAudioTracks()));
     });
     this._sendrecv.on("removetrack", event => {
       // @ts-ignore

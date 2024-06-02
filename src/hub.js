@@ -698,7 +698,7 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
           registerNetworkSchemas();
           APP.sfu.connect({
             serverUrl: `wss://${hub.host}:4443`,
-            roomId: hub.hub_id,
+            roomId: "cross_room_streaming", // hub.hub_id,
             serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
             scene,
             clientId: data.session_id,
@@ -1521,7 +1521,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     APP.dialog.disconnect();
     APP.dialog.connect({
       serverUrl: `wss://${host}:${port}`,
-      roomId: APP.hub.hub_id,
+      roomId: "cross_room_streaming", // APP.hub.hub_id,
       serverParams: { host, port, turn },
       scene,
       clientId: APP.getString(localClientID),
