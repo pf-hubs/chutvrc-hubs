@@ -28,7 +28,7 @@ import { waitForPreloads } from "./utils/preload";
 import SceneEntryManager from "./scene-entry-manager";
 import { store } from "./utils/store-instance";
 import { SoraAdapter } from "./sora-adapter";
-import { SFU } from "./available-sfu";
+import { SFU } from "./sfu-types";
 import { SfuAdapter } from "./sfu-adapter";
 import { DialogAdapter } from "./naf-dialog-adapter";
 import { addObject3DComponent } from "./utils/jsx-entity";

@@ -1,6 +1,6 @@
 import { getReticulumFetchUrl, hubUrl } from "./utils/phoenix-utils";
 import { updateEnvironmentForHub, getSceneUrlForHub, updateUIForHub, remountUI } from "./hub";
-import { SFU } from "./available-sfu";
+import { SFU } from "./sfu-types";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
 import { localClientID, pendingMessages, pendingParts } from "./bit-systems/networking";
