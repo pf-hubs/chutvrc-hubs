@@ -104,6 +104,7 @@ import { usePermissions } from "./room/hooks/usePermissions";
 import { ChatContextProvider } from "./room/contexts/ChatContext";
 import ChatToolbarButton from "./room/components/ChatToolbarButton/ChatToolbarButton";
 import SeePlansCTA from "./room/components/SeePlansCTA/SeePlansCTA";
+import { PublicSpeakingPopoverContainer } from "./room/PublicSpeakingPopoverContainer";
 
 const avatarEditorDebug = qsTruthy("avatarEditorDebug");
 
@@ -1135,6 +1136,8 @@ class UIRoot extends Component {
     const canCloseRoom = this.props.hubChannel && !!this.props.hubChannel.canOrWillIfCreator("close_hub");
     const isModerator = this.props.hubChannel && this.props.hubChannel.canOrWillIfCreator("kick_users") && !isMobileVR;
 
+    const canAccessPublicSpeaking = configs.isAdmin();
+
     const moreMenu = [
       {
         id: "user",
@@ -1662,6 +1665,9 @@ class UIRoot extends Component {
                         label={<FormattedMessage id="toolbar.enter-vr-button" defaultMessage="Enter VR" />}
                         onClick={() => exit2DInterstitialAndEnterVR(true)}
                       />
+                    )}
+                    {canAccessPublicSpeaking && (
+                      <PublicSpeakingPopoverContainer scene={this.props.scene} hubChannel={this.props.hubChannel} />
                     )}
                   </>
                 }
