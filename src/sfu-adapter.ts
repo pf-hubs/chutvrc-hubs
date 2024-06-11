@@ -1,5 +1,6 @@
 import EventEmitter from "eventemitter3";
 import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
+import { SFU_CONNECTION_TYPE } from "./sfu-types";
 
 export const SFU_CONNECTION_CONNECTED = "sfu-connection-connected";
 export const SFU_CONNECTION_ERROR_FATAL = "sfu-connection-error-fatal";
@@ -7,6 +8,7 @@ export const SFU_CONNECTION_ERROR_FATAL = "sfu-connection-error-fatal";
 export abstract class SfuAdapter extends EventEmitter {
   _clientId: string;
   _avatarSyncHelper: AvatarSyncHelper;
+  _connectionType: SFU_CONNECTION_TYPE;
   connect(props: any) {}
   disconnect() {}
   getMediaStream(clientId: string, kind: string) {}

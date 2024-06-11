@@ -4,6 +4,7 @@ import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from
 import { MediaDevices } from "./utils/media-devices-utils";
 import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
+import { SFU_CONNECTION_TYPE } from "./sfu-types";
 const debug = newDebug("naf-dialog-adapter:debug");
 
 type ConnectProps = {
@@ -17,8 +18,7 @@ type ConnectProps = {
 };
 
 export class SoraAdapter extends SfuAdapter {
-  _clientId: string;
-  _sendrecv: SoraType.ConnectionPublisher | null;
+  _connector: SoraType.ConnectionPublisher | SoraType.ConnectionSubscriber | null;
   _localMediaStream: MediaStream | null;
   _remoteMediaStreams: Map<string, MediaStream | null>;
   _clientStreamIdPair: Map<string, string>;
@@ -29,10 +29,11 @@ export class SoraAdapter extends SfuAdapter {
   _avatarSyncHelper: AvatarSyncHelper;
   crossRoomStreamerAudioSource: CrossRoomStreamerAudioSource;
 
-  constructor() {
+  constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
     super();
+    this._connectionType = sfuType;
     this._clientId = "";
-    this._sendrecv = null;
+    this._connector = null;
     this._localMediaStream = null;
     this._remoteMediaStreams = new Map<string, MediaStream | null>();
     this._clientStreamIdPair = new Map<string, string>();
@@ -57,17 +58,33 @@ export class SoraAdapter extends SfuAdapter {
       dataChannelSignaling: true,
       dataChannels: this._avatarSyncHelper._channelsForSync.map(channel => ({
         label: channel,
-        direction: "sendrecv" as SoraType.DataChannelDirection
+        direction:
+          this._connectionType === SFU_CONNECTION_TYPE.RECV
+            ? ("recvonly" as SoraType.DataChannelDirection)
+            : ((this._connectionType === SFU_CONNECTION_TYPE.SEND
+                ? "sendonly"
+                : "sendrecv") as SoraType.DataChannelDirection)
       })) // .concat(other channels if necessary)
     };
 
     this._clientId = clientId;
-    this._sendrecv = sora.sendrecv(channelId, metadata, options);
-    this._sendrecv.on("notify", event => {
+    this._connector =
+      this._connectionType === SFU_CONNECTION_TYPE.RECV
+        ? sora.recvonly(channelId, metadata, options)
+        : this._connectionType === SFU_CONNECTION_TYPE.SEND
+        ? sora.sendonly(channelId, metadata, options)
+        : sora.sendrecv(channelId, metadata, options);
+
+    this._connector.on("notify", event => {
       if (event.event_type === "connection.created") {
         event.data?.forEach(c => {
           // clients entering this room earlier
-          if (c.client_id && c.connection_id && !this._clientStreamIdPair.has(c.client_id)) {
+          if (
+            this._connectionType !== SFU_CONNECTION_TYPE.SEND &&
+            c.client_id &&
+            c.connection_id &&
+            !this._clientStreamIdPair.has(c.client_id)
+          ) {
             this._clientStreamIdPair.set(c.client_id, c.connection_id);
             this.resolvePendingMediaRequestForTrack(c.client_id);
           }
@@ -75,71 +92,88 @@ export class SoraAdapter extends SfuAdapter {
 
         // clients entering this room later
         if (
+          this._connectionType !== SFU_CONNECTION_TYPE.SEND &&
           event.client_id &&
           event.client_id !== this._clientId &&
           event.connection_id &&
           !this._clientStreamIdPair.has(event.client_id)
         ) {
           this._clientStreamIdPair.set(event.client_id, event.connection_id);
-          this._avatarSyncHelper.sendSelfAvatarTransform(false);
+          // this._avatarSyncHelper.sendSelfAvatarTransform(false);
           this.emit("stream_updated", event.client_id, "audio");
           this.emit("stream_updated", event.client_id, "video");
         }
-      }
-      if (event.event_type === "connection.updated") {
-        this.emit("stream_updated", event.client_id, "audio");
-        this.emit("stream_updated", event.client_id, "video");
-      }
-      if (event.event_type === "connection.destroyed" && event.client_id) {
-        this._avatarSyncHelper.handleOnClientLeave(event.client_id);
-      }
-    });
-    this._sendrecv.on("track", event => {
-      const stream = event.streams[0];
-      if (!stream) return;
-      if (!this._remoteMediaStreams.has(stream.id)) {
-        this._remoteMediaStreams.set(stream.id, stream);
+
+        if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) this._avatarSyncHelper.sendSelfAvatarTransform(false);
       }
 
-      this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(new MediaStream(stream.getAudioTracks()));
-    });
-    this._sendrecv.on("removetrack", event => {
-      // @ts-ignore
-      console.log("Track removed: " + event.track.id);
-    });
-    this._sendrecv.on("datachannel", event => {
-      this._avatarSyncHelper.handleSyncInit(event.datachannel.label);
-    });
-    this._sendrecv.on("message", event => {
-      this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
-    });
-    this._scene?.addEventListener("audio_ready", async () => {
-      await new Promise(res => setTimeout(res, 1000));
-      this._avatarSyncHelper.sendSelfAvatarTransform(false);
-    });
-    this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    this._sendrecv
-      .connect(this._localMediaStream)
-      .then(stream => {
-        if (this._sendrecv) {
-          this.emit(this._sendrecv.stream ? SFU_CONNECTION_CONNECTED : SFU_CONNECTION_ERROR_FATAL);
+      if (this._connectionType !== SFU_CONNECTION_TYPE.SEND) {
+        if (event.event_type === "connection.updated") {
+          this.emit("stream_updated", event.client_id, "audio");
+          this.emit("stream_updated", event.client_id, "video");
         }
-      })
-      .catch(e => {
-        console.error(e);
-        this.emit(SFU_CONNECTION_ERROR_FATAL);
-        this.enableMicrophone(false);
-      })
-      .finally(() => {
-        this.enableMicrophone(false);
-        this._avatarSyncHelper.initSelfAvatarTransform();
+        if (event.event_type === "connection.destroyed" && event.client_id) {
+          this._avatarSyncHelper.handleOnClientLeave(event.client_id);
+        }
+      }
+    });
+
+    if (this._connectionType !== SFU_CONNECTION_TYPE.SEND) {
+      this._connector.on("track", event => {
+        const stream = event.streams[0];
+        if (!stream) return;
+        if (!this._remoteMediaStreams.has(stream.id)) {
+          this._remoteMediaStreams.set(stream.id, stream);
+        }
+        this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(new MediaStream(stream.getAudioTracks()));
       });
+      this._connector.on("removetrack", event => {
+        // @ts-ignore
+        console.log("Track removed: " + event.track.id);
+      });
+      this._connector.on("message", event => {
+        this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
+      });
+    }
+
+    if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
+      this._connector.on("datachannel", event => {
+        this._avatarSyncHelper.handleSyncInit(event.datachannel.label);
+      });
+      this._scene?.addEventListener("audio_ready", async () => {
+        await new Promise(res => setTimeout(res, 1000));
+        this._avatarSyncHelper.sendSelfAvatarTransform(false);
+      });
+    }
+
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) {
+      // @ts-ignore
+      this._connector.connect();
+    } else {
+      this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      this._connector
+        .connect(this._localMediaStream)
+        .then(stream => {
+          if (this._connector) {
+            this.emit(this._connector.stream ? SFU_CONNECTION_CONNECTED : SFU_CONNECTION_ERROR_FATAL);
+          }
+        })
+        .catch(e => {
+          console.error(e);
+          this.emit(SFU_CONNECTION_ERROR_FATAL);
+          this.enableMicrophone(false);
+        })
+        .finally(() => {
+          this.enableMicrophone(false);
+          this._avatarSyncHelper.initSelfAvatarTransform();
+        });
+    }
   }
 
   async disconnect() {
-    if (this._sendrecv) {
-      await this._sendrecv.disconnect();
-      this._sendrecv = null;
+    if (this._connector) {
+      await this._connector.disconnect();
+      this._connector = null;
     }
     debug("disconnect()");
     // ...
@@ -151,9 +185,12 @@ export class SoraAdapter extends SfuAdapter {
     let streamId: string | null | undefined = null;
     let tracks: MediaStreamTrack[] | null | undefined = null;
 
-    if (this._clientId === clientId) {
-      stream = this._sendrecv?.stream;
-    } else {
+    var isSelfStreamRetrievable = this._clientId === clientId && this._connectionType !== SFU_CONNECTION_TYPE.RECV;
+    var isOtherStreamRetrievable = this._clientId !== clientId && this._connectionType !== SFU_CONNECTION_TYPE.SEND;
+
+    if (isSelfStreamRetrievable) {
+      stream = this._connector?.stream;
+    } else if (isOtherStreamRetrievable) {
       streamId = this._clientStreamIdPair.get(clientId);
       if (streamId) {
         stream = this._remoteMediaStreams.get(streamId);
@@ -171,7 +208,7 @@ export class SoraAdapter extends SfuAdapter {
         });
         return promise;
       }
-    } else {
+    } else if (isSelfStreamRetrievable || isOtherStreamRetrievable) {
       console.log(`Waiting on ${kind} for ${clientId}`);
       debug(`Waiting on ${kind} for ${clientId}`);
       if (!this._pendingMediaRequests.has(clientId)) {
@@ -190,14 +227,17 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   getLocalMicTrack() {
-    return this._sendrecv?.stream?.getAudioTracks()[0];
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    return this._connector?.stream?.getAudioTracks()[0];
   }
 
   getLocalMediaStream() {
-    return this._sendrecv?.stream;
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    return this._connector?.stream;
   }
 
   async setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null = null) {
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     let sawAudio = false;
     let sawVideo = false;
     await Promise.all(
@@ -211,7 +251,7 @@ export class SoraAdapter extends SfuAdapter {
           )
             return;
           if (this._localMediaStream) {
-            this._sendrecv?.replaceAudioTrack(this._localMediaStream, track.clone());
+            this._connector?.replaceAudioTrack(this._localMediaStream, track.clone());
           }
         } else {
           sawVideo = true;
@@ -242,8 +282,9 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   enableMicrophone(enabled: boolean) {
-    if (this._sendrecv?.stream) {
-      this._sendrecv.stream.getAudioTracks().forEach(track => track.kind === "audio" && (track.enabled = enabled));
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    if (this._connector?.stream) {
+      this._connector.stream.getAudioTracks().forEach(track => track.kind === "audio" && (track.enabled = enabled));
       this._micShouldBeEnabled = enabled;
       this.emit("mic-state-changed", { enabled: this._micShouldBeEnabled });
     }
@@ -251,18 +292,20 @@ export class SoraAdapter extends SfuAdapter {
 
   get isMicEnabled() {
     return (
-      this._sendrecv?.audio === true &&
-      this._sendrecv?.stream?.getAudioTracks()[0]?.enabled === true &&
+      this._connectionType !== SFU_CONNECTION_TYPE.RECV &&
+      this._connector?.audio === true &&
+      this._connector?.stream?.getAudioTracks()[0]?.enabled === true &&
       this._micShouldBeEnabled
     );
   }
 
   async enableCamera(track: MediaStreamTrack) {
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     if (this._localMediaStream) {
       track.enabled = true;
-      await this._sendrecv?.replaceVideoTrack(this._localMediaStream, track);
+      await this._connector?.replaceVideoTrack(this._localMediaStream, track);
     }
-    this._sendrecv?.on("removetrack", e => {
+    this._connector?.on("removetrack", e => {
       if (e.track.kind === "video") {
         this.emitRTCEvent("info", "RTC", () => `Camera track ended`);
         this.disableCamera();
@@ -271,17 +314,19 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   async disableCamera() {
-    if (this._sendrecv?.stream) {
-      this._sendrecv?.stopVideoTrack(this._sendrecv.stream);
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    if (this._connector?.stream) {
+      this._connector?.stopVideoTrack(this._connector.stream);
     }
   }
 
   async enableShare(track: MediaStreamTrack) {
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     if (this._localMediaStream) {
       track.enabled = true;
-      await this._sendrecv?.replaceVideoTrack(this._localMediaStream, track);
+      await this._connector?.replaceVideoTrack(this._localMediaStream, track);
     }
-    this._sendrecv?.on("removetrack", e => {
+    this._connector?.on("removetrack", e => {
       if (e.track.kind === "video") {
         this.emitRTCEvent("info", "RTC", () => `Desktop Share transport track ended`);
         this.disableCamera();
@@ -290,8 +335,9 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   async disableShare() {
-    if (this._sendrecv?.stream) {
-      this._sendrecv?.stopVideoTrack(this._sendrecv.stream);
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    if (this._connector?.stream) {
+      this._connector?.stopVideoTrack(this._connector.stream);
     }
   }
 
@@ -324,16 +370,18 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   broadcast(channel: string, message: string) {
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
-      this._sendrecv?.sendMessage(channel, new TextEncoder().encode(message));
+      this._connector?.sendMessage(channel, new TextEncoder().encode(message));
     } catch (error) {
       console.error(error);
     }
   }
 
   broadcastUint8(channel: string, message: Uint8Array) {
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
-      this._sendrecv?.sendMessage(channel, message);
+      this._connector?.sendMessage(channel, message);
     } catch (error) {
       console.error(error);
     }
@@ -352,6 +400,8 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   resolvePendingMediaRequestForTrack(clientId: string) {
+    if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
+
     const requests = this._pendingMediaRequests.get(clientId);
     const streamId = this._clientStreamIdPair.get(clientId);
     if (streamId) {

@@ -610,7 +610,7 @@ export class DialogAdapter extends SfuAdapter {
           track = this._shareProducer.track;
         }
       }
-    } else if (this._connectionType !== SFU_CONNECTION_TYPE.SEND) {
+    } else if (this._clientId !== clientId && this._connectionType !== SFU_CONNECTION_TYPE.SEND) {
       this._consumers.forEach(consumer => {
         if (consumer.appData.peerId === clientId && kind == consumer.track.kind) {
           track = consumer.track;
@@ -1114,6 +1114,7 @@ export class DialogAdapter extends SfuAdapter {
   }
 
   broadcast(channel, message) {
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
       this._dataProducers.get(channel)?.send(new TextEncoder().encode(message));
     } catch (error) {
@@ -1122,6 +1123,7 @@ export class DialogAdapter extends SfuAdapter {
   }
 
   broadcastUint8(channel, message) {
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
       this._dataProducers.get(channel)?.send(message);
     } catch (error) {
