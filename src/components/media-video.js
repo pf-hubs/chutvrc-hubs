@@ -573,7 +573,14 @@ AFRAME.registerComponent("media-video", {
             }
           }
         };
-        APP.sfu.on("stream_updated", this._onStreamUpdated, this);
+
+        if (APP.sfu) {
+          APP.sfu.on("stream_updated", this._onStreamUpdated, this);
+        } else {
+          APP.sfuCandidates.forEach(sfu => {
+            sfu.on("stream_updated", this._onStreamUpdated, this);
+          });
+        }
         videoEl.srcObject = new MediaStream(stream.getVideoTracks());
         // If hls.js is supported we always use it as it gives us better events
       } else if (contentType.startsWith("application/dash")) {

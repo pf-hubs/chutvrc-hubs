@@ -95,6 +95,7 @@ import { inspectSystem } from "../bit-systems/inspect-system";
 import { snapMediaSystem } from "../bit-systems/snap-media-system";
 import { scaleWhenGrabbedSystem } from "../bit-systems/scale-when-grabbed-system";
 import { AvatarPart } from "../utils/avatar-transform-buffer";
+import { PublicSpeakingSystem } from "./public-speaking-system";
 
 declare global {
   interface Window {
@@ -320,18 +321,22 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
     networkDebugSystem(world, scene);
   }
 
+  PublicSpeakingSystem.mirrorDataChannelMessageFromSpeaker();
+
   /* Implementation for using bitECS */
-  avatarIkSystem(
-    world,
-    {
-      rig: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.RIG) || new Map(),
-      hmd: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.HEAD) || new Map(),
-      leftController: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.LEFT) || new Map(),
-      rightController: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.RIGHT) || new Map()
-    },
-    APP.sfu._avatarSyncHelper._avatarEid2ClientId,
-    APP.sfu._avatarSyncHelper._client2VrMode
-  );
+  if (APP.sfu) {
+    avatarIkSystem(
+      world,
+      {
+        rig: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.RIG) || new Map(),
+        hmd: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.HEAD) || new Map(),
+        leftController: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.LEFT) || new Map(),
+        rightController: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.RIGHT) || new Map()
+      },
+      APP.sfu._avatarSyncHelper._avatarEid2ClientId,
+      APP.sfu._avatarSyncHelper._client2VrMode
+    );
+  }
   /* End of implementation for using bitECS */
 
   scene.updateMatrixWorld();

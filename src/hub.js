@@ -251,7 +251,6 @@ import "./components/tools/drawing-manager";
 import "./components/body-helper";
 import "./components/shape-helper";
 
-import registerNetworkSchemas from "./network-schemas";
 import registerTelemetry from "./telemetry";
 
 import { getAvailableVREntryTypes, VR_DEVICE_AVAILABILITY, ONLY_SCREEN_AVAILABLE } from "./utils/vr-caps-detect";
@@ -270,7 +269,7 @@ import { localClientID, setLocalClientID } from "./bit-systems/networking";
 import { listenForNetworkMessages } from "./utils/listen-for-network-messages";
 import { exposeBitECSDebugHelpers } from "./bitecs-debug-helpers";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL } from "./sfu-adapter";
-import { connectSfu, createSfuAdapter } from "./utils/sfu-adapter-utils";
+import { connectSfu } from "./utils/sfu-adapter-utils";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
 import { shouldUseNewLoader } from "./utils/bit-utils";
@@ -674,9 +673,10 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
       updateEnvironmentForHub(hub, entryManager);
 
       // Disconnect in case this is a re-entry
-      APP.sfu.disconnect();
 
-      APP.sfu = createSfuAdapter({ sfuId: data.sfu });
+      APP.sfu?.disconnect();
+      // APP.sfu = createSfuAdapter({ sfuId: data.sfu });
+      APP.sfu = APP.sfuCandidates.find((sfu, sfuId) => sfuId === data.sfu);
       listenSfuConnection(scene);
       connectSfu(APP.sfu, {
         clientId: data.session_id,

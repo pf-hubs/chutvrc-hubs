@@ -25,8 +25,7 @@ export const createSfuAdapter = ({
   sfuId?: number;
   connectionType: SFU_CONNECTION_TYPE;
 }) => {
-  if (sfuId) APP.sfuType = sfuId;
-  switch (APP.sfuType) {
+  switch (sfuId) {
     case SFU.SORA:
       return new SoraAdapter(connectionType);
     default:
@@ -35,7 +34,7 @@ export const createSfuAdapter = ({
 };
 
 export const connectSfu = (sfu: SfuAdapter, params: SfuConnectionParams) => {
-  switch (params.sfu || APP.sfuType) {
+  switch (params.sfu) {
     case SFU.SORA:
       sfu.connect({
         clientId: params.clientId,

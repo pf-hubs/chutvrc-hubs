@@ -16,10 +16,16 @@ AFRAME.registerComponent("in-world-hud", {
     this.onMicStateChanged = () => {
       this.mic.setAttribute("mic-button", "active", APP.sfu.isMicEnabled);
     };
-    APP.sfu.on("mic-state-changed", this.onMicStateChanged);
+    if (APP.sfu) {
+      APP.sfu.on("mic-state-changed", this.onMicStateChanged);
+    } else {
+      APP.sfuCandidates.forEach(sfu => {
+        sfu.on("mic-state-changed", this.onMicStateChanged);
+      });
+    }
 
     this.updateButtonStates = () => {
-      this.mic.setAttribute("mic-button", "active", APP.sfu.isMicEnabled);
+      this.mic.setAttribute("mic-button", "active", APP.sfu?.isMicEnabled || false);
       this.pen.setAttribute("icon-button", "active", this.el.sceneEl.is("pen"));
       this.cameraBtn.setAttribute("icon-button", "active", this.el.sceneEl.is("camera"));
       if (window.APP.hubChannel) {

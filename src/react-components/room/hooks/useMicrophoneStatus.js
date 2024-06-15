@@ -14,7 +14,14 @@ export function useMicrophoneStatus(scene) {
     const onMicMutedStateChanged = ({ enabled }) => {
       setIsMicMuted(!enabled);
     };
-    APP.sfu.on("mic-state-changed", onMicMutedStateChanged);
+
+    if (APP.sfu) {
+      APP.sfu.on("mic-state-changed", onMicMutedStateChanged);
+    } else {
+      APP.sfuCandidates.forEach(sfu => {
+        sfu.on("mic-state-changed", onMicMutedStateChanged);
+      });
+    }
 
     const onMicEnabled = () => {
       setIsMicEnabled(true);
