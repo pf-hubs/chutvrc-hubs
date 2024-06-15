@@ -66,6 +66,7 @@ export class DialogAdapter extends SfuAdapter {
     this._serverParams = {};
     this._consumerStats = {};
     this._avatarSyncHelper = new AvatarSyncHelper(this);
+    this._dataChannelMessages = [];
   }
 
   get consumerStats() {
@@ -335,7 +336,10 @@ export class DialogAdapter extends SfuAdapter {
             accept();
 
             this.resolvePendingMediaRequestForTrack(peerId, consumer.track);
-            this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(new MediaStream([consumer.track]));
+
+            if (peerId === "public_speaker") {
+              this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(new MediaStream([consumer.track]));
+            }
 
             // Notify of an stream update event
             this.emit("stream_updated", peerId, kind);
@@ -364,6 +368,8 @@ export class DialogAdapter extends SfuAdapter {
 
             dataConsumer.on("message", data => {
               // console.log(`Channel ${label} received message: ${new TextDecoder().decode(new Uint8Array(data))}`);
+              this._dataChannelMessages.push({ channel: label, message: data });
+              while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
               this._avatarSyncHelper.handleRecvMessage(label, new Uint8Array(data));
             });
 
@@ -636,6 +642,12 @@ export class DialogAdapter extends SfuAdapter {
       });
       return promise;
     }
+  }
+
+  getDataChannelMessage() {
+    return this._dataChannelMessages && this._dataChannelMessages.length > 0
+      ? this._dataChannelMessages.shift()
+      : undefined;
   }
 
   getLocalMicTrack() {
@@ -951,9 +963,14 @@ export class DialogAdapter extends SfuAdapter {
         });
 
         this._dataProducers.set(label, dataProducer);
-        this._avatarSyncHelper.handleSyncInit(label);
+        if (this._clientId !== "public-speaker" || this._roomId === "public-speaking")
+          this._avatarSyncHelper.handleSyncInit(label);
       })
     );
+  }
+
+  setLocalDataChannelMessage({ channel, message }) {
+    this.broadcastUint8(channel, new Uint8Array(message));
   }
 
   async enableCamera(track) {

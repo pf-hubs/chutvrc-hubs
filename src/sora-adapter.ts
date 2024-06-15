@@ -41,10 +41,12 @@ export class SoraAdapter extends SfuAdapter {
     this._blockedClients = new Map<string, boolean>();
     this._micShouldBeEnabled = false;
     this._avatarSyncHelper = new AvatarSyncHelper(this);
+    this._dataChannelMessages = [];
   }
 
   async connect({ clientId, channelId, signalingUrl, accessToken, scene, debug }: ConnectProps) {
     this._scene = scene;
+    this._roomId = channelId;
     const sora = Sora.connection(signalingUrl, debug);
     const metadata = { access_token: accessToken };
     const options = {
@@ -125,13 +127,25 @@ export class SoraAdapter extends SfuAdapter {
         if (!this._remoteMediaStreams.has(stream.id)) {
           this._remoteMediaStreams.set(stream.id, stream);
         }
-        this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(new MediaStream(stream.getAudioTracks()));
+
+        let clientId;
+        for (let [key, value] of this._clientStreamIdPair.entries()) {
+          if (value === stream.id) clientId = key;
+          break;
+        }
+        if (clientId === "public_speaker") {
+          this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(
+            new MediaStream(stream.getAudioTracks())
+          );
+        }
       });
       this._connector.on("removetrack", event => {
         // @ts-ignore
         console.log("Track removed: " + event.track.id);
       });
       this._connector.on("message", event => {
+        this._dataChannelMessages.push({ channel: event.label, message: event.data });
+        while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
         this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
       });
     }
@@ -236,6 +250,12 @@ export class SoraAdapter extends SfuAdapter {
     return this._connector?.stream;
   }
 
+  getDataChannelMessage() {
+    return this._dataChannelMessages && this._dataChannelMessages.length > 0
+      ? this._dataChannelMessages.shift()
+      : undefined;
+  }
+
   async setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null = null) {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     let sawAudio = false;
@@ -271,6 +291,10 @@ export class SoraAdapter extends SfuAdapter {
       this.disableCamera();
       this.disableShare();
     }
+  }
+
+  setLocalDataChannelMessage({ channel, message }: { channel: string; message: ArrayBuffer }) {
+    this.broadcastUint8(channel, new Uint8Array(message));
   }
 
   toggleMicrophone() {

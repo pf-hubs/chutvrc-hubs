@@ -6,6 +6,7 @@ import { loadSavedEntityStates } from "./utils/entity-state-utils";
 import { localClientID, pendingMessages, pendingParts } from "./bit-systems/networking";
 import { storedUpdates } from "./bit-systems/network-receive-system";
 import { shouldUseNewLoader } from "./utils/bit-utils";
+import { connectSfu, createSfuAdapter } from "./utils/sfu-adapter-utils";
 
 function unloadRoomObjects() {
   document.querySelectorAll("[pinnable]").forEach(el => {
@@ -120,37 +121,22 @@ export async function changeHub(hubId, addToHistory = true, waypoint = "") {
 
   APP.retChannel.push("change_hub", { hub_id: hub.hub_id });
 
-  let connectOption;
+  APP.sfu = createSfuAdapter({ sfuId: data.sfu });
+  const connectOption = {
+    clientId: data.session_id || APP.sfu._clientId,
+    channelId: data.sora_channel_id || hub.hub_id,
+    scene,
+    serverUrl: `wss://${hub.host}:${hub.port}`,
+    serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
+    signalingUrl: data.sora_signaling_url,
+    accessToken: data.sora_access_token,
+    forceTcp: APP.sfu._forceTcp,
+    forceTurn: APP.sfu._forceTurn,
+    iceTransportPolicy: APP.sfu._iceTransportPolicy,
+    debug: data.sora_is_debug
+  };
 
-  switch (data.sfu) {
-    case 1:
-      APP.usingSfu = SFU.SORA;
-      APP.sfu = APP.sora;
-      connectOption = {
-        clientId: data.session_id,
-        channelId: data.sora_channel_id,
-        signalingUrl: data.sora_signaling_url,
-        accessToken: data.sora_access_token,
-        debug: data.sora_is_debug
-      };
-      break;
-    default:
-      APP.usingSfu = SFU.DIALOG;
-      APP.sfu = APP.dialog;
-      connectOption = {
-        serverUrl: `wss://${hub.host}:${hub.port}`,
-        roomId: hub.hub_id,
-        serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
-        scene,
-        clientId: APP.sfu._clientId,
-        forceTcp: APP.sfu._forceTcp,
-        forceTurn: APP.sfu._forceTurn,
-        iceTransportPolicy: APP.sfu._iceTransportPolicy
-      };
-      break;
-  }
-
-  await Promise.all([APP.sfu.connect(connectOption), NAF.connection.adapter.connect()]);
+  await Promise.all([connectSfu(APP.sfu, connectOption), NAF.connection.adapter.connect()]);
 
   if (shouldUseNewLoader()) {
     loadSavedEntityStates(APP.hubChannel);

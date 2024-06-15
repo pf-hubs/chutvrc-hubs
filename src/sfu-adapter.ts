@@ -2,19 +2,27 @@ import EventEmitter from "eventemitter3";
 import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
 import { SFU_CONNECTION_TYPE } from "./sfu-types";
 
+type DataChannelMessage = { channel: string; message: ArrayBuffer };
+
 export const SFU_CONNECTION_CONNECTED = "sfu-connection-connected";
 export const SFU_CONNECTION_ERROR_FATAL = "sfu-connection-error-fatal";
 
 export abstract class SfuAdapter extends EventEmitter {
   _clientId: string;
+  _roomId: string;
   _avatarSyncHelper: AvatarSyncHelper;
   _connectionType: SFU_CONNECTION_TYPE;
+  _dataChannelMessages: DataChannelMessage[];
   connect(props: any) {}
   disconnect() {}
   getMediaStream(clientId: string, kind: string) {}
+  getDataChannelMessage(): DataChannelMessage | undefined {
+    return undefined;
+  }
   getLocalMicTrack() {}
   getLocalMediaStream() {}
   setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId?: Map<string, string> | null) {}
+  setLocalDataChannelMessage(m: DataChannelMessage | undefined) {} // TODO: specify type
   toggleMicrophone() {}
   enableMicrophone(enabled: boolean) {}
   get isMicEnabled(): boolean | null {

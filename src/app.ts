@@ -73,9 +73,6 @@ interface HubDescription {
   user_data?: any;
 }
 
-const dialogAdapter = new DialogAdapter();
-const soraAdapter = new SoraAdapter();
-
 export class App {
   scene?: AScene;
   hubChannel?: HubChannel;
@@ -110,12 +107,10 @@ export class App {
 
   audioListener: AudioListener;
 
-  usingSfu = SFU.DIALOG;
-  // usingSfu = SFU.SORA;
-  sfu: SfuAdapter = soraAdapter;
-  // sfu: SfuAdapter = dialogAdapter;
-  dialog = dialogAdapter;
-  sora = soraAdapter;
+  sfuType: SFU;
+  sfu: SfuAdapter;
+  publicSpeakingSfu: SfuAdapter;
+  mirrorSpeakingSfu: SfuAdapter;
 
   RENDER_ORDER = {
     HUD_BACKGROUND: 1,
