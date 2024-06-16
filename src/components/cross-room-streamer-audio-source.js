@@ -1,10 +1,4 @@
-import { SourceType, AudioType } from "./audio-params";
-import { getCurrentAudioSettings, updateAudioSettings } from "../update-audio-settings";
-import { isRoomOwner } from "../utils/hub-utils";
-import { SFU } from "../sfu-types";
-const INFO_INIT_FAILED = "Failed to initialize avatar-audio-source.";
-const INFO_NO_NETWORKED_EL = "Could not find networked el.";
-const INFO_NO_OWNER = "Networked component has no owner.";
+import { SourceType } from "./audio-params";
 const SHOULD_CREATE_SILENT_AUDIO_ELS = /chrome/i.test(navigator.userAgent);
 
 function createSilentAudioEl(stream) {
@@ -27,7 +21,7 @@ function createSilentAudioEl(stream) {
 // }
 
 export class CrossRoomStreamerAudioSource {
-  constructor(mediaStream, clientId = "") {
+  constructor(mediaStream, clientId = "", node = null) {
     this.stream = mediaStream;
     this.streamerClientId = clientId;
 
@@ -38,6 +32,7 @@ export class CrossRoomStreamerAudioSource {
     // This could happen in case there is an ICE failure that requires a transport recreation.
     // APP.sfu.on("stream_updated", this._onStreamUpdated, this);
     this.createAudio();
+    if (node) this.attachAudio(node);
 
     let { disableLeftRightPanning, audioPanningQuality } = APP.store.state.preferences;
     this.onPreferenceChanged = () => {
@@ -78,7 +73,7 @@ export class CrossRoomStreamerAudioSource {
     // }
 
     const audioListener = AFRAME.scenes[0].audioListener;
-    const audio = new THREE.Audio(audioListener);
+    const audio = new THREE.PositionalAudio(audioListener);
     // Default to being quiet so it fades in when volume is set by audio systems
     // audio.gain.gain.value = 0;
 
@@ -173,5 +168,10 @@ export class CrossRoomStreamerAudioSource {
     // APP.supplementaryAttenuation.delete(this.el);
 
     this.removeAudio();
+  }
+
+  attachAudio(mesh) {
+    this.node = mesh;
+    this.node.add(this.audio);
   }
 }

@@ -24,10 +24,7 @@ export class PublicSpeakingSystem {
 
   static speakerTrySetLocalMediaStream() {
     if (!APP.publicSpeakingSfu._sendTransport) {
-      window.setTimeout(
-        PublicSpeakingSystem.speakerTrySetLocalMediaStream,
-        1000
-      ); /* this checks the flag every 100 milliseconds*/
+      window.setTimeout(PublicSpeakingSystem.speakerTrySetLocalMediaStream, 1000);
     } else {
       APP.publicSpeakingSfu.setLocalMediaStream(APP.sfu._localMediaStream);
     }

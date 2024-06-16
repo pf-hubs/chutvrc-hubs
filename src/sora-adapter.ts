@@ -138,10 +138,23 @@ export class SoraAdapter extends SfuAdapter {
           if (value === stream.id) clientId = key;
           break;
         }
-        if (clientId === "public-speaker") {
+        if (clientId === "public-speaker" && this._roomId !== "public_speaking") {
           this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(
             new MediaStream(stream.getAudioTracks())
           );
+          const tryAttachAudioToAvatar = () => {
+            const avatarEid = this._avatarSyncHelper._client2AvatarEid.get("public-speaker");
+            if (avatarEid) {
+              const avatarObj = APP.world.eid2obj.get(avatarEid);
+              console.log(avatarObj);
+              if (avatarObj) this.crossRoomStreamerAudioSource.attachAudio(avatarObj);
+            }
+            if (!this.crossRoomStreamerAudioSource.node) {
+              window.setTimeout(tryAttachAudioToAvatar, 1000);
+            }
+          };
+
+          tryAttachAudioToAvatar();
         }
       });
       this._connector.on("removetrack", event => {
