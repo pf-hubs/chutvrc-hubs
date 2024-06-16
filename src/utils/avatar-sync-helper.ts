@@ -56,7 +56,7 @@ export class AvatarSyncHelper {
         if (this._client2AvatarAssetId.get(clientId) === avatarId) return; // if avatar is not changed, ignore it
       } else {
         // if avatar id of this client is not recorded, that means this client is new to this room, so send my avatar id & src to the client
-        this.sendSelfAvatarSrc(window.APP.store.state.profile.avatarId);
+        this.sendSelfAvatarSrc();
         // Also send my avatar transform to the new client without check if the transform is updated
         this.sendSelfAvatarTransform(false);
       }
@@ -76,9 +76,8 @@ export class AvatarSyncHelper {
 
     if (channel.includes("#avatar-")) {
       // receive other clients' avatar transform when updated
-      const clientId = new TextDecoder().decode(data.subarray(9));
+      const clientId = new TextDecoder().decode(data.subarray(9)).replace(/\u0000/g, "");
       const avatarPart = channel.substring(8) as unknown as AvatarPart;
-
       this._client2Transform.get(avatarPart)?.set(clientId, {
         pos: decodePosition(data),
         rot: decodeRotation(data)
@@ -135,8 +134,9 @@ export class AvatarSyncHelper {
     this._client2AvatarAssetId.set(clientId, avatarId);
   };
 
-  sendSelfAvatarSrc(avatarId: string) {
-    this._sfu.broadcast("#avatarId", this._sfu._clientId + "|" + avatarId);
+  sendSelfAvatarSrc(avatarId?: string) {
+    this._sfu.broadcast("#avatarId", this._sfu._clientId + "|" + (avatarId || window.APP.store.state.profile.avatarId));
+    this.sendSelfAvatarTransform(false);
   }
 
   sendSelfAvatarTransform(checkUpdatedRequired: boolean) {

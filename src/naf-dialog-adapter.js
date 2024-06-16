@@ -964,10 +964,15 @@ export class DialogAdapter extends SfuAdapter {
         });
 
         this._dataProducers.set(label, dataProducer);
-        if (this._clientId !== "public-speaker" || this._roomId === "public_speaking")
+        if (this._clientId !== "public-speaker" || this._roomId === "public_speaking") {
           this._avatarSyncHelper.handleSyncInit(label);
+        }
       })
     );
+
+    if (this && this._clientId === "public-speaker" && this._roomId === "public_speaking") {
+      setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
+    }
   }
 
   setLocalDataChannelMessage({ channelLabel, message }) {
