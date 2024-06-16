@@ -4,13 +4,13 @@ import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { SoraAdapter } from "../sora-adapter";
 
 type SfuConnectionParams = {
-  sfu: number;
+  sfuId: number;
   clientId: string;
   channelId: string;
   scene: Element | null;
   serverUrl?: string;
   serverParams?: { host: string; port: number; turn: any };
-  signalingUrl?: string;
+  signalingUrl?: string | string[];
   accessToken?: string;
   forceTcp?: boolean;
   forceTurn?: boolean;
@@ -22,29 +22,33 @@ export const createSfuAdapter = ({
   sfuId,
   connectionType = SFU_CONNECTION_TYPE.SENDRECV
 }: {
-  sfuId?: number;
+  sfuId: number;
   connectionType: SFU_CONNECTION_TYPE;
 }) => {
   switch (sfuId) {
     case SFU.SORA:
       return new SoraAdapter(connectionType);
+    case SFU.DIALOG:
     default:
       return new DialogAdapter(connectionType);
   }
 };
 
-export const connectSfu = (sfu: SfuAdapter, params: SfuConnectionParams) => {
-  switch (params.sfu) {
+export const connectSfu = async (sfu: SfuAdapter, params: SfuConnectionParams) => {
+  switch (params.sfuId as SFU) {
     case SFU.SORA:
       sfu.connect({
         clientId: params.clientId,
-        channelId: params.channelId,
+        channelId: params.channelId.includes("@")
+          ? params.channelId
+          : params.channelId + "@" + APP.sfu._roomId.split("@")[1],
         scene: params.scene,
         signalingUrl: params.signalingUrl,
         accessToken: params.accessToken,
         debug: params.debug
       });
       break;
+    case SFU.DIALOG:
     default:
       sfu.connect({
         clientId: params.clientId,

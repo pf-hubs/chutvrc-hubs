@@ -4,13 +4,13 @@ import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from
 import { MediaDevices } from "./utils/media-devices-utils";
 import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
-import { SFU_CONNECTION_TYPE } from "./sfu-types";
+import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
 const debug = newDebug("naf-dialog-adapter:debug");
 
 type ConnectProps = {
   clientId: string;
   channelId: string;
-  signalingUrl: string;
+  signalingUrl: string | string[];
   accessToken: string;
   scene: Element;
   debug: boolean;
@@ -27,10 +27,13 @@ export class SoraAdapter extends SfuAdapter {
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
   _avatarSyncHelper: AvatarSyncHelper;
+  _signalingUrl?: string | string[];
+  _accessToken?: string;
   crossRoomStreamerAudioSource: CrossRoomStreamerAudioSource;
 
   constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
     super();
+    this._sfuId = SFU.SORA;
     this._connectionType = sfuType;
     this._clientId = "";
     this._connector = null;
@@ -47,6 +50,8 @@ export class SoraAdapter extends SfuAdapter {
   async connect({ clientId, channelId, signalingUrl, accessToken, scene, debug }: ConnectProps) {
     this._scene = scene;
     this._roomId = channelId;
+    this._signalingUrl = signalingUrl;
+    this._accessToken = accessToken;
     const sora = Sora.connection(signalingUrl, debug);
     const metadata = { access_token: accessToken };
     const options = {
@@ -144,7 +149,7 @@ export class SoraAdapter extends SfuAdapter {
         console.log("Track removed: " + event.track.id);
       });
       this._connector.on("message", event => {
-        this._dataChannelMessages.push({ channel: event.label, message: event.data });
+        this._dataChannelMessages.push({ channelLabel: event.label, message: event.data });
         while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
         this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
       });
@@ -253,7 +258,7 @@ export class SoraAdapter extends SfuAdapter {
   getDataChannelMessage() {
     return this._dataChannelMessages && this._dataChannelMessages.length > 0
       ? this._dataChannelMessages.shift()
-      : undefined;
+      : { channelLabel: "", message: null };
   }
 
   async setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null = null) {
@@ -293,8 +298,9 @@ export class SoraAdapter extends SfuAdapter {
     }
   }
 
-  setLocalDataChannelMessage({ channel, message }: { channel: string; message: ArrayBuffer }) {
-    this.broadcastUint8(channel, new Uint8Array(message));
+  setLocalDataChannelMessage({ channelLabel, message }: { channelLabel: string; message: ArrayBuffer }) {
+    if (!channelLabel || !message) return;
+    this.broadcastUint8(channelLabel, new Uint8Array(message));
   }
 
   toggleMicrophone() {

@@ -679,6 +679,7 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
       APP.sfu = APP.sfuCandidates.find((sfu, sfuId) => sfuId === data.sfu);
       listenSfuConnection(scene);
       connectSfu(APP.sfu, {
+        sfuId: data.sfu,
         clientId: data.session_id,
         channelId: data.sora_channel_id || hub.hub_id,
         scene,
@@ -1502,6 +1503,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     APP.sfu.disconnect();
     connectSfu({
+      sfuId: APP.sfu._sfuId,
       clientId: APP.getString(localClientID),
       channelId: APP.hub.hub_id,
       scene,

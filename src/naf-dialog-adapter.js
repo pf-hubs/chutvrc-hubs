@@ -5,7 +5,7 @@ import { MediaDevices } from "./utils/media-devices-utils";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
-import { SFU_CONNECTION_TYPE } from "./sfu-types";
+import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
 
 // Used for VP9 webcam video.
 //const VIDEO_KSVC_ENCODINGS = [{ scalabilityMode: "S3T3_KEY" }];
@@ -47,6 +47,7 @@ export class DialogAdapter extends SfuAdapter {
   constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
     super();
 
+    this._sfuId = SFU.DIALOG;
     this._connectionType = sfuType;
     this._micShouldBeEnabled = false;
     this._micProducer = null;
@@ -368,7 +369,7 @@ export class DialogAdapter extends SfuAdapter {
 
             dataConsumer.on("message", data => {
               // console.log(`Channel ${label} received message: ${new TextDecoder().decode(new Uint8Array(data))}`);
-              this._dataChannelMessages.push({ channel: label, message: data });
+              this._dataChannelMessages.push({ channelLabel: label, message: data });
               while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
               this._avatarSyncHelper.handleRecvMessage(label, new Uint8Array(data));
             });
@@ -647,7 +648,7 @@ export class DialogAdapter extends SfuAdapter {
   getDataChannelMessage() {
     return this._dataChannelMessages && this._dataChannelMessages.length > 0
       ? this._dataChannelMessages.shift()
-      : undefined;
+      : { channelLabel: "", message: null };
   }
 
   getLocalMicTrack() {
@@ -963,14 +964,15 @@ export class DialogAdapter extends SfuAdapter {
         });
 
         this._dataProducers.set(label, dataProducer);
-        if (this._clientId !== "public-speaker" || this._roomId === "public-speaking")
+        if (this._clientId !== "public-speaker" || this._roomId === "public_speaking")
           this._avatarSyncHelper.handleSyncInit(label);
       })
     );
   }
 
-  setLocalDataChannelMessage({ channel, message }) {
-    this.broadcastUint8(channel, new Uint8Array(message));
+  setLocalDataChannelMessage({ channelLabel, message }) {
+    if (!channelLabel || !message) return;
+    this.broadcastUint8(channelLabel, new Uint8Array(message));
   }
 
   async enableCamera(track) {

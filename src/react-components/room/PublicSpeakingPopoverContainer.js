@@ -16,16 +16,16 @@ export function PublicSpeakingPopoverContainer({ scene, hubChannel }) {
         icon: SpotlightIcon,
         color: "accent5",
         label: <FormattedMessage id="public-speaking-popover.source.speaker" defaultMessage="Speaker" />,
-        onSelect: PublicSpeakingSystem.initPublicSpeaker(),
+        onSelect: PublicSpeakingSystem.initPublicSpeaker,
         active: false
       },
     configs.isAdmin() &&
-      !(APP.publicSpeakingSfu?._connectionType === SFU_CONNECTION_TYPE.SEND) && {
+      !(APP.publicSpeakingSfu?._roomId === "public_speaking") && {
         id: "play-speaking",
         icon: AudienceIcon,
         color: "accent5",
         label: <FormattedMessage id="public-speaking-popover.source.play-speaking" defaultMessage="Play Speaking" />,
-        onSelect: PublicSpeakingSystem.initPublicSpeakingMirroring(hubChannel.hubId),
+        onSelect: () => PublicSpeakingSystem.initPublicSpeakingMirroring(hubChannel.hubId),
         active: false
       }
   ];

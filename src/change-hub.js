@@ -123,6 +123,7 @@ export async function changeHub(hubId, addToHistory = true, waypoint = "") {
 
   APP.sfu = createSfuAdapter({ sfuId: data.sfu });
   const connectOption = {
+    sfuId: data.sfu,
     clientId: data.session_id || APP.sfu._clientId,
     channelId: data.sora_channel_id || hub.hub_id,
     scene,
