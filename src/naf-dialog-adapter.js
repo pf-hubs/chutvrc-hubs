@@ -338,7 +338,7 @@ export class DialogAdapter extends SfuAdapter {
 
             this.resolvePendingMediaRequestForTrack(peerId, consumer.track);
 
-            if (peerId === "public_speaker") {
+            if (peerId === "public-speaker") {
               this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(new MediaStream([consumer.track]));
             }
 

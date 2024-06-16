@@ -138,7 +138,7 @@ export class SoraAdapter extends SfuAdapter {
           if (value === stream.id) clientId = key;
           break;
         }
-        if (clientId === "public_speaker") {
+        if (clientId === "public-speaker") {
           this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(
             new MediaStream(stream.getAudioTracks())
           );
