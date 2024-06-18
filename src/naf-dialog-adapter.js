@@ -444,6 +444,10 @@ export class DialogAdapter extends SfuAdapter {
           consumer.close();
           this.removeConsumer(consumer.id);
 
+          if (this === APP.mirrorSpeakingSfu) {
+            this.disconnect();
+          }
+
           break;
         }
 
