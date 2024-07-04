@@ -105,6 +105,7 @@ import { ChatContextProvider } from "./room/contexts/ChatContext";
 import ChatToolbarButton from "./room/components/ChatToolbarButton/ChatToolbarButton";
 import SeePlansCTA from "./room/components/SeePlansCTA/SeePlansCTA";
 import { PublicSpeakingPopoverContainer } from "./room/PublicSpeakingPopoverContainer";
+import RecordingButton from "./room/components/RecordingButton/RecordingButton";
 
 const avatarEditorDebug = qsTruthy("avatarEditorDebug");
 
@@ -1657,6 +1658,7 @@ class UIRoot extends Component {
                         selected={this.state.sidebarId === "chat"}
                       />
                     )}
+                    {!isLockedDownDemo && <RecordingButton />}
                     {entered && isMobileVR && (
                       <ToolbarButton
                         className={styleUtils.hideLg}

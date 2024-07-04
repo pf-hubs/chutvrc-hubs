@@ -3,6 +3,7 @@ import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
 import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
 
 type DataChannelMessage = { channelLabel: string; message: ArrayBuffer | null };
+type RecordedDataChannelMessage = { l: string; m: ArrayBuffer | null; t: number };
 
 export const SFU_CONNECTION_CONNECTED = "sfu-connection-connected";
 export const SFU_CONNECTION_ERROR_FATAL = "sfu-connection-error-fatal";
@@ -14,6 +15,8 @@ export abstract class SfuAdapter extends EventEmitter {
   _avatarSyncHelper: AvatarSyncHelper;
   _connectionType: SFU_CONNECTION_TYPE;
   _dataChannelMessages: DataChannelMessage[];
+  _recordedDataChannelMessages: RecordedDataChannelMessage[];
+  _isRecording: boolean;
   connect(props: any) {}
   disconnect() {}
   getMediaStream(clientId: string, kind: string) {}

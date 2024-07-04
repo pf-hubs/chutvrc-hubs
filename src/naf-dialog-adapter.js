@@ -68,6 +68,7 @@ export class DialogAdapter extends SfuAdapter {
     this._consumerStats = {};
     this._avatarSyncHelper = new AvatarSyncHelper(this);
     this._dataChannelMessages = [];
+    this._recordedDataChannelMessages = [];
   }
 
   get consumerStats() {
@@ -387,6 +388,7 @@ export class DialogAdapter extends SfuAdapter {
             dataConsumer.on("message", data => {
               // console.log(`Channel ${label} received message: ${new TextDecoder().decode(new Uint8Array(data))}`);
               this._dataChannelMessages.push({ channelLabel: label, message: data });
+              if (this._isRecording) this._recordedDataChannelMessages.push({ l: label, m: data, t: Date.now() });
               while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
               this._avatarSyncHelper.handleRecvMessage(label, new Uint8Array(data));
             });
@@ -1163,6 +1165,7 @@ export class DialogAdapter extends SfuAdapter {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
       this._dataProducers.get(channel)?.send(new TextEncoder().encode(message));
+      this._recordedDataChannelMessages.push({ l: channel, m: new TextEncoder().encode(message), t: Date.now() });
     } catch (error) {
       console.error(error);
     }
@@ -1172,6 +1175,7 @@ export class DialogAdapter extends SfuAdapter {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
       this._dataProducers.get(channel)?.send(message);
+      this._recordedDataChannelMessages.push({ l: channel, m: message, t: Date.now() });
     } catch (error) {
       console.error(error);
     }

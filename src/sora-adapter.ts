@@ -45,6 +45,7 @@ export class SoraAdapter extends SfuAdapter {
     this._micShouldBeEnabled = false;
     this._avatarSyncHelper = new AvatarSyncHelper(this);
     this._dataChannelMessages = [];
+    this._recordedDataChannelMessages = [];
     this.crossRoomStreamerAudioSource = {};
   }
 
@@ -134,12 +135,12 @@ export class SoraAdapter extends SfuAdapter {
           this._remoteMediaStreams.set(stream.id, stream);
         }
 
-        let clientId;
+        let clientId: string = "";
         for (let [key, value] of this._clientStreamIdPair.entries()) {
           if (value === stream.id) clientId = key;
           break;
         }
-        if (clientId?.includes("public-speaker") && this._roomId !== "public_speaking") {
+        if (clientId.includes("public-speaker") && this._roomId !== "public_speaking") {
           this.crossRoomStreamerAudioSource[clientId] = new CrossRoomStreamerAudioSource(
             new MediaStream(stream.getAudioTracks())
           );
@@ -164,6 +165,7 @@ export class SoraAdapter extends SfuAdapter {
       });
       this._connector.on("message", event => {
         this._dataChannelMessages.push({ channelLabel: event.label, message: event.data });
+        if (this._isRecording) this._recordedDataChannelMessages.push({ l: event.label, m: event.data, t: Date.now() });
         while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
         this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
       });
@@ -424,6 +426,7 @@ export class SoraAdapter extends SfuAdapter {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
       this._connector?.sendMessage(channel, new TextEncoder().encode(message));
+      this._recordedDataChannelMessages.push({ l: channel, m: new TextEncoder().encode(message), t: Date.now() });
     } catch (error) {
       console.error(error);
     }
@@ -433,6 +436,7 @@ export class SoraAdapter extends SfuAdapter {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
       this._connector?.sendMessage(channel, message);
+      this._recordedDataChannelMessages.push({ l: channel, m: message, t: Date.now() });
     } catch (error) {
       console.error(error);
     }
