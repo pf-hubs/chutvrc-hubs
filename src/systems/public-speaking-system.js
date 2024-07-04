@@ -6,7 +6,7 @@ export class PublicSpeakingSystem {
     APP.publicSpeakingSfu = createSfuAdapter({ sfuId: APP.sfu._sfuId, connectionType: SFU_CONNECTION_TYPE.SEND });
     await connectSfu(APP.publicSpeakingSfu, {
       sfuId: APP.sfu._sfuId,
-      clientId: "public-speaker",
+      clientId: "public-speaker-" + APP.sfu._clientId,
       channelId: "public_speaking",
       scene: null,
       serverUrl: `wss://${APP.sfu._serverParams?.host || "localhost"}:4443`,
@@ -30,9 +30,9 @@ export class PublicSpeakingSystem {
     }
   }
 
-  static async initPublicSpeakingMirroring(channelId) {
-    APP.mirrorSpeakingSfu = createSfuAdapter({ sfuId: APP.sfu._sfuId, connectionType: SFU_CONNECTION_TYPE.RECV });
-    await connectSfu(APP.mirrorSpeakingSfu, {
+  static async initPublicSpeakingMirroring() {
+    APP.publicSpeakersMirrorSfu = createSfuAdapter({ sfuId: APP.sfu._sfuId, connectionType: SFU_CONNECTION_TYPE.RECV });
+    await connectSfu(APP.publicSpeakersMirrorSfu, {
       sfuId: APP.sfu._sfuId,
       clientId: APP.sfu._clientId,
       channelId: "public_speaking",
@@ -46,11 +46,36 @@ export class PublicSpeakingSystem {
       iceTransportPolicy: APP.sfu._iceTransportPolicy || false,
       debug: false
     });
-    APP.publicSpeakingSfu = createSfuAdapter({ sfuId: APP.sfu._sfuId, connectionType: SFU_CONNECTION_TYPE.SEND });
-    await connectSfu(APP.publicSpeakingSfu, {
+
+    APP.publicSpeakersMirrorSfu.on("stream_updated", this.mirrorPublicSpeaking, this);
+  }
+
+  static async mirrorPublicSpeaking(clientId, kind) {
+    if (!clientId.includes("public-speaker") || kind !== "audio") return;
+    if (!APP.publicSpeakerAgentSfus[clientId]) {
+      await this.initPublicSpeakerAgent(clientId);
+    }
+    APP.publicSpeakersMirrorSfu.getMediaStream(clientId, "audio").then(stream => {
+      APP.publicSpeakerAgentSfus[clientId].setLocalMediaStream(stream);
+    });
+  }
+
+  static mirrorDataChannelMessageFromSpeaker() {
+    if (APP.publicSpeakingSfu && APP.publicSpeakersMirrorSfu) {
+      APP.publicSpeakingSfu.setLocalDataChannelMessage(APP.publicSpeakersMirrorSfu.getDataChannelMessage());
+    }
+  }
+
+  static async initPublicSpeakerAgent(clientId) {
+    if (!clientId.includes("public-speaker")) return;
+    APP.publicSpeakerAgentSfus[clientId] = createSfuAdapter({
       sfuId: APP.sfu._sfuId,
-      clientId: "public-speaker",
-      channelId: channelId,
+      connectionType: SFU_CONNECTION_TYPE.SEND
+    });
+    await connectSfu(APP.publicSpeakerAgentSfus[clientId], {
+      sfuId: APP.sfu._sfuId,
+      clientId: clientId,
+      channelId: APP.sfu._roomId,
       scene: null,
       serverUrl: `wss://${APP.sfu._serverParams.host || "localhost"}:4443`,
       serverParams: APP.sfu._serverParams || { host: "localhost", port: 3306, turn: null },
@@ -61,19 +86,5 @@ export class PublicSpeakingSystem {
       iceTransportPolicy: APP.sfu._iceTransportPolicy || false,
       debug: false
     });
-    APP.mirrorSpeakingSfu.on("stream_updated", this.mirrorPublicSpeaking, this);
-  }
-
-  static mirrorPublicSpeaking(clientId, kind) {
-    if (clientId !== "public-speaker" || kind !== "audio") return;
-    APP.mirrorSpeakingSfu.getMediaStream("public-speaker", "audio").then(stream => {
-      APP.publicSpeakingSfu.setLocalMediaStream(stream);
-    });
-  }
-
-  static mirrorDataChannelMessageFromSpeaker() {
-    if (APP.publicSpeakingSfu && APP.mirrorSpeakingSfu) {
-      APP.publicSpeakingSfu.setLocalDataChannelMessage(APP.mirrorSpeakingSfu.getDataChannelMessage());
-    }
   }
 }

@@ -338,17 +338,20 @@ export class DialogAdapter extends SfuAdapter {
 
             this.resolvePendingMediaRequestForTrack(peerId, consumer.track);
 
-            if (peerId === "public-speaker" && this._roomId !== "public_speaking") {
-              this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(new MediaStream([consumer.track]));
+            if (peerId.includes("public-speaker") && this._roomId !== "public_speaking") {
+              if (!this.crossRoomStreamerAudioSource) this.crossRoomStreamerAudioSource = {};
+              this.crossRoomStreamerAudioSource[peerId] = new CrossRoomStreamerAudioSource(
+                new MediaStream([consumer.track])
+              );
 
               const tryAttachAudioToAvatar = () => {
                 const avatarEid = this._avatarSyncHelper._client2AvatarEid.get(peerId);
                 if (avatarEid) {
                   const avatarObj = APP.world.eid2obj.get(avatarEid);
                   console.log(avatarObj);
-                  if (avatarObj) this.crossRoomStreamerAudioSource.attachAudio(avatarObj);
+                  if (avatarObj) this.crossRoomStreamerAudioSource[peerId].attachAudio(avatarObj);
                 }
-                if (!this.crossRoomStreamerAudioSource.node) {
+                if (!this.crossRoomStreamerAudioSource[peerId].node) {
                   window.setTimeout(tryAttachAudioToAvatar, 1000);
                 }
               };
@@ -444,7 +447,7 @@ export class DialogAdapter extends SfuAdapter {
           consumer.close();
           this.removeConsumer(consumer.id);
 
-          if (this === APP.mirrorSpeakingSfu) {
+          if (this === APP.publicSpeakersMirrorSfu) {
             this.disconnect();
           }
 
@@ -982,13 +985,14 @@ export class DialogAdapter extends SfuAdapter {
         });
 
         this._dataProducers.set(label, dataProducer);
-        if (this._clientId !== "public-speaker" || this._roomId === "public_speaking") {
+        if (!this._clientId.includes("public-speaker") || this._roomId === "public_speaking") {
           this._avatarSyncHelper.handleSyncInit(label);
         }
       })
     );
 
-    if (this && this._clientId === "public-speaker" && this._roomId === "public_speaking") {
+    // TODO: move to other appropriate place
+    if (this && this._clientId.includes("public-speaker") && this._roomId === "public_speaking") {
       setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
     }
   }

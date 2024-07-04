@@ -112,7 +112,8 @@ export class App {
   // sfuCandidates: SfuAdapter[] = [new DialogAdapter(), new SoraAdapter()];
   sfu: SfuAdapter;
   publicSpeakingSfu: SfuAdapter;
-  mirrorSpeakingSfu: SfuAdapter;
+  publicSpeakersMirrorSfu: SfuAdapter;
+  publicSpeakerAgentSfus: { [clientId: string]: SfuAdapter };
 
   RENDER_ORDER = {
     HUD_BACKGROUND: 1,

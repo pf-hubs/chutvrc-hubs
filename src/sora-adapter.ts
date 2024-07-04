@@ -29,7 +29,7 @@ export class SoraAdapter extends SfuAdapter {
   _avatarSyncHelper: AvatarSyncHelper;
   _signalingUrl?: string | string[];
   _accessToken?: string;
-  crossRoomStreamerAudioSource: CrossRoomStreamerAudioSource;
+  crossRoomStreamerAudioSource: { [clientId: string]: CrossRoomStreamerAudioSource };
 
   constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
     super();
@@ -45,6 +45,7 @@ export class SoraAdapter extends SfuAdapter {
     this._micShouldBeEnabled = false;
     this._avatarSyncHelper = new AvatarSyncHelper(this);
     this._dataChannelMessages = [];
+    this.crossRoomStreamerAudioSource = {};
   }
 
   async connect({ clientId, channelId, signalingUrl, accessToken, scene, debug }: ConnectProps) {
@@ -138,18 +139,18 @@ export class SoraAdapter extends SfuAdapter {
           if (value === stream.id) clientId = key;
           break;
         }
-        if (clientId === "public-speaker" && this._roomId !== "public_speaking") {
-          this.crossRoomStreamerAudioSource = new CrossRoomStreamerAudioSource(
+        if (clientId?.includes("public-speaker") && this._roomId !== "public_speaking") {
+          this.crossRoomStreamerAudioSource[clientId] = new CrossRoomStreamerAudioSource(
             new MediaStream(stream.getAudioTracks())
           );
           const tryAttachAudioToAvatar = () => {
-            const avatarEid = this._avatarSyncHelper._client2AvatarEid.get("public-speaker");
+            const avatarEid = this._avatarSyncHelper._client2AvatarEid.get(clientId);
             if (avatarEid) {
               const avatarObj = APP.world.eid2obj.get(avatarEid);
               console.log(avatarObj);
-              if (avatarObj) this.crossRoomStreamerAudioSource.attachAudio(avatarObj);
+              if (avatarObj) this.crossRoomStreamerAudioSource[clientId].attachAudio(avatarObj);
             }
-            if (!this.crossRoomStreamerAudioSource.node) {
+            if (!this.crossRoomStreamerAudioSource[clientId].node) {
               window.setTimeout(tryAttachAudioToAvatar, 1000);
             }
           };
@@ -170,7 +171,9 @@ export class SoraAdapter extends SfuAdapter {
 
     if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
       this._connector.on("datachannel", event => {
-        this._avatarSyncHelper.handleSyncInit(event.datachannel.label);
+        if (!this._clientId.includes("public-speaker") || this._roomId === "public_speaking") {
+          this._avatarSyncHelper.handleSyncInit(event.datachannel.label);
+        }
       });
       this._scene?.addEventListener("audio_ready", async () => {
         await new Promise(res => setTimeout(res, 1000));
@@ -308,6 +311,11 @@ export class SoraAdapter extends SfuAdapter {
     if (!sawVideo) {
       this.disableCamera();
       this.disableShare();
+    }
+
+    // TODO: move to other appropriate place
+    if (this && this._clientId.includes("public-speaker") && this._roomId === "public_speaking") {
+      setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
     }
   }
 

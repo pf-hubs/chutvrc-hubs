@@ -11,7 +11,7 @@ import { PublicSpeakingSystem } from "../../systems/public-speaking-system";
 export function PublicSpeakingPopoverContainer({ scene, hubChannel }) {
   const items = [
     configs.isAdmin() &&
-      !APP.mirrorSpeakingSfu && {
+      !APP.publicSpeakersMirrorSfu && {
         id: "speaker",
         icon: SpotlightIcon,
         color: "accent5",
@@ -25,7 +25,7 @@ export function PublicSpeakingPopoverContainer({ scene, hubChannel }) {
         icon: AudienceIcon,
         color: "accent5",
         label: <FormattedMessage id="public-speaking-popover.source.play-speaking" defaultMessage="Play Speaking" />,
-        onSelect: () => PublicSpeakingSystem.initPublicSpeakingMirroring(hubChannel.hubId),
+        onSelect: () => PublicSpeakingSystem.initPublicSpeakingMirroring(),
         active: false
       }
   ];
