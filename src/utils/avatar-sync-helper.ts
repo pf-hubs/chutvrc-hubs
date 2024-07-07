@@ -21,6 +21,9 @@ export class AvatarSyncHelper {
   _avatarPartsToSync: AvatarPart[];
   _channelsForSync: string[];
   _isStartSendingSelfAvatarTransform: boolean;
+  _sendSelfAvatarTransformIntervalId: NodeJS.Timer;
+  _setSelfIsVrFlagIntervalId: NodeJS.Timer;
+  _sendSelfIsVrFlagIntervalId: NodeJS.Timer;
 
   constructor(sfu: SfuAdapter) {
     this._sfu = sfu;
@@ -98,7 +101,7 @@ export class AvatarSyncHelper {
 
     if (rig && head && left && right) {
       this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._sfu._clientId, rig, head, left, right);
-      setInterval(() => this.updateSelfAvatarTransform(), 10);
+      setInterval(() => this.updateSelfAvatarTransform(), 15);
       return true;
     }
 
@@ -168,14 +171,14 @@ export class AvatarSyncHelper {
       getPlayerAvatarIntervalId = setInterval(getPlayerAvatar, 1000);
     } else if (this._selfAvatarTransformBuffer && !this._isStartSendingSelfAvatarTransform) {
       this._isStartSendingSelfAvatarTransform = true;
-      setInterval(() => this.sendSelfAvatarTransform(true), 10);
+      this._sendSelfAvatarTransformIntervalId = setInterval(() => this.sendSelfAvatarTransform(true), 15);
       return;
     }
   }
 
   private handleVrModeSyncInit() {
-    setInterval(() => this.setSelfIsVrFlag(), 1000);
-    setInterval(() => this.sendSelfIsVrFlag(), 1000);
+    this._setSelfIsVrFlagIntervalId = setInterval(() => this.setSelfIsVrFlag(), 1000);
+    this._sendSelfIsVrFlagIntervalId = setInterval(() => this.sendSelfIsVrFlag(), 1000);
   }
 
   private setSelfIsVrFlag() {
@@ -200,5 +203,11 @@ export class AvatarSyncHelper {
           ? "1"
           : "0")
     );
+  }
+
+  stopSyncing() {
+    if (this._sendSelfAvatarTransformIntervalId) clearInterval(this._sendSelfAvatarTransformIntervalId);
+    if (this._setSelfIsVrFlagIntervalId) clearInterval(this._setSelfIsVrFlagIntervalId);
+    if (this._sendSelfIsVrFlagIntervalId) clearInterval(this._sendSelfIsVrFlagIntervalId);
   }
 }

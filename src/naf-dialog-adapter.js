@@ -339,7 +339,7 @@ export class DialogAdapter extends SfuAdapter {
 
             this.resolvePendingMediaRequestForTrack(peerId, consumer.track);
 
-            if (peerId.includes("public-speaker") && this._roomId !== "public_speaking") {
+            if (peerId.includes("PS-") && this._roomId !== "public_speaking") {
               if (!this.crossRoomStreamerAudioSource) this.crossRoomStreamerAudioSource = {};
               this.crossRoomStreamerAudioSource[peerId] = new CrossRoomStreamerAudioSource(
                 new MediaStream([consumer.track])
@@ -912,6 +912,7 @@ export class DialogAdapter extends SfuAdapter {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     if (!this._sendTransport) {
       console.error("Tried to setLocalMediaStream before a _sendTransport existed");
+      if (!this._localMediaStream) this._localMediaStream = stream;
       return;
     }
     this.emitRTCEvent("info", "RTC", () => `Creating missing producers`);
@@ -987,15 +988,15 @@ export class DialogAdapter extends SfuAdapter {
         });
 
         this._dataProducers.set(label, dataProducer);
-        if (!this._clientId.includes("public-speaker") || this._roomId === "public_speaking") {
+        if (!this._clientId.includes("PS-") || this._roomId === "public_speaking") {
           this._avatarSyncHelper.handleSyncInit(label);
         }
       })
     );
 
     // TODO: move to other appropriate place
-    if (this && this._clientId.includes("public-speaker") && this._roomId === "public_speaking") {
-      setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
+    if (this && this._clientId.includes("PS-") && this._roomId === "public_speaking") {
+      this._sendSelfAvatarSrcIntervalId = setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
     }
   }
 
@@ -1133,6 +1134,8 @@ export class DialogAdapter extends SfuAdapter {
         this.emitRTCEvent("info", "Signaling", () => `[close]`);
       }
     }
+    if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
+    this._avatarSyncHelper?.stopSyncing();
   }
 
   kick(clientId) {
@@ -1164,7 +1167,7 @@ export class DialogAdapter extends SfuAdapter {
   broadcast(channel, message) {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
-      this._dataProducers.get(channel)?.send(new TextEncoder().encode(message));
+      this._dataProducers?.get(channel)?.send(new TextEncoder().encode(message));
       this._recordedDataChannelMessages.push({ l: channel, m: new TextEncoder().encode(message), t: Date.now() });
     } catch (error) {
       console.error(error);
@@ -1174,7 +1177,7 @@ export class DialogAdapter extends SfuAdapter {
   broadcastUint8(channel, message) {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
-      this._dataProducers.get(channel)?.send(message);
+      this._dataProducers?.get(channel)?.send(message);
       this._recordedDataChannelMessages.push({ l: channel, m: message, t: Date.now() });
     } catch (error) {
       console.error(error);

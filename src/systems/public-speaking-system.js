@@ -2,11 +2,13 @@ import { connectSfu, createSfuAdapter } from "../utils/sfu-adapter-utils";
 import { SFU_CONNECTION_TYPE } from "../sfu-types";
 
 export class PublicSpeakingSystem {
+  static clientIds = [];
+
   static async initPublicSpeaker() {
     APP.publicSpeakingSfu = createSfuAdapter({ sfuId: APP.sfu._sfuId, connectionType: SFU_CONNECTION_TYPE.SEND });
     await connectSfu(APP.publicSpeakingSfu, {
       sfuId: APP.sfu._sfuId,
-      clientId: "public-speaker-" + APP.sfu._clientId,
+      clientId: "PS-" + APP.sfu._clientId,
       channelId: "public_speaking",
       scene: null,
       serverUrl: `wss://${APP.sfu._serverParams?.host || "localhost"}:4443`,
@@ -20,6 +22,10 @@ export class PublicSpeakingSystem {
     });
 
     PublicSpeakingSystem.speakerTrySetLocalMediaStream();
+  }
+
+  static closePublicSpeaker() {
+    APP.publicSpeakingSfu.disconnect();
   }
 
   static speakerTrySetLocalMediaStream() {
@@ -51,7 +57,8 @@ export class PublicSpeakingSystem {
   }
 
   static async mirrorPublicSpeaking(clientId, kind) {
-    if (!clientId.includes("public-speaker") || kind !== "audio") return;
+    if (!clientId.includes("PS-") || kind !== "audio") return;
+    if (!APP.publicSpeakerAgentSfus) APP.publicSpeakerAgentSfus = {};
     if (!APP.publicSpeakerAgentSfus[clientId]) {
       await this.initPublicSpeakerAgent(clientId);
     }
@@ -60,14 +67,29 @@ export class PublicSpeakingSystem {
     });
   }
 
+  static closePublicSpeakingMirroring() {
+    if (APP.publicSpeakersMirrorSfu) APP.publicSpeakersMirrorSfu.disconnect();
+    if (!APP.publicSpeakerAgentSfus) return;
+    this.clientIds.forEach(clientId => {
+      if (APP.publicSpeakerAgentSfus[clientId]) APP.publicSpeakerAgentSfus[clientId].disconnect();
+    });
+    this.clientIds = [];
+  }
+
   static mirrorDataChannelMessageFromSpeaker() {
-    if (APP.publicSpeakingSfu && APP.publicSpeakersMirrorSfu) {
-      APP.publicSpeakingSfu.setLocalDataChannelMessage(APP.publicSpeakersMirrorSfu.getDataChannelMessage());
-    }
+    if (!APP.publicSpeakersMirrorSfu) return;
+    this.clientIds.forEach(clientId => {
+      if (APP.publicSpeakerAgentSfus[clientId]) {
+        APP.publicSpeakerAgentSfus[clientId].setLocalDataChannelMessage(
+          APP.publicSpeakersMirrorSfu.getDataChannelMessage()
+        );
+      }
+    });
   }
 
   static async initPublicSpeakerAgent(clientId) {
-    if (!clientId.includes("public-speaker")) return;
+    if (!clientId.includes("PS-")) return;
+    this.clientIds.push(clientId);
     APP.publicSpeakerAgentSfus[clientId] = createSfuAdapter({
       sfuId: APP.sfu._sfuId,
       connectionType: SFU_CONNECTION_TYPE.SEND

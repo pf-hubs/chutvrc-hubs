@@ -140,7 +140,7 @@ export class SoraAdapter extends SfuAdapter {
           if (value === stream.id) clientId = key;
           break;
         }
-        if (clientId.includes("public-speaker") && this._roomId !== "public_speaking") {
+        if (clientId.includes("PS-") && this._roomId !== "public_speaking") {
           this.crossRoomStreamerAudioSource[clientId] = new CrossRoomStreamerAudioSource(
             new MediaStream(stream.getAudioTracks())
           );
@@ -173,7 +173,7 @@ export class SoraAdapter extends SfuAdapter {
 
     if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
       this._connector.on("datachannel", event => {
-        if (!this._clientId.includes("public-speaker") || this._roomId === "public_speaking") {
+        if (!this._clientId.includes("PS-") || this._roomId === "public_speaking") {
           this._avatarSyncHelper.handleSyncInit(event.datachannel.label);
         }
       });
@@ -212,6 +212,8 @@ export class SoraAdapter extends SfuAdapter {
       await this._connector.disconnect();
       this._connector = null;
     }
+    if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
+    this._avatarSyncHelper?.stopSyncing();
     debug("disconnect()");
     // ...
     this.emitRTCEvent("info", "Signaling", () => `[close]`);
@@ -316,8 +318,8 @@ export class SoraAdapter extends SfuAdapter {
     }
 
     // TODO: move to other appropriate place
-    if (this && this._clientId.includes("public-speaker") && this._roomId === "public_speaking") {
-      setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
+    if (this && this._clientId.includes("PS-") && this._roomId === "public_speaking") {
+      this._sendSelfAvatarSrcIntervalId = setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
     }
   }
 
