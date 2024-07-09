@@ -74,6 +74,8 @@ export class AvatarIkManager {
 
     this.leftFootTarget = new Object3D();
     this.rightFootTarget = new Object3D();
+    this.leftFootWorldPosBuffer = new Vector3();
+    this.rightFootWorldPosBuffer = new Vector3();
     if (this.rootBone) {
       this.leftFootTarget.parent = this.rootBone;
       this.leftFootTarget.position.set(-0.1, -0.5, 0);
@@ -175,7 +177,7 @@ export class AvatarIkManager {
     if (!this.isInputReady) return;
     if (this.rootBone.parent && !this.rootBone.parent?.visible) this.rootBone.parent.visible = true;
 
-    this.handleWalkingState(poseInput.rig.pos);
+    // this.handleWalkingState(poseInput.rig.pos);
 
     this.rootInput = poseInput.rig;
     if (!this.isNPC) this.updateRootAndHipsTransform(poseInput.hmd);
@@ -183,10 +185,12 @@ export class AvatarIkManager {
     this.headIK?.solve(poseInput.hmd, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
     this.leftArmIK?.solve(poseInput.leftController, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
     this.rightArmIK?.solve(poseInput.rightController, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
+    /*
     if (!this.isNPC && this.leftFootWorldInput)
       this.leftLegIK?.solve(this.leftFootWorldInput, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
     if (!this.isNPC && this.rightFootWorldInput)
       this.rightLegIK?.solve(this.rightFootWorldInput, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
+    */
 
     if (this.isVR) this.rootBone?.updateWorldMatrix(false, true);
   }
@@ -222,6 +226,7 @@ export class AvatarIkManager {
   }
 
   private handleWalkingState(inputRigPos: Position) {
+    if (!this.leftFootTarget || !this.rightFootTarget) return;
     if (this.isWalking) {
       if (this.rootInput && this.rootInput.pos.x === inputRigPos.x && this.rootInput.pos.z === inputRigPos.z) {
         this.isWalking = false;
