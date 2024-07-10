@@ -36,7 +36,7 @@ export class ArmIk extends LimbIk {
     this.isLeft = isLeft;
     this.isHalfBody = isHalfBody;
     this.isVisible = true;
-    this.inputFilter = new TransformLowPassFilter(0.1, 0.1);
+    this.inputFilter = new TransformLowPassFilter(0.3, 0.2);
     this.isDebug = isDebug;
     this.world = world;
     this.effector.rotation.order = "YXZ";
@@ -85,10 +85,10 @@ export class ArmIk extends LimbIk {
 
       if (this.isFlippedY) {
         this.effector.rotateZ(this.isLeft ? Math.PI / 2 : -Math.PI / 2);
-        this.effector.rotateY(this.isLeft ? -Math.PI / 2 : Math.PI / 2);
+        if (!this.isVR) this.effector.rotateY(this.isLeft ? -Math.PI / 2 : Math.PI / 2);
       } else {
         this.effector.rotateX(-Math.PI / 3);
-        this.effector.rotateY(this.isLeft ? Math.PI / 2 : -Math.PI / 2);
+        if (!this.isVR) this.effector.rotateY(this.isLeft ? Math.PI / 2 : -Math.PI / 2);
       }
     } else {
       this.effector.rotation.set(0, 0, 0);
@@ -131,11 +131,11 @@ export class ArmIk extends LimbIk {
 
     const rotY = this.effector.rotation.y;
     // this.effector.rotation.y = 0;
-    // this.effector.updateMatrix();
+    this.effector.updateMatrix();
 
     for (let _ = 0; _ < 2; _++) {
       this.base?.ikSolver?.alignBoneWithGoal(this.currentInputPosition);
-      this.elbow?.ikSolver?.alignBoneWithGoal(this.currentInputPosition, rotY);
+      this.elbow?.ikSolver?.alignBoneWithGoal(this.currentInputPosition);
     }
 
     this.adjustElbow();
