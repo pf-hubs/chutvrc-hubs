@@ -251,6 +251,7 @@ import "./components/tools/drawing-manager";
 import "./components/body-helper";
 import "./components/shape-helper";
 
+import registerNetworkSchemas from "./network-schemas";
 import registerTelemetry from "./telemetry";
 
 import { getAvailableVREntryTypes, VR_DEVICE_AVAILABILITY, ONLY_SCREEN_AVAILABLE } from "./utils/vr-caps-detect";
@@ -678,6 +679,7 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
       // APP.sfu = createSfuAdapter({ sfuId: data.sfu });
       APP.sfu = APP.sfuCandidates.find((sfu, sfuId) => sfuId === data.sfu);
       listenSfuConnection(scene);
+      registerNetworkSchemas();
       connectSfu(APP.sfu, {
         sfuId: data.sfu,
         clientId: data.session_id,
@@ -989,8 +991,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     }
   });
-
-  // registerNetworkSchemas();
 
   remountUI({
     authChannel,

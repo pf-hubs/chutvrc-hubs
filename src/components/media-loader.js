@@ -574,7 +574,7 @@ AFRAME.registerComponent("media-loader", {
             modelToWorldScale: this.data.fitToBox ? 0.0001 : 1.0
           })
         );
-        this.el.setAttribute("ai-chatbot", { displayText: true });
+        // this.el.setAttribute("ai-chatbot", { displayText: true });
       } else if (contentType.startsWith("text/html")) {
         this.el.removeAttribute("gltf-model-plus");
         this.el.removeAttribute("media-video");
