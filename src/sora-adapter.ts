@@ -417,9 +417,9 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   broadcast(channel: string, message: string) {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    if (!this._connector || this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
-      this._connector?.sendMessage(channel, new TextEncoder().encode(message));
+      this._connector.sendMessage(channel, new TextEncoder().encode(message));
       this._recordedDataChannelMessages.push({ l: channel, m: new TextEncoder().encode(message), t: Date.now() });
     } catch (error) {
       console.error(error);
@@ -427,9 +427,9 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   broadcastUint8(channel: string, message: Uint8Array) {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    if (!this._connector || this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
-      this._connector?.sendMessage(channel, message);
+      this._connector.sendMessage(channel, message);
       this._recordedDataChannelMessages.push({ l: channel, m: message, t: Date.now() });
     } catch (error) {
       console.error(error);
