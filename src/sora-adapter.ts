@@ -308,7 +308,7 @@ export class SoraAdapter extends SfuAdapter {
       this.disableCamera();
       this.disableShare();
     }
-    this._localMediaStream = stream;
+    if (this._clientId.includes("PS-")) this._localMediaStream = stream;
 
     // TODO: move to other appropriate place
     if (this && this._clientId.includes("PS-") && this._roomId.includes("public_speaking")) {
