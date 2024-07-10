@@ -84,6 +84,15 @@ export const mapAvatarBone = (avatar: Object3D) => {
       isMappingStarted = true;
       boneTypeToObject.set(BoneType.Root, child);
       delete clonedBoneNameKeywords[BoneType["Root" as keyof typeof BoneType]];
+    } else if (
+      checkBoneNameMatching(child.name, boneNameKeywords[BoneType.Hips]) !== BoneMapPriority.NONE &&
+      child.parent
+    ) {
+      isMappingStarted = true;
+      boneTypeToObject.set(BoneType.Root, child.parent);
+      boneTypeToObject.set(BoneType.Hips, child);
+      delete clonedBoneNameKeywords[BoneType["Root" as keyof typeof BoneType]];
+      delete clonedBoneNameKeywords[BoneType["Hips" as keyof typeof BoneType]];
     }
   });
 
