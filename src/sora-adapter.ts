@@ -62,6 +62,7 @@ export class SoraAdapter extends SfuAdapter {
       spotlight: true,
       audio: true,
       video: true,
+      simulcast: true,
       audioCodecType: "OPUS" as SoraType.AudioCodecType,
       videoCodecType: "H264" as SoraType.VideoCodecType,
       dataChannelSignaling: true,
@@ -375,6 +376,7 @@ export class SoraAdapter extends SfuAdapter {
     }
     this._connector?.on("removetrack", e => {
       if (e.track.kind === "video") {
+        console.log("Remove video track");
         this.emitRTCEvent("info", "RTC", () => `Desktop Share transport track ended`);
         this.disableCamera();
       }
