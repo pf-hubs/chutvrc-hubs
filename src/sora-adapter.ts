@@ -96,6 +96,11 @@ export class SoraAdapter extends SfuAdapter {
           ) {
             this._clientStreamIdPair.set(c.client_id, c.connection_id);
             this.resolvePendingMediaRequestForTrack(c.client_id);
+            this.tryAttachAudioToPublicSpeakerAgent(c.client_id, c.connection_id);
+            if (this._roomId.includes("public_speaking")) {
+              this.emit("stream_updated", c.client_id, "audio");
+              this.emit("stream_updated", c.client_id, "video");
+            }
           }
         });
 
@@ -109,6 +114,7 @@ export class SoraAdapter extends SfuAdapter {
         ) {
           this._clientStreamIdPair.set(event.client_id, event.connection_id);
           // this._avatarSyncHelper.sendSelfAvatarTransform(false);
+          this.tryAttachAudioToPublicSpeakerAgent(event.client_id, event.connection_id);
           this.emit("stream_updated", event.client_id, "audio");
           this.emit("stream_updated", event.client_id, "video");
         }
@@ -134,30 +140,6 @@ export class SoraAdapter extends SfuAdapter {
         if (!this._remoteMediaStreams.has(stream.id)) {
           this._remoteMediaStreams.set(stream.id, stream);
         }
-
-        let clientId: string = "";
-        for (let [key, value] of this._clientStreamIdPair.entries()) {
-          if (value === stream.id) clientId = key;
-          break;
-        }
-        if (clientId.includes("PS-") && this._roomId !== "public_speaking") {
-          this.crossRoomStreamerAudioSource[clientId] = new CrossRoomStreamerAudioSource(
-            new MediaStream(stream.getAudioTracks())
-          );
-          const tryAttachAudioToAvatar = () => {
-            const avatarEid = this._avatarSyncHelper._client2AvatarEid.get(clientId);
-            if (avatarEid) {
-              const avatarObj = APP.world.eid2obj.get(avatarEid);
-              console.log(avatarObj);
-              if (avatarObj) this.crossRoomStreamerAudioSource[clientId].attachAudio(avatarObj);
-            }
-            if (!this.crossRoomStreamerAudioSource[clientId].node) {
-              window.setTimeout(tryAttachAudioToAvatar, 1000);
-            }
-          };
-
-          tryAttachAudioToAvatar();
-        }
       });
       this._connector.on("removetrack", event => {
         // @ts-ignore
@@ -173,7 +155,7 @@ export class SoraAdapter extends SfuAdapter {
 
     if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
       this._connector.on("datachannel", event => {
-        if (!this._clientId.includes("PS-") || this._roomId === "public_speaking") {
+        if (!this._clientId.includes("PS-") || this._roomId.includes("public_speaking")) {
           this._avatarSyncHelper.handleSyncInit(event.datachannel.label);
         }
       });
@@ -318,7 +300,7 @@ export class SoraAdapter extends SfuAdapter {
     }
 
     // TODO: move to other appropriate place
-    if (this && this._clientId.includes("PS-") && this._roomId === "public_speaking") {
+    if (this && this._clientId.includes("PS-") && this._roomId.includes("public_speaking")) {
       this._sendSelfAvatarSrcIntervalId = setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
     }
   }
@@ -479,6 +461,32 @@ export class SoraAdapter extends SfuAdapter {
 
     if (requests && Object.keys(requests).length === 0) {
       this._pendingMediaRequests.delete(clientId);
+    }
+  }
+
+  private tryAttachAudioToPublicSpeakerAgent(remoteClientId: string, streamId: string) {
+    if (remoteClientId.includes("PS-") && !this._roomId.includes("public_speaking")) {
+      const stream = this._remoteMediaStreams.get(streamId);
+      if (!stream) return;
+      this.crossRoomStreamerAudioSource[remoteClientId] = new CrossRoomStreamerAudioSource(
+        new MediaStream(stream.getAudioTracks())
+      );
+      const tryAttachAudioToAvatar = () => {
+        console.log("tryAttachAudioToAvatar");
+        const avatarEid = this._avatarSyncHelper._client2AvatarEid.get(remoteClientId);
+        if (avatarEid) {
+          const avatarObj = APP.world.eid2obj.get(avatarEid);
+          if (avatarObj) {
+            this.crossRoomStreamerAudioSource[remoteClientId].attachAudio(avatarObj);
+            console.log(avatarObj);
+          }
+        }
+        if (!this.crossRoomStreamerAudioSource[remoteClientId].node) {
+          window.setTimeout(tryAttachAudioToAvatar, 1000);
+        }
+      };
+
+      tryAttachAudioToAvatar();
     }
   }
 }

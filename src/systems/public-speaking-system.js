@@ -14,7 +14,7 @@ export class PublicSpeakingSystem {
       serverUrl: `wss://${APP.sfu._serverParams?.host || "localhost"}:4443`,
       serverParams: APP.sfu._serverParams || { host: "localhost", port: 443, turn: null },
       signalingUrl: APP.sfu._signalingUrl || "",
-      accessToken: APP.sfu._accessToken || "",
+      accessToken: process.env.SORA_PUBLIC_SPEAKING_CHANNEL_TOKEN,
       forceTcp: APP.sfu._forceTcp || false,
       forceTurn: APP.sfu._forceTurn || false,
       iceTransportPolicy: APP.sfu._iceTransportPolicy || false,
@@ -29,7 +29,7 @@ export class PublicSpeakingSystem {
   }
 
   static speakerTrySetLocalMediaStream() {
-    if (!APP.publicSpeakingSfu._sendTransport) {
+    if (!APP.publicSpeakingSfu._sendTransport && !APP.publicSpeakingSfu._connector) {
       window.setTimeout(PublicSpeakingSystem.speakerTrySetLocalMediaStream, 1000);
     } else {
       APP.publicSpeakingSfu.setLocalMediaStream(APP.sfu._localMediaStream);
@@ -37,6 +37,7 @@ export class PublicSpeakingSystem {
   }
 
   static async initPublicSpeakingMirroring() {
+    console.log("initPublicSpeakingMirroring");
     APP.publicSpeakersMirrorSfu = createSfuAdapter({ sfuId: APP.sfu._sfuId, connectionType: SFU_CONNECTION_TYPE.RECV });
     await connectSfu(APP.publicSpeakersMirrorSfu, {
       sfuId: APP.sfu._sfuId,
@@ -46,7 +47,7 @@ export class PublicSpeakingSystem {
       serverUrl: `wss://${APP.sfu._serverParams?.host || "localhost"}:4443`,
       serverParams: APP.sfu._serverParams || { host: "localhost", port: 443, turn: null },
       signalingUrl: APP.sfu._signalingUrl || "",
-      accessToken: APP.sfu._accessToken || "",
+      accessToken: process.env.SORA_PUBLIC_SPEAKING_CHANNEL_TOKEN,
       forceTcp: APP.sfu._forceTcp || false,
       forceTurn: APP.sfu._forceTurn || false,
       iceTransportPolicy: APP.sfu._iceTransportPolicy || false,
@@ -89,6 +90,7 @@ export class PublicSpeakingSystem {
 
   static async initPublicSpeakerAgent(clientId) {
     if (!clientId.includes("PS-")) return;
+    console.log("initPublicSpeakerAgent");
     this.clientIds.push(clientId);
     APP.publicSpeakerAgentSfus[clientId] = createSfuAdapter({
       sfuId: APP.sfu._sfuId,
@@ -99,7 +101,7 @@ export class PublicSpeakingSystem {
       clientId: clientId,
       channelId: APP.sfu._roomId,
       scene: null,
-      serverUrl: `wss://${APP.sfu._serverParams.host || "localhost"}:4443`,
+      serverUrl: `wss://${APP.sfu._serverParams?.host || "localhost"}:4443`,
       serverParams: APP.sfu._serverParams || { host: "localhost", port: 3306, turn: null },
       signalingUrl: APP.sfu._signalingUrl || "",
       accessToken: APP.sfu._accessToken || "",
@@ -108,5 +110,6 @@ export class PublicSpeakingSystem {
       iceTransportPolicy: APP.sfu._iceTransportPolicy || false,
       debug: false
     });
+    console.log(clientId);
   }
 }
