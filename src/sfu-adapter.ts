@@ -24,7 +24,9 @@ export abstract class SfuAdapter extends EventEmitter {
   getDataChannelMessage(): DataChannelMessage | undefined {
     return { channelLabel: "", message: null };
   }
-  getLocalMicTrack() {}
+  getLocalMicTrack(): MediaStreamTrack | undefined {
+    return undefined;
+  }
   getLocalMediaStream() {}
   setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId?: Map<string, string> | null) {}
   setLocalDataChannelMessage(m: DataChannelMessage) {} // TODO: specify type

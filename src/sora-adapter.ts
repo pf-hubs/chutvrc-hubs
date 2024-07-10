@@ -137,9 +137,9 @@ export class SoraAdapter extends SfuAdapter {
       this._connector.on("track", event => {
         const stream = event.streams[0];
         if (!stream) return;
-        if (!this._remoteMediaStreams.has(stream.id)) {
-          this._remoteMediaStreams.set(stream.id, stream);
-        }
+        // if (!this._remoteMediaStreams.has(stream.id)) {
+        this._remoteMediaStreams.set(stream.id, stream);
+        // }
       });
       this._connector.on("removetrack", event => {
         // @ts-ignore
@@ -169,23 +169,32 @@ export class SoraAdapter extends SfuAdapter {
       // @ts-ignore
       this._connector.connect();
     } else {
-      this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      this._connector
-        .connect(this._localMediaStream)
-        .then(stream => {
-          if (this._connector) {
-            this.emit(this._connector.stream ? SFU_CONNECTION_CONNECTED : SFU_CONNECTION_ERROR_FATAL);
-          }
-        })
-        .catch(e => {
-          console.error(e);
-          this.emit(SFU_CONNECTION_ERROR_FATAL);
-          this.enableMicrophone(false);
-        })
-        .finally(() => {
-          this.enableMicrophone(false);
-          this._avatarSyncHelper.initSelfAvatarTransform();
-        });
+      if (!this._clientId.includes("PS-"))
+        this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+
+      const connectSfuWithLocalMediaStream = () => {
+        if (!this._connector || !this._localMediaStream) {
+          window.setTimeout(connectSfuWithLocalMediaStream, 1000);
+        } else {
+          this._connector
+            .connect(this._localMediaStream)
+            .then(stream => {
+              if (this._connector) {
+                this.emit(this._connector.stream ? SFU_CONNECTION_CONNECTED : SFU_CONNECTION_ERROR_FATAL);
+              }
+            })
+            .catch(e => {
+              console.error(e);
+              this.emit(SFU_CONNECTION_ERROR_FATAL);
+              this.enableMicrophone(false);
+            })
+            .finally(() => {
+              if (!this._clientId.includes("PS-")) this.enableMicrophone(false);
+              this._avatarSyncHelper.initSelfAvatarTransform();
+            });
+        }
+      };
+      connectSfuWithLocalMediaStream();
     }
   }
 
@@ -298,6 +307,7 @@ export class SoraAdapter extends SfuAdapter {
       this.disableCamera();
       this.disableShare();
     }
+    this._localMediaStream = stream;
 
     // TODO: move to other appropriate place
     if (this && this._clientId.includes("PS-") && this._roomId.includes("public_speaking")) {
@@ -464,21 +474,24 @@ export class SoraAdapter extends SfuAdapter {
     }
   }
 
-  private tryAttachAudioToPublicSpeakerAgent(remoteClientId: string, streamId: string) {
+  private async tryAttachAudioToPublicSpeakerAgent(remoteClientId: string, streamId: string) {
     if (remoteClientId.includes("PS-") && !this._roomId.includes("public_speaking")) {
-      const stream = this._remoteMediaStreams.get(streamId);
+      // const stream = this._remoteMediaStreams.get(streamId);
+      const stream = await this.getMediaStream(remoteClientId, "audio")?.catch(e => {
+        console.error(`Error getting audio stream for ${remoteClientId}`, e);
+      });
       if (!stream) return;
+      // @ts-ignore
       this.crossRoomStreamerAudioSource[remoteClientId] = new CrossRoomStreamerAudioSource(
-        new MediaStream(stream.getAudioTracks())
+        // @ts-ignore
+        new MediaStream(stream)
       );
       const tryAttachAudioToAvatar = () => {
-        console.log("tryAttachAudioToAvatar");
         const avatarEid = this._avatarSyncHelper._client2AvatarEid.get(remoteClientId);
         if (avatarEid) {
           const avatarObj = APP.world.eid2obj.get(avatarEid);
           if (avatarObj) {
             this.crossRoomStreamerAudioSource[remoteClientId].attachAudio(avatarObj);
-            console.log(avatarObj);
           }
         }
         if (!this.crossRoomStreamerAudioSource[remoteClientId].node) {

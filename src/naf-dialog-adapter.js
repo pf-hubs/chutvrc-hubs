@@ -349,7 +349,6 @@ export class DialogAdapter extends SfuAdapter {
                 const avatarEid = this._avatarSyncHelper._client2AvatarEid.get(peerId);
                 if (avatarEid) {
                   const avatarObj = APP.world.eid2obj.get(avatarEid);
-                  console.log(avatarObj);
                   if (avatarObj) this.crossRoomStreamerAudioSource[peerId].attachAudio(avatarObj);
                 }
                 if (!this.crossRoomStreamerAudioSource[peerId].node) {
