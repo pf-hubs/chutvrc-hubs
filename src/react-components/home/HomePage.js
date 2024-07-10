@@ -78,6 +78,14 @@ export function HomePage() {
           </div>
           <div className={styles.appInfo}>
             <div className={styles.appDescription}>{configs.translation("app-description")}</div>
+            <div className={styles.appDescription}>
+              <p style={{ fontSize: 18, color: "#aaa" }}>Sponsored by:</p>
+              <img
+                className={styles.companyLogo}
+                src={configs.image("company_logo")}
+                alt={<FormattedMessage id="footer.logo-alt" defaultMessage="Logo" />}
+              />
+            </div>
             {canCreateRooms && <CreateRoomButton />}
             <PWAButton />
           </div>
