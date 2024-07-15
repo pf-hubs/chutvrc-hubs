@@ -66,15 +66,23 @@ export class SoraAdapter extends SfuAdapter {
       audioCodecType: "OPUS" as SoraType.AudioCodecType,
       videoCodecType: "H264" as SoraType.VideoCodecType,
       dataChannelSignaling: true,
-      dataChannels: this._avatarSyncHelper._channelsForSync.map(channel => ({
-        label: channel,
-        direction:
-          this._connectionType === SFU_CONNECTION_TYPE.RECV
-            ? ("recvonly" as SoraType.DataChannelDirection)
-            : ((this._connectionType === SFU_CONNECTION_TYPE.SEND
-                ? "sendonly"
-                : "sendrecv") as SoraType.DataChannelDirection)
-      })) // .concat(other channels if necessary)
+      dataChannels: this._avatarSyncHelper._channelsForSync
+        .map(channel => ({
+          label: channel,
+          direction:
+            this._connectionType === SFU_CONNECTION_TYPE.RECV
+              ? ("recvonly" as SoraType.DataChannelDirection)
+              : ((this._connectionType === SFU_CONNECTION_TYPE.SEND
+                  ? "sendonly"
+                  : "sendrecv") as SoraType.DataChannelDirection)
+        }))
+        .concat([
+          {
+            label: "#pdfPage",
+            direction: this._connectionType === SFU_CONNECTION_TYPE.SEND ? "sendonly" : "recvonly"
+          }
+        ])
+      // .concat(other channels if necessary)
     };
 
     this._clientId = clientId;
@@ -151,6 +159,10 @@ export class SoraAdapter extends SfuAdapter {
         if (this._isRecording) this._recordedDataChannelMessages.push({ l: event.label, m: event.data, t: Date.now() });
         while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
         this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
+
+        if (event.label === "#pdfPage") {
+          this.emit("pdf-page-changed-by-public-speaker", { page: new TextDecoder().decode(event.data) });
+        }
       });
     }
 

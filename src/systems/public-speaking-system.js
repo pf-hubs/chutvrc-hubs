@@ -110,6 +110,5 @@ export class PublicSpeakingSystem {
       iceTransportPolicy: APP.sfu._iceTransportPolicy || false,
       debug: false
     });
-    console.log(clientId);
   }
 }

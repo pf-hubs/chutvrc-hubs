@@ -645,6 +645,7 @@ AFRAME.registerComponent("media-pager", {
     this.onPrev = this.onPrev.bind(this);
     this.onSnap = this.onSnap.bind(this);
     this.update = this.update.bind(this);
+    this.setPage = this.setPage.bind(this);
 
     this.el.setAttribute("hover-menu__pager", { template: "#pager-hover-menu", isFlat: true });
     this.el.components["hover-menu__pager"].getHoverMenu().then(menu => {
@@ -676,6 +677,16 @@ AFRAME.registerComponent("media-pager", {
       .catch(() => {}); //ignore exception, entity might not be networked
 
     this.el.addEventListener("pdf-loaded", this.update);
+
+    if (APP.sfu) {
+      APP.sfu.on("pdf-page-changed-by-public-speaker", this.setPage);
+    }
+
+    if (APP.publicSpeakingSfu) {
+      this.syncPageAcrossRoomInterval = setInterval(() => {
+        APP.publicSpeakingSfu.broadcast("#pdfPage", this.data.index);
+      }, 1000);
+    }
   },
 
   async update(oldData) {
@@ -715,6 +726,14 @@ AFRAME.registerComponent("media-pager", {
     this.el.emit("pager-snap-clicked");
   },
 
+  setPage({ page }) {
+    if (this.networkedEl && !NAF.utils.isMine(this.networkedEl) && !NAF.utils.takeOwnership(this.networkedEl)) return;
+    if (typeof page === "string") page = parseInt(page);
+    const newIndex = Math.max(Math.min(page, this.data.maxIndex), 0);
+    this.el.setAttribute("media-pdf", "index", newIndex);
+    this.el.setAttribute("media-pager", "index", newIndex);
+  },
+
   remove() {
     if (this.networkedEl) {
       this.networkedEl.removeEventListener("pinned", this.update);
@@ -728,5 +747,7 @@ AFRAME.registerComponent("media-pager", {
     window.APP.hubChannel.removeEventListener("permissions_updated", this.update);
 
     this.el.removeEventListener("pdf-loaded", this.update);
+
+    clearInterval(this.syncPageAcrossRoomInterval);
   }
 });
