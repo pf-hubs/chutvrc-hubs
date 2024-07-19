@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import PropTypes from "prop-types";
 import { Sidebar } from "../sidebar/Sidebar";
 import { CloseButton } from "../input/CloseButton";
@@ -13,6 +13,8 @@ import { ReactComponent as VolumeHigh } from "../icons/VolumeHigh.svg";
 import { ReactComponent as VolumeMuted } from "../icons/VolumeMuted.svg";
 import useAvatarVolume from "./hooks/useAvatarVolume";
 import { calcLevel, calcGainMultiplier, MAX_VOLUME_LABELS } from "../../utils/avatar-volume-utils";
+import { PublicSpeakingSystem } from "../../systems/public-speaking-system";
+import { useRole } from "./hooks/useRole";
 
 const MIN = 0;
 const MAX = MAX_VOLUME_LABELS - 1;
@@ -51,6 +53,13 @@ export function UserProfileSidebar({
     [updateMultiplier]
   );
   const newLevel = calcLevel(multiplier);
+  const canTogglePublicSpeaker = useRole("owner");
+  const [publicSpeakerActive, setPublicSpeakerActive] = useState(false);
+
+  function togglePublicSpeaker() {
+    setPublicSpeakerActive(!publicSpeakerActive);
+    PublicSpeakingSystem.toggleRemotePublicSpeaker(userId, !publicSpeakerActive);
+  }
 
   return (
     <Sidebar
@@ -140,6 +149,11 @@ export function UserProfileSidebar({
         {canKick && (
           <Button preset="cancel" onClick={onKick}>
             <FormattedMessage id="user-profile-sidebar.kick-button" defaultMessage="Kick" />
+          </Button>
+        )}
+        {canTogglePublicSpeaker && (
+          <Button preset="cancel" onClick={togglePublicSpeaker}>
+            <p>{publicSpeakerActive ? "Disable public speak" : "Enable public speak"}</p>
           </Button>
         )}
       </Column>

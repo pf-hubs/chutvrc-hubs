@@ -82,6 +82,16 @@ export class SoraAdapter extends SfuAdapter {
             direction: this._connectionType === SFU_CONNECTION_TYPE.SEND ? "sendonly" : "recvonly"
           }
         ])
+        .concat(
+          this._connectionType === SFU_CONNECTION_TYPE.SENDRECV
+            ? [
+                {
+                  label: "#togglePublicSpeaker",
+                  direction: "sendrecv"
+                }
+              ]
+            : []
+        )
       // .concat(other channels if necessary)
     };
 
@@ -161,7 +171,11 @@ export class SoraAdapter extends SfuAdapter {
         this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
 
         if (event.label === "#pdfPage") {
-          this.emit("pdf-page-changed-by-public-speaker", { page: new TextDecoder().decode(event.data) });
+          this.emit("pdf-page-changed-by-public-speaker", { message: new TextDecoder().decode(event.data) });
+        }
+
+        if (event.label === "#togglePublicSpeaker") {
+          this.emit("toggle-public-speaker", { message: new TextDecoder().decode(event.data) });
         }
       });
     }

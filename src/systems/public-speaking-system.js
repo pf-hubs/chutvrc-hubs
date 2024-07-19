@@ -4,7 +4,32 @@ import { SFU_CONNECTION_TYPE } from "../sfu-types";
 export class PublicSpeakingSystem {
   static clientIds = [];
 
+  constructor() {
+    function tryTogglePublicSpeaker() {
+      if (APP.sfu) {
+        APP.sfu.on("toggle-public-speaker", ({ message }) => {
+          if (message.split("|")[0] === APP.sfu._clientId) {
+            if (message.split("|")[1] === "0") {
+              PublicSpeakingSystem.closePublicSpeaker();
+            } else {
+              PublicSpeakingSystem.initPublicSpeaker();
+            }
+          }
+        });
+      } else {
+        window.setTimeout(tryTogglePublicSpeaker, 1000);
+      }
+    }
+
+    tryTogglePublicSpeaker();
+  }
+
+  static toggleRemotePublicSpeaker(clientId, isOn) {
+    APP.sfu.broadcast("#togglePublicSpeaker", clientId + "|" + (isOn ? "1" : "0"));
+  }
+
   static async initPublicSpeaker() {
+    console.log("initPublicSpeaker");
     APP.publicSpeakingSfu = createSfuAdapter({ sfuId: APP.sfu._sfuId, connectionType: SFU_CONNECTION_TYPE.SEND });
     await connectSfu(APP.publicSpeakingSfu, {
       sfuId: APP.sfu._sfuId,
@@ -25,6 +50,7 @@ export class PublicSpeakingSystem {
   }
 
   static closePublicSpeaker() {
+    console.log("closePublicSpeaker");
     APP.publicSpeakingSfu.disconnect();
   }
 

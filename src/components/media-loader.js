@@ -679,7 +679,7 @@ AFRAME.registerComponent("media-pager", {
     this.el.addEventListener("pdf-loaded", this.update);
 
     if (APP.sfu) {
-      APP.sfu.on("pdf-page-changed-by-public-speaker", this.setPage);
+      APP.sfu.on("pdf-page-changed-by-public-speaker", ({ message }) => this.setPage(message));
     }
 
     if (APP.publicSpeakingSfu) {
@@ -726,7 +726,7 @@ AFRAME.registerComponent("media-pager", {
     this.el.emit("pager-snap-clicked");
   },
 
-  setPage({ page }) {
+  setPage(page) {
     if (this.networkedEl && !NAF.utils.isMine(this.networkedEl) && !NAF.utils.takeOwnership(this.networkedEl)) return;
     if (typeof page === "string") page = parseInt(page);
     const newIndex = Math.max(Math.min(page, this.data.maxIndex), 0);

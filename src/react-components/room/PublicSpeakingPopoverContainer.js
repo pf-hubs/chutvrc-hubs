@@ -4,10 +4,11 @@ import { ReactComponent as SpotlightIcon } from "../icons/Spotlight.svg";
 import { ReactComponent as AudienceIcon } from "../icons/Audience.svg";
 import { PublicSpeakingPopoverButton } from "./PublicSpeakingPopover";
 import { FormattedMessage } from "react-intl";
-import configs from "../../utils/configs";
 import { PublicSpeakingSystem } from "../../systems/public-speaking-system";
+import { useRole } from "./hooks/useRole";
 
 export function PublicSpeakingPopoverContainer({ scene, hubChannel }) {
+  const canTogglePublicSpeaking = useRole("owner");
   const [publicSpeakerActive, setPublicSpeakerActive] = useState(false);
   const [publicSpeakingMirroring, setPublicSpeakingMirroring] = useState(false);
 
@@ -36,7 +37,7 @@ export function PublicSpeakingPopoverContainer({ scene, hubChannel }) {
   }
 
   const items = [
-    configs.isAdmin() &&
+    canTogglePublicSpeaking &&
       !APP.publicSpeakersMirrorSfu && {
         id: "speaker",
         icon: SpotlightIcon,
@@ -45,7 +46,7 @@ export function PublicSpeakingPopoverContainer({ scene, hubChannel }) {
         onSelect: togglePublicSpeaker,
         active: publicSpeakerActive
       },
-    configs.isAdmin() &&
+    canTogglePublicSpeaking &&
       !(APP.publicSpeakingSfu?._roomId === "public_speaking") && {
         id: "play-speaking",
         icon: AudienceIcon,
