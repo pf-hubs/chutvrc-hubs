@@ -92,7 +92,7 @@ const srcSuffixLookupMap = {
 // the ObjectType, if any, for that content.
 export function objectTypeForOriginAndContentType(contentOrigin, contentType, src) {
   for (const prefix in objectTypeMimePrefixLookupMap) {
-    if (contentType.toLowerCase().startsWith(prefix)) {
+    if (contentType?.toLowerCase().startsWith(prefix)) {
       const types = objectTypeMimePrefixLookupMap[prefix];
       return objectTypeForOrigin(contentOrigin, ...types);
     }
