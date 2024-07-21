@@ -5,6 +5,8 @@ import { MediaDevices } from "./utils/media-devices-utils";
 import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
 import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
+import { Object3D } from "three";
+
 const debug = newDebug("naf-dialog-adapter:debug");
 
 type ConnectProps = {
@@ -30,6 +32,7 @@ export class SoraAdapter extends SfuAdapter {
   _signalingUrl?: string | string[];
   _accessToken?: string;
   crossRoomStreamerAudioSource: { [clientId: string]: CrossRoomStreamerAudioSource };
+  private _testSceneObj: Object3D;
 
   constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
     super();
@@ -80,6 +83,10 @@ export class SoraAdapter extends SfuAdapter {
           {
             label: "#pdfPage",
             direction: this._connectionType === SFU_CONNECTION_TYPE.SEND ? "sendonly" : "recvonly"
+          },
+          {
+            label: "#laserPointer",
+            direction: "sendrecv"
           }
         ])
         .concat(
@@ -176,6 +183,30 @@ export class SoraAdapter extends SfuAdapter {
 
         if (event.label === "#togglePublicSpeaker") {
           this.emit("toggle-public-speaker", { message: new TextDecoder().decode(event.data) });
+        }
+
+        if (event.label === "#laserPointer" && this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
+          if (this._testSceneObj) {
+            const message = new TextDecoder().decode(event.data);
+            const position = message.split("|");
+            if (position) {
+              console.log(position);
+              this._testSceneObj.position.set(
+                parseFloat(position[0]),
+                parseFloat(position[1]),
+                parseFloat(position[2])
+              );
+              this._testSceneObj.updateMatrix();
+            }
+          } else {
+            const sphere = new THREE.SphereGeometry(0.1);
+            const object = new THREE.Mesh(
+              sphere,
+              new THREE.MeshBasicMaterial({ color: "#ffff00", transparent: true, opacity: 0.5 })
+            );
+            this._testSceneObj = object;
+            APP.world.scene.add(this._testSceneObj);
+          }
         }
       });
     }

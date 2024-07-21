@@ -121,6 +121,20 @@ AFRAME.registerComponent("cursor-controller", {
       })
     );
     this.el.setObject3D("line", this.line);
+
+    setInterval(() => {
+      if (APP.publicSpeakingSfu && this.isHoveringSomething) {
+        const pos = this.data.cursor.object3D.position;
+        APP.sfu.broadcast(
+          "#laserPointer",
+          [Math.round(pos.x * 1000) / 1000, Math.round(pos.y * 1000) / 1000, Math.round(pos.z * 1000) / 1000].join("|")
+        );
+        APP.publicSpeakingSfu.broadcast(
+          "#laserPointer",
+          [Math.round(pos.x * 1000) / 1000, Math.round(pos.y * 1000) / 1000, Math.round(pos.z * 1000) / 1000].join("|")
+        );
+      }
+    }, 100);
   },
 
   update: function () {
@@ -158,7 +172,7 @@ AFRAME.registerComponent("cursor-controller", {
       this.raycaster.near = this.data.near * playerScale;
 
       const isGrabbing = left ? anyEntityWith(APP.world, HeldRemoteLeft) : anyEntityWith(APP.world, HeldRemoteRight);
-      let isHoveringSomething = false;
+      this.isHoveringSomething = false;
       if (!isGrabbing) {
         rawIntersections.length = 0;
         this.raycaster.ray.origin = cursorPose.position;
@@ -171,7 +185,7 @@ AFRAME.registerComponent("cursor-controller", {
         this.intersection = rawIntersections[0];
 
         const remoteHoverTarget = this.intersection && findRemoteHoverTarget(APP.world, this.intersection.object);
-        isHoveringSomething = !!remoteHoverTarget;
+        this.isHoveringSomething = !!remoteHoverTarget;
         if (remoteHoverTarget) {
           addComponent(APP.world, left ? HoveredRemoteLeft : HoveredRemoteRight, remoteHoverTarget);
         }
@@ -207,7 +221,7 @@ AFRAME.registerComponent("cursor-controller", {
           (!left && transformObjectSystem.hand.el.id === "player-right-controller"))
       ) {
         this.color.copy(TRANSFORM_COLOR_1).lerpHSL(TRANSFORM_COLOR_2, 0.5 + 0.5 * Math.sin(t / 1000.0));
-      } else if (isGrabbing || isHoveringSomething) {
+      } else if (isGrabbing || this.isHoveringSomething) {
         this.color.copy(HIGHLIGHT);
       } else {
         this.color.copy(NO_HIGHLIGHT);
