@@ -1137,7 +1137,8 @@ class UIRoot extends Component {
     const canCloseRoom = this.props.hubChannel && !!this.props.hubChannel.canOrWillIfCreator("close_hub");
     const isModerator = this.props.hubChannel && this.props.hubChannel.canOrWillIfCreator("kick_users") && !isMobileVR;
 
-    const canAccessPublicSpeaking = configs.isAdmin();
+    const canAccessPublicSpeaking =
+      APP.sfu && APP.hubChannel.presence?.state[APP.sfu._clientId]?.metas[0].roles["owner"];
 
     const moreMenu = [
       {
