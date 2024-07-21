@@ -684,12 +684,16 @@ AFRAME.registerComponent("media-pager", {
 
     if (APP.sfu) {
       APP.sfu.on("pdf-page-changed-by-public-speaker", ({ message }) => this.setPage(message));
-    }
-
-    if (APP.publicSpeakingSfu) {
-      this.syncPageAcrossRoomInterval = setInterval(() => {
-        APP.publicSpeakingSfu.broadcast("#pdfPage", this.data.index);
-      }, 1000);
+      APP.sfu.on("public-speaking-sfu-initialized", () => {
+        if (APP.publicSpeakingSfu) {
+          this.syncPageAcrossRoomInterval = setInterval(() => {
+            APP.publicSpeakingSfu.broadcast("#pdfPage", this.data.index);
+          }, 1000);
+        }
+      });
+      APP.sfu.on("public-speaking-sfu-closed", () => {
+        if (this.syncPageAcrossRoomInterval) clearInterval(this.syncPageAcrossRoomInterval);
+      });
     }
   },
 
@@ -752,6 +756,6 @@ AFRAME.registerComponent("media-pager", {
 
     this.el.removeEventListener("pdf-loaded", this.update);
 
-    clearInterval(this.syncPageAcrossRoomInterval);
+    if (this.syncPageAcrossRoomInterval) clearInterval(this.syncPageAcrossRoomInterval);
   }
 });

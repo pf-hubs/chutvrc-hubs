@@ -45,6 +45,7 @@ export class PublicSpeakingSystem {
       iceTransportPolicy: APP.sfu._iceTransportPolicy || false,
       debug: false
     });
+    APP.sfu.emit("public-speaking-sfu-initialized");
 
     PublicSpeakingSystem.speakerTrySetLocalMediaStream();
   }
@@ -52,6 +53,7 @@ export class PublicSpeakingSystem {
   static closePublicSpeaker() {
     console.log("closePublicSpeaker");
     APP.publicSpeakingSfu.disconnect();
+    APP.sfu.emit("public-speaking-sfu-closed");
   }
 
   static speakerTrySetLocalMediaStream() {
