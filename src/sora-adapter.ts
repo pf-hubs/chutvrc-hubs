@@ -190,7 +190,6 @@ export class SoraAdapter extends SfuAdapter {
             const message = new TextDecoder().decode(event.data);
             const position = message.split("|");
             if (position) {
-              console.log(position);
               this._testSceneObj.position.set(
                 parseFloat(position[0]),
                 parseFloat(position[1]),

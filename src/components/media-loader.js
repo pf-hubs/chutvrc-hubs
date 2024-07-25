@@ -641,7 +641,8 @@ AFRAME.registerComponent("media-loader", {
 AFRAME.registerComponent("media-pager", {
   schema: {
     index: { default: 0 },
-    maxIndex: { default: 0 }
+    maxIndex: { default: 0 },
+    isPinned: { default: false }
   },
 
   init() {
@@ -682,12 +683,16 @@ AFRAME.registerComponent("media-pager", {
 
     this.el.addEventListener("pdf-loaded", this.update);
 
+    // TODO: Define new component for this feature and have it call media-loader's functions
     if (APP.sfu) {
-      APP.sfu.on("pdf-page-changed-by-public-speaker", ({ message }) => this.setPage(message));
+      APP.sfu.on("pdf-page-changed-by-public-speaker", ({ message }) => !this.data.isPinned && this.setPage(message));
       APP.sfu.on("public-speaking-sfu-initialized", () => {
         if (APP.publicSpeakingSfu) {
           this.syncPageAcrossRoomInterval = setInterval(() => {
-            APP.publicSpeakingSfu.broadcast("#pdfPage", this.data.index);
+            if (this.data.isPinned) {
+              APP.publicSpeakingSfu.broadcast("#pdfPage", this.data.index);
+              APP.sfu.emit("pdf-page-changed-by-public-speaker", { message: this.data.index }); // For other local slides
+            }
           }, 1000);
         }
       });
@@ -710,9 +715,9 @@ AFRAME.registerComponent("media-pager", {
 
     if (this.prevButton && this.nextButton) {
       const pinnableElement = this.el.components["media-loader"].data.linkedEl || this.el;
-      const isPinned = pinnableElement.components.pinnable && pinnableElement.components.pinnable.data.pinned;
+      this.data.isPinned = pinnableElement.components.pinnable && pinnableElement.components.pinnable.data.pinned;
       this.prevButton.object3D.visible = this.nextButton.object3D.visible =
-        !isPinned || window.APP.hubChannel.can("pin_objects");
+        !this.data.isPinned || window.APP.hubChannel.can("pin_objects");
     }
   },
 
