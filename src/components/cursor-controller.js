@@ -124,6 +124,7 @@ AFRAME.registerComponent("cursor-controller", {
 
     setInterval(() => {
       if (APP.publicSpeakingSfu && this.isHoveringSomething) {
+        if (!this.data.cursor.object3D.visible) this.data.cursor.object3D.visible = true;
         const pos = this.data.cursor.object3D.position;
         APP.sfu.broadcast(
           "#laserPointer",
@@ -133,6 +134,8 @@ AFRAME.registerComponent("cursor-controller", {
           "#laserPointer",
           [Math.round(pos.x * 1000) / 1000, Math.round(pos.y * 1000) / 1000, Math.round(pos.z * 1000) / 1000].join("|")
         );
+      } else {
+        if (this.data.cursor.object3D.visible) this.data.cursor.object3D.visible = false;
       }
     }, 100);
   },

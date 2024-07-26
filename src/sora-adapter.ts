@@ -32,7 +32,7 @@ export class SoraAdapter extends SfuAdapter {
   _signalingUrl?: string | string[];
   _accessToken?: string;
   crossRoomStreamerAudioSource: { [clientId: string]: CrossRoomStreamerAudioSource };
-  private _testSceneObj: Object3D;
+  private _laserPointer: Object3D;
 
   constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
     super();
@@ -186,16 +186,17 @@ export class SoraAdapter extends SfuAdapter {
         }
 
         if (event.label === "#laserPointer" && this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
-          if (this._testSceneObj) {
+          if (this._laserPointer) {
             const message = new TextDecoder().decode(event.data);
             const position = message.split("|");
             if (position) {
-              this._testSceneObj.position.set(
+              this._laserPointer.visible = position[0] !== "0" || position[1] !== "0" || position[2] !== "0";
+              this._laserPointer.position.set(
                 parseFloat(position[0]),
                 parseFloat(position[1]),
                 parseFloat(position[2])
               );
-              this._testSceneObj.updateMatrix();
+              this._laserPointer.updateMatrix();
             }
           } else {
             const sphere = new THREE.SphereGeometry(0.1);
@@ -203,8 +204,8 @@ export class SoraAdapter extends SfuAdapter {
               sphere,
               new THREE.MeshBasicMaterial({ color: "#ffff00", transparent: true, opacity: 0.5 })
             );
-            this._testSceneObj = object;
-            APP.world.scene.add(this._testSceneObj);
+            this._laserPointer = object;
+            APP.world.scene.add(this._laserPointer);
           }
         }
       });

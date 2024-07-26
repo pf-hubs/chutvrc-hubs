@@ -52,6 +52,7 @@ export class PublicSpeakingSystem {
 
   static closePublicSpeaker() {
     console.log("closePublicSpeaker");
+    APP.publicSpeakingSfu.broadcast("#laserPointer", [0, 0, 0].join("|"));
     APP.publicSpeakingSfu.disconnect();
     APP.sfu.emit("public-speaking-sfu-closed");
   }

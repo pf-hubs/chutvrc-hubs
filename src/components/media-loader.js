@@ -685,15 +685,16 @@ AFRAME.registerComponent("media-pager", {
 
     // TODO: Define new component for this feature and have it call media-loader's functions
     if (APP.sfu) {
-      APP.sfu.on("pdf-page-changed-by-public-speaker", ({ message }) => !this.data.isPinned && this.setPage(message));
+      APP.sfu.on("pdf-page-changed-by-public-speaker", ({ message }) => {
+        this.data.isPinned && this.setPage(message);
+      });
       APP.sfu.on("public-speaking-sfu-initialized", () => {
         if (APP.publicSpeakingSfu) {
           this.syncPageAcrossRoomInterval = setInterval(() => {
             if (this.data.isPinned) {
               APP.publicSpeakingSfu.broadcast("#pdfPage", this.data.index);
-              APP.sfu.emit("pdf-page-changed-by-public-speaker", { message: this.data.index }); // For other local slides
             }
-          }, 1000);
+          }, 500);
         }
       });
       APP.sfu.on("public-speaking-sfu-closed", () => {
@@ -726,6 +727,10 @@ AFRAME.registerComponent("media-pager", {
     const newIndex = Math.min(this.data.index + 1, this.data.maxIndex);
     this.el.setAttribute("media-pdf", "index", newIndex);
     this.el.setAttribute("media-pager", "index", newIndex);
+
+    if (APP.publicSpeakingSfu && this.data.isPinned && APP.sfu) {
+      APP.sfu.emit("pdf-page-changed-by-public-speaker", { message: newIndex }); // For other local slides
+    }
   },
 
   onPrev() {
@@ -733,6 +738,10 @@ AFRAME.registerComponent("media-pager", {
     const newIndex = Math.max(this.data.index - 1, 0);
     this.el.setAttribute("media-pdf", "index", newIndex);
     this.el.setAttribute("media-pager", "index", newIndex);
+
+    if (APP.publicSpeakingSfu && this.data.isPinned && APP.sfu) {
+      APP.sfu.emit("pdf-page-changed-by-public-speaker", { message: newIndex }); // For other local slides
+    }
   },
 
   onSnap() {
