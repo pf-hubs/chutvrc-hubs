@@ -73,7 +73,7 @@ export class CrossRoomStreamerAudioSource {
     // }
 
     const audioListener = AFRAME.scenes[0].audioListener;
-    const audio = new THREE.PositionalAudio(audioListener);
+    const audio = new THREE.Audio(audioListener);
     // Default to being quiet so it fades in when volume is set by audio systems
     // audio.gain.gain.value = 0;
 
