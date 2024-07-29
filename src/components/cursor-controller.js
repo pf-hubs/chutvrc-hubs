@@ -21,6 +21,19 @@ export function findRemoteHoverTarget(world, object3D) {
   return findRemoteHoverTarget(world, object3D.parent);
 }
 
+function isHoverTargetMainScreen(object3D) {
+  if (!object3D) return false;
+  if (object3D.name === "don77z0") {
+    return true;
+  } else {
+    if (object3D.parent) {
+      return isHoverTargetMainScreen(object3D.parent);
+    } else {
+      return false;
+    }
+  }
+}
+
 const hoveredRightRemoteQuery = defineQuery([HoveredRemoteRight]);
 const hoveredLeftRemoteQuery = defineQuery([HoveredRemoteLeft]);
 
@@ -123,7 +136,7 @@ AFRAME.registerComponent("cursor-controller", {
     this.el.setObject3D("line", this.line);
 
     setInterval(() => {
-      if (APP.publicSpeakingSfu && this.isHoveringSomething) {
+      if (APP.publicSpeakingSfu && this.isHoveringMainScreen) {
         if (!this.data.cursor.object3D.visible) this.data.cursor.object3D.visible = true;
         const pos = this.data.cursor.object3D.position;
         APP.sfu.broadcast(
@@ -189,6 +202,7 @@ AFRAME.registerComponent("cursor-controller", {
 
         const remoteHoverTarget = this.intersection && findRemoteHoverTarget(APP.world, this.intersection.object);
         this.isHoveringSomething = !!remoteHoverTarget;
+        this.isHoveringMainScreen = !!(this.intersection && isHoverTargetMainScreen(this.intersection.object));
         if (remoteHoverTarget) {
           addComponent(APP.world, left ? HoveredRemoteLeft : HoveredRemoteRight, remoteHoverTarget);
         }
