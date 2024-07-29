@@ -199,10 +199,10 @@ export class SoraAdapter extends SfuAdapter {
               this._laserPointer.updateMatrix();
             }
           } else {
-            const sphere = new THREE.SphereGeometry(0.1);
+            const sphere = new THREE.SphereGeometry(0.2);
             const object = new THREE.Mesh(
               sphere,
-              new THREE.MeshBasicMaterial({ color: "#ffff00", transparent: true, opacity: 0.5 })
+              new THREE.MeshBasicMaterial({ color: "#ff0000", transparent: true, opacity: 0.7 })
             );
             this._laserPointer = object;
             APP.world.scene.add(this._laserPointer);
