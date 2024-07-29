@@ -178,7 +178,7 @@ export class SoraAdapter extends SfuAdapter {
         this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
 
         if (event.label === "#pdfPage") {
-          this.emit("pdf-page-changed-by-public-speaker", { message: new TextDecoder().decode(event.data) });
+          this.emit("pdf-page-changed-in-public-speaker-room", { message: new TextDecoder().decode(event.data) });
         }
 
         if (event.label === "#togglePublicSpeaker") {
