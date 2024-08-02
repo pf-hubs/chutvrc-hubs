@@ -22,23 +22,27 @@ export function Footer({
     <footer>
       <Container as="div" className={styles.container}>
         <div className={styles.poweredBy}>
-          {!hidePoweredBy && (
-            <FormattedMessage
-              id="footer.powered-by"
-              defaultMessage="Powered by <a>Mozilla Hubs</a>"
-              values={{
-                // eslint-disable-next-line react/display-name
-                a: chunks => (
-                  <a className={styles.link} href="https://hubs.mozilla.com">
-                    {chunks}
-                  </a>
-                )
-              }}
-            />
-          )}
+          {
+            /* !hidePoweredBy */
+            false && (
+              <FormattedMessage
+                id="footer.powered-by"
+                defaultMessage="Powered by <a>Mozilla Hubs</a>"
+                values={{
+                  // eslint-disable-next-line react/display-name
+                  a: chunks => (
+                    <a className={styles.link} href="https://hubs.mozilla.com">
+                      {chunks}
+                    </a>
+                  )
+                }}
+              />
+            )
+          }
         </div>
         <nav>
           <ul>
+            {/*
             {showDiscordBotLink && (
               <li>
                 <img className={styles.discordLogo} src={discordLogoUrl} />
@@ -88,6 +92,7 @@ export function Footer({
                 </a>
               </li>
             )}
+            */}
             {showCompanyLogo && (
               <li>
                 <img
