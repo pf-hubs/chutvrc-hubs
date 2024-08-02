@@ -295,6 +295,7 @@ const Banner = () => {
                 </div>
 
                 {/* FORM  */}
+                {/*
                 <form className={styles.expand_form} onSubmit={handleSubmit(onSubmit)}>
                   {submitted ? (
                     <Messaging status={responseStatus} />
@@ -338,7 +339,7 @@ const Banner = () => {
                         onChange={onConfirm}
                       />
 
-                      {/* ACTIONS  */}
+                      // ACTIONS
                       <div className={styles.expand_actions}>
                         <Button type="submit" preset="primary" className={styles.primary_override} disabled={!confirm}>
                           <FormattedMessage defaultMessage="Join the Mailing List" id="banner.form-cta" />
@@ -355,6 +356,7 @@ const Banner = () => {
                     </div>
                   )}
                 </form>
+                */}
               </div>
             </div>
           </div>
