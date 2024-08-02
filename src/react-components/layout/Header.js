@@ -110,7 +110,7 @@ export function Header({
             <SignInButton />
           )}
         </div>
-        {isHmc ? <SocialBar mobile /> : null}
+        {/* isHmc ? <SocialBar mobile /> :  */ null}
       </Container>
     </header>
   );

@@ -113,7 +113,7 @@ export function HomePage() {
             <p>
               <FormattedMessage
                 id="home-page.rooms-blurb"
-                defaultMessage="Share virtual spaces with your friends, co-workers, and communities. When you create a room with Hubs, you’ll have a private virtual meeting space that you can instantly share <b>- no downloads or VR headset necessary.</b>"
+                defaultMessage="Share virtual spaces with your friends, co-workers, and communities. When you create a room with chutvrc, you’ll have a private virtual meeting space that you can instantly share <b>- no downloads or VR headset necessary.</b>"
                 values={{ b: wrapInBold }}
               />
             </p>
@@ -126,7 +126,7 @@ export function HomePage() {
             <p>
               <FormattedMessage
                 id="home-page.communicate-blurb"
-                defaultMessage="Choose an avatar to represent you, put on your headphones, and jump right in. Hubs makes it easy to stay connected with voice and text chat to other people in your private room."
+                defaultMessage="Choose an avatar to represent you, put on your headphones, and jump right in. chutvrc makes it easy to stay connected with voice and text chat to other people in your private room."
               />
             </p>
           </Column>
@@ -188,11 +188,15 @@ export function HomePage() {
           </Column>
         </Container>
       )}
-      {isHmc() ? (
-        <Column center>
-          <SocialBar />
-        </Column>
-      ) : null}
+      {
+        /*
+        isHmc() ? (
+          <Column center>
+            <SocialBar />
+          </Column>
+        ) :
+        */ null
+      }
     </PageContainer>
   );
 }
