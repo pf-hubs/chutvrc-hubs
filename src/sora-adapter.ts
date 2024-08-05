@@ -177,6 +177,7 @@ export class SoraAdapter extends SfuAdapter {
           // @ts-ignore
           if (streamId === event.target?.id) {
             this._clientStreamIdPair.delete(clientId);
+            if (clientId.includes("PS") && this._laserPointer) this._laserPointer.visible = false;
           }
         }
       });
@@ -199,13 +200,15 @@ export class SoraAdapter extends SfuAdapter {
             const message = new TextDecoder().decode(event.data);
             const position = message.split("|");
             if (position) {
-              this._laserPointer.visible = position[0] !== "0" || position[1] !== "0" || position[2] !== "0";
-              this._laserPointer.position.set(
-                parseFloat(position[0]),
-                parseFloat(position[1]),
-                parseFloat(position[2])
-              );
-              this._laserPointer.updateMatrix();
+              this._laserPointer.visible = position[0] === "1"; // 1: visible; 0: visible
+              if (position[1] !== "0" && position[2] !== "0" && position[3] !== "0") {
+                this._laserPointer.position.set(
+                  parseFloat(position[1]), // x
+                  parseFloat(position[2]), // y
+                  parseFloat(position[3]) // z
+                );
+                this._laserPointer.updateMatrix();
+              }
             }
           } else {
             const sphere = new THREE.SphereGeometry(0.2);

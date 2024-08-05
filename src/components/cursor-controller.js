@@ -23,7 +23,7 @@ export function findRemoteHoverTarget(world, object3D) {
 
 function isHoverTargetMainScreen(object3D) {
   if (!object3D) return false;
-  if (object3D.name === "don77z0") {
+  if (object3D.name === "" /* replace with object3D name */) {
     return true;
   } else {
     if (object3D.parent) {
@@ -136,16 +136,26 @@ AFRAME.registerComponent("cursor-controller", {
     this.el.setObject3D("line", this.line);
 
     setInterval(() => {
-      if (APP.publicSpeakingSfu && this.isHoveringMainScreen) {
+      if (APP.publicSpeakingSfu) {
         if (!this.data.cursor.object3D.visible) this.data.cursor.object3D.visible = true;
         const pos = this.data.cursor.object3D.position;
         APP.sfu.broadcast(
           "#laserPointer",
-          [Math.round(pos.x * 1000) / 1000, Math.round(pos.y * 1000) / 1000, Math.round(pos.z * 1000) / 1000].join("|")
+          [
+            this.isHoveringMainScreen === false ? 0 : 1,
+            Math.round(pos.x * 1000) / 1000,
+            Math.round(pos.y * 1000) / 1000,
+            Math.round(pos.z * 1000) / 1000
+          ].join("|")
         );
         APP.publicSpeakingSfu.broadcast(
           "#laserPointer",
-          [Math.round(pos.x * 1000) / 1000, Math.round(pos.y * 1000) / 1000, Math.round(pos.z * 1000) / 1000].join("|")
+          [
+            this.isHoveringMainScreen === false ? 0 : 1,
+            Math.round(pos.x * 1000) / 1000,
+            Math.round(pos.y * 1000) / 1000,
+            Math.round(pos.z * 1000) / 1000
+          ].join("|")
         );
       } else {
         if (this.data.cursor.object3D.visible) this.data.cursor.object3D.visible = false;
