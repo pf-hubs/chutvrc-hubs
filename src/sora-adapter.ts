@@ -155,6 +155,7 @@ export class SoraAdapter extends SfuAdapter {
         }
         if (event.event_type === "connection.destroyed" && event.client_id) {
           this._avatarSyncHelper.handleOnClientLeave(event.client_id);
+          console.log("Connection destroyed: " + event.client_id);
         }
       }
     });
@@ -168,8 +169,15 @@ export class SoraAdapter extends SfuAdapter {
         // }
       });
       this._connector.on("removetrack", event => {
-        // @ts-ignore
         console.log("Track removed: " + event.track.id);
+        const stream = event.target;
+        if (!stream) return;
+        for (let [clientId, streamId] of this._clientStreamIdPair.entries()) {
+          // @ts-ignore
+          if (streamId === event.target?.id) {
+            this._clientStreamIdPair.delete(clientId);
+          }
+        }
       });
       this._connector.on("message", event => {
         this._dataChannelMessages.push({ channelLabel: event.label, message: event.data });

@@ -55,6 +55,7 @@ export class PublicSpeakingSystem {
     APP.publicSpeakingSfu.broadcast("#laserPointer", [0, 0, 0].join("|"));
     APP.publicSpeakingSfu.disconnect();
     APP.sfu.emit("public-speaking-sfu-closed");
+    APP.publicSpeakingSfu = null;
   }
 
   static speakerTrySetLocalMediaStream() {
@@ -98,11 +99,17 @@ export class PublicSpeakingSystem {
   }
 
   static closePublicSpeakingMirroring() {
-    if (APP.publicSpeakersMirrorSfu) APP.publicSpeakersMirrorSfu.disconnect();
+    if (APP.publicSpeakersMirrorSfu) {
+      APP.publicSpeakersMirrorSfu.disconnect();
+      APP.publicSpeakersMirrorSfu = null;
+    }
     if (!APP.publicSpeakerAgentSfus) return;
     this.clientIds.forEach(clientId => {
-      if (APP.publicSpeakerAgentSfus[clientId]) APP.publicSpeakerAgentSfus[clientId].disconnect();
+      if (APP.publicSpeakerAgentSfus[clientId]) {
+        APP.publicSpeakerAgentSfus[clientId].disconnect();
+      }
     });
+    APP.publicSpeakerAgentSfus = null;
     this.clientIds = [];
   }
 

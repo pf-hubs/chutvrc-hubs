@@ -9,8 +9,10 @@ import { useRole } from "./hooks/useRole";
 
 export function PublicSpeakingPopoverContainer({ scene, hubChannel }) {
   const canTogglePublicSpeaking = useRole("owner");
-  const [publicSpeakerActive, setPublicSpeakerActive] = useState(false);
-  const [publicSpeakingMirroring, setPublicSpeakingMirroring] = useState(false);
+  const [publicSpeakerActive, setPublicSpeakerActive] = useState(!!APP.publicSpeakingSfu);
+  const [publicSpeakingMirroring, setPublicSpeakingMirroring] = useState(
+    !!APP.publicSpeakersMirrorSfu && !!APP.publicSpeakerAgentSfus
+  );
 
   function togglePublicSpeaker() {
     if (publicSpeakerActive) {
@@ -38,20 +40,28 @@ export function PublicSpeakingPopoverContainer({ scene, hubChannel }) {
 
   const items = [
     canTogglePublicSpeaking &&
-      !APP.publicSpeakersMirrorSfu && {
+      !publicSpeakingMirroring && {
         id: "speaker",
         icon: SpotlightIcon,
         color: "accent5",
-        label: <FormattedMessage id="public-speaking-popover.source.speaker" defaultMessage="Speaker" />,
+        label: publicSpeakerActive ? (
+          <FormattedMessage id="public-speaking-popover.source.stop-speaking" defaultMessage="Stop speaking" />
+        ) : (
+          <FormattedMessage id="public-speaking-popover.source.start-speaking" defaultMessage="Start speaking" />
+        ),
         onSelect: togglePublicSpeaker,
         active: publicSpeakerActive
       },
     canTogglePublicSpeaking &&
-      !(APP.publicSpeakingSfu?._roomId === "public_speaking") && {
+      !publicSpeakerActive && {
         id: "play-speaking",
         icon: AudienceIcon,
         color: "accent5",
-        label: <FormattedMessage id="public-speaking-popover.source.play-speaking" defaultMessage="Play Speaking" />,
+        label: publicSpeakingMirroring ? (
+          <FormattedMessage id="public-speaking-popover.source.stop-listening" defaultMessage="Stop listening" />
+        ) : (
+          <FormattedMessage id="public-speaking-popover.source.start-listening" defaultMessage="Start listening" />
+        ),
         onSelect: togglePublicSpeakingMirroring,
         active: publicSpeakingMirroring
       }

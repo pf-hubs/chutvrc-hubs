@@ -90,6 +90,8 @@ export class AvatarSyncHelper {
 
   handleOnClientLeave(clientId: string) {
     removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
+    this._client2AvatarAssetId.delete(clientId);
+    this._client2AvatarEid.delete(clientId);
   }
 
   initSelfAvatarTransform() {

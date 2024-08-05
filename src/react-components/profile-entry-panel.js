@@ -83,7 +83,8 @@ export default class ProfileEntryPanel extends Component {
     // Replace history state with the current avatar id since this component gets destroyed when we open the
     // avatar editor and we want the back button to work. We read the history state back via the avatarId prop.
     // We read the current state key from history since it could be "overlay" or "entry_step".
-    replaceHistoryState(this.props.history, this.props.history.location.state.key, "profile", { avatarId: entry.id });
+    if (this.props.history?.location)
+      replaceHistoryState(this.props.history, this.props.history.location.state.key, "profile", { avatarId: entry.id });
   };
 
   componentDidMount() {
