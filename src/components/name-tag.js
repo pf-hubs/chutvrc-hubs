@@ -188,8 +188,8 @@ AFRAME.registerComponent("name-tag", {
         }
         if (this.ikRoot) {
           this.neck?.getWorldPosition(worldPos);
-          // if (APP.usingSfu === SFU.DIALOG) worldPos.setY(this.nametagElPosY + this.ikRoot.position.y);
-          worldPos.setY(this.nametagElPosY + this.ikRoot.position.y + 2);
+          // worldPos.setY(this.nametagElPosY + this.ikRoot.position.y + 2);
+          worldPos.setY(worldPos.y + 0.7);
           mat.copy(this.nametag.matrixWorld);
           mat.setPosition(worldPos);
           setMatrixWorld(this.nametag, mat);
