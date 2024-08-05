@@ -686,12 +686,15 @@ AFRAME.registerComponent("media-pager", {
     // TODO: Define new component for this feature and have it call media-loader's functions
     if (APP.sfu) {
       APP.sfu.on("pdf-page-changed-in-public-speaker-room", ({ message }) => {
-        this.data.isPinned && this.setPage(message);
+        if (this.data.isPinned) {
+          this.setPage(message);
+          this.pauseSyncPage = true;
+        }
       });
       APP.sfu.on("public-speaking-sfu-initialized", () => {
         if (APP.publicSpeakingSfu) {
           this.syncPageAcrossRoomInterval = setInterval(() => {
-            if (this.data.isPinned && APP.publicSpeakingSfu) {
+            if (this.data.isPinned && APP.publicSpeakingSfu && !this.pauseSyncPage) {
               APP.publicSpeakingSfu.broadcast("#pdfPage", this.data.index);
             }
           }, 500);
@@ -730,6 +733,7 @@ AFRAME.registerComponent("media-pager", {
 
     if (this.data.isPinned && APP.sfu) {
       APP.sfu.emit("pdf-page-changed-in-public-speaker-room", { message: newIndex }); // For other local slides
+      this.pauseSyncPage = false;
     }
   },
 
@@ -741,6 +745,7 @@ AFRAME.registerComponent("media-pager", {
 
     if (this.data.isPinned && APP.sfu) {
       APP.sfu.emit("pdf-page-changed-in-public-speaker-room", { message: newIndex }); // For other local slides
+      this.pauseSyncPage = false;
     }
   },
 
