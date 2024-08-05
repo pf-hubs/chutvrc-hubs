@@ -17,7 +17,7 @@ const publicSpeakingPopoverTitle = defineMessage({
   defaultMessage: "Public Speaking"
 });
 
-export function PublicSpeakingPopoverButton({ items }) {
+export function PublicSpeakingPopoverButton({ items, onClick }) {
   const intl = useIntl();
   const filteredItems = items.filter(item => !!item);
 
@@ -42,7 +42,10 @@ export function PublicSpeakingPopoverButton({ items }) {
             ref={triggerRef}
             icon={<PublicSpeaking />}
             selected={popoverVisible}
-            onClick={togglePopover}
+            onClick={() => {
+              togglePopover();
+              onClick();
+            }}
             label={title}
             preset="accent3"
           />

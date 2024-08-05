@@ -50,6 +50,7 @@ export class SoraAdapter extends SfuAdapter {
     this._dataChannelMessages = [];
     this._recordedDataChannelMessages = [];
     this.crossRoomStreamerAudioSource = {};
+    this._publicSpeakerClientIdsInRoom = [];
   }
 
   async connect({ clientId, channelId, signalingUrl, accessToken, scene, debug }: ConnectProps) {
@@ -272,7 +273,6 @@ export class SoraAdapter extends SfuAdapter {
     if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
     this._avatarSyncHelper?.stopSyncing();
     debug("disconnect()");
-    // ...
     this.emitRTCEvent("info", "Signaling", () => `[close]`);
   }
 

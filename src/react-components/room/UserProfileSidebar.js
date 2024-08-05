@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Sidebar } from "../sidebar/Sidebar";
 import { CloseButton } from "../input/CloseButton";
@@ -54,12 +54,18 @@ export function UserProfileSidebar({
   );
   const newLevel = calcLevel(multiplier);
   const canTogglePublicSpeaker = useRole("owner");
-  const [publicSpeakerActive, setPublicSpeakerActive] = useState(false);
+  const [publicSpeakerActive, setPublicSpeakerActive] = useState(
+    APP.sfu._publicSpeakerClientIdsInRoom.includes(userId)
+  );
 
   function togglePublicSpeaker() {
-    setPublicSpeakerActive(!publicSpeakerActive);
-    PublicSpeakingSystem.toggleRemotePublicSpeaker(userId, !publicSpeakerActive);
+    setPublicSpeakerActive(!APP.sfu._publicSpeakerClientIdsInRoom.includes(userId));
+    PublicSpeakingSystem.toggleRemotePublicSpeaker(userId, !APP.sfu._publicSpeakerClientIdsInRoom.includes(userId));
   }
+
+  useEffect(() => {
+    setPublicSpeakerActive(APP.sfu._publicSpeakerClientIdsInRoom.includes(userId));
+  }, [userId]);
 
   return (
     <Sidebar

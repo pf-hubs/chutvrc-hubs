@@ -18,6 +18,7 @@ export abstract class SfuAdapter extends EventEmitter {
   _recordedDataChannelMessages: RecordedDataChannelMessage[];
   _isRecording: boolean;
   _sendSelfAvatarSrcIntervalId: NodeJS.Timer;
+  _publicSpeakerClientIdsInRoom: string[];
   connect(props: any) {}
   disconnect() {}
   getMediaStream(clientId: string, kind: string) {}

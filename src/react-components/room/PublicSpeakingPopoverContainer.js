@@ -67,7 +67,7 @@ export function PublicSpeakingPopoverContainer({ scene, hubChannel }) {
       }
   ];
 
-  return <PublicSpeakingPopoverButton items={items} />;
+  return <PublicSpeakingPopoverButton items={items} onClick={() => setPublicSpeakerActive(!!APP.publicSpeakingSfu)} />;
 }
 
 PublicSpeakingPopoverContainer.propTypes = {

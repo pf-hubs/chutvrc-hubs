@@ -691,7 +691,7 @@ AFRAME.registerComponent("media-pager", {
       APP.sfu.on("public-speaking-sfu-initialized", () => {
         if (APP.publicSpeakingSfu) {
           this.syncPageAcrossRoomInterval = setInterval(() => {
-            if (this.data.isPinned) {
+            if (this.data.isPinned && APP.publicSpeakingSfu) {
               APP.publicSpeakingSfu.broadcast("#pdfPage", this.data.index);
             }
           }, 500);

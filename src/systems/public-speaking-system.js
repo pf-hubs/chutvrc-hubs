@@ -8,12 +8,15 @@ export class PublicSpeakingSystem {
     function tryTogglePublicSpeaker() {
       if (APP.sfu) {
         APP.sfu.on("toggle-public-speaker", ({ message }) => {
-          if (message.split("|")[0] === APP.sfu._clientId) {
-            if (message.split("|")[1] === "0") {
-              PublicSpeakingSystem.closePublicSpeaker();
-            } else {
-              PublicSpeakingSystem.initPublicSpeaker();
-            }
+          const clientId = message.split("|")[0];
+          const isOn = message.split("|")[1] === "1";
+          if (isOn) {
+            if (clientId === APP.sfu._clientId) PublicSpeakingSystem.initPublicSpeaker();
+            APP.sfu._publicSpeakerClientIdsInRoom.push(clientId);
+          } else {
+            if (clientId === APP.sfu._clientId) PublicSpeakingSystem.closePublicSpeaker();
+            const index = APP.sfu._publicSpeakerClientIdsInRoom.indexOf(clientId);
+            if (index > -1) APP.sfu._publicSpeakerClientIdsInRoom.splice(index, 1);
           }
         });
       } else {
@@ -26,6 +29,12 @@ export class PublicSpeakingSystem {
 
   static toggleRemotePublicSpeaker(clientId, isOn) {
     APP.sfu.broadcast("#togglePublicSpeaker", clientId + "|" + (isOn ? "1" : "0"));
+    if (isOn) {
+      APP.sfu._publicSpeakerClientIdsInRoom.push(clientId);
+    } else {
+      const index = APP.sfu._publicSpeakerClientIdsInRoom.indexOf(clientId);
+      if (index > -1) APP.sfu._publicSpeakerClientIdsInRoom.splice(index, 1);
+    }
   }
 
   static async initPublicSpeaker() {
