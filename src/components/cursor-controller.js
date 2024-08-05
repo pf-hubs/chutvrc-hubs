@@ -139,28 +139,26 @@ AFRAME.registerComponent("cursor-controller", {
       if (APP.publicSpeakingSfu) {
         if (!this.data.cursor.object3D.visible) this.data.cursor.object3D.visible = true;
         const pos = this.data.cursor.object3D.position;
-        APP.sfu.broadcast(
-          "#laserPointer",
-          [
-            this.isHoveringMainScreen === false ? 0 : 1,
-            Math.round(pos.x * 1000) / 1000,
-            Math.round(pos.y * 1000) / 1000,
-            Math.round(pos.z * 1000) / 1000
-          ].join("|")
-        );
-        APP.publicSpeakingSfu.broadcast(
-          "#laserPointer",
-          [
-            this.isHoveringMainScreen === false ? 0 : 1,
-            Math.round(pos.x * 1000) / 1000,
-            Math.round(pos.y * 1000) / 1000,
-            Math.round(pos.z * 1000) / 1000
-          ].join("|")
-        );
+        if (this.isHoverTargetMainScreen) {
+          this.pauseLaserPointertimer = 0;
+          APP.sfu.broadcast(
+            "#laserPointer",
+            [1, Math.round(pos.x * 1000) / 1000, Math.round(pos.y * 1000) / 1000, Math.round(pos.z * 1000) / 1000].join(
+              "|"
+            )
+          );
+          APP.publicSpeakingSfu.broadcast(
+            "#laserPointer",
+            [1, Math.round(pos.x * 1000) / 1000, Math.round(pos.y * 1000) / 1000, Math.round(pos.z * 1000) / 1000].join(
+              "|"
+            )
+          );
+        }
       } else {
         if (this.data.cursor.object3D.visible) this.data.cursor.object3D.visible = false;
       }
     }, 100);
+    this.pauseLaserPointertimer = 0;
   },
 
   update: function () {
@@ -268,6 +266,12 @@ AFRAME.registerComponent("cursor-controller", {
 
         this.line.geometry.attributes.position.needsUpdate = true;
         this.line.geometry.computeBoundingSphere();
+      }
+
+      this.pauseLaserPointertimer += 1;
+      if (this.pauseLaserPointertimer > 100) {
+        APP.sfu?.broadcast("#laserPointer", [0, 0, 0, 0].join("|"));
+        APP.publicSpeakingSfu?.broadcast("#laserPointer", [0, 0, 0, 0].join("|"));
       }
     };
   })()
