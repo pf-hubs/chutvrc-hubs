@@ -33,9 +33,13 @@ export class SoraAdapter extends SfuAdapter {
   _accessToken?: string;
   crossRoomStreamerAudioSource: { [clientId: string]: CrossRoomStreamerAudioSource };
   private _laserPointer: Object3D;
+  private _textEncoder: TextEncoder;
+  private _textDecoder: TextDecoder;
 
   constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
     super();
+    this._textEncoder = new TextEncoder();
+    this._textDecoder = new TextDecoder();
     this._sfuId = SFU.SORA;
     this._connectionType = sfuType;
     this._clientId = "";
@@ -183,21 +187,27 @@ export class SoraAdapter extends SfuAdapter {
       });
       this._connector.on("message", event => {
         this._dataChannelMessages.push({ channelLabel: event.label, message: event.data });
-        if (this._isRecording) this._recordedDataChannelMessages.push({ l: event.label, m: event.data, t: Date.now() });
+        if (this._isRecording && !event.label.includes("#avatar-"))
+          this._recordedDataChannelMessages.push({
+            l: event.label,
+            m: this._textDecoder.decode(event.data),
+            t: Date.now(),
+            s: 0
+          });
         while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
         this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
 
         if (event.label === "#pdfPage") {
-          this.emit("pdf-page-changed-in-public-speaker-room", { message: new TextDecoder().decode(event.data) });
+          this.emit("pdf-page-changed-in-public-speaker-room", { message: this._textDecoder.decode(event.data) });
         }
 
         if (event.label === "#togglePublicSpeaker") {
-          this.emit("toggle-public-speaker", { message: new TextDecoder().decode(event.data) });
+          this.emit("toggle-public-speaker", { message: this._textDecoder.decode(event.data) });
         }
 
         if (event.label === "#laserPointer" && this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
           if (this._laserPointer) {
-            const message = new TextDecoder().decode(event.data);
+            const message = this._textDecoder.decode(event.data);
             const position = message.split("|");
             if (position) {
               this._laserPointer.visible = position[0] === "1"; // 1: visible; 0: visible
@@ -489,8 +499,9 @@ export class SoraAdapter extends SfuAdapter {
   broadcast(channel: string, message: string) {
     if (!this._connector || this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
-      this._connector.sendMessage(channel, new TextEncoder().encode(message));
-      this._recordedDataChannelMessages.push({ l: channel, m: new TextEncoder().encode(message), t: Date.now() });
+      this._connector.sendMessage(channel, this._textEncoder.encode(message));
+      if (this._isRecording && !channel.includes("#avatar-"))
+        this._recordedDataChannelMessages.push({ l: channel, m: message, t: Date.now(), s: 1 });
     } catch (error) {
       console.error(error);
     }
@@ -500,7 +511,13 @@ export class SoraAdapter extends SfuAdapter {
     if (!this._connector || this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
       this._connector.sendMessage(channel, message);
-      this._recordedDataChannelMessages.push({ l: channel, m: message, t: Date.now() });
+      if (this._isRecording && !channel.includes("#avatar-"))
+        this._recordedDataChannelMessages.push({
+          l: channel,
+          m: this._textDecoder.decode(message),
+          t: Date.now(),
+          s: 1
+        });
     } catch (error) {
       console.error(error);
     }

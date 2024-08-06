@@ -3,7 +3,14 @@ import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
 import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
 
 type DataChannelMessage = { channelLabel: string; message: ArrayBuffer | null };
-type RecordedDataChannelMessage = { l: string; m: ArrayBuffer | null; t: number };
+type Vector3 = { x: number; y: number; z: number };
+type RecordedDataChannelAvatarTransform = { c: string; p: Vector3; r: Vector3 };
+type RecordedDataChannelMessage = {
+  l: string;
+  m: string | RecordedDataChannelAvatarTransform | null;
+  t: number;
+  s: 0 | 1;
+}; // l: label/chanel, m: message, t: timestamp, s: isSend (0: false (is recv), 1: true)
 
 export const SFU_CONNECTION_CONNECTED = "sfu-connection-connected";
 export const SFU_CONNECTION_ERROR_FATAL = "sfu-connection-error-fatal";

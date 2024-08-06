@@ -125,16 +125,16 @@ export function decodeAndSetAvatarTransform(encodedTransform: Uint8Array, avatar
 
 export function decodePosition(encodedTransform: Uint8Array) {
   return {
-    x: uInt8ToFloat(encodedTransform[0], encodedTransform[1]),
-    y: uInt8ToFloat(encodedTransform[2], encodedTransform[3]),
-    z: uInt8ToFloat(encodedTransform[4], encodedTransform[5])
+    x: Math.round(uInt8ToFloat(encodedTransform[0], encodedTransform[1]) * 1000) / 1000,
+    y: Math.round(uInt8ToFloat(encodedTransform[2], encodedTransform[3]) * 1000) / 1000,
+    z: Math.round(uInt8ToFloat(encodedTransform[4], encodedTransform[5]) * 1000) / 1000
   };
 }
 
 export function decodeRotation(encodedTransform: Uint8Array) {
   return {
-    x: uInt8ToRad(encodedTransform[6]),
-    y: uInt8ToRad(encodedTransform[7]),
-    z: uInt8ToRad(encodedTransform[8])
+    x: Math.round(uInt8ToRad(encodedTransform[6]) * 1000) / 1000,
+    y: Math.round(uInt8ToRad(encodedTransform[7]) * 1000) / 1000,
+    z: Math.round(uInt8ToRad(encodedTransform[8]) * 1000) / 1000
   };
 }

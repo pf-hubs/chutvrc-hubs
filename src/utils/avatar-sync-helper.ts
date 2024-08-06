@@ -85,6 +85,15 @@ export class AvatarSyncHelper {
         pos: decodePosition(data),
         rot: decodeRotation(data)
       });
+
+      if (this._sfu._isRecording) {
+        this._sfu._recordedDataChannelMessages.push({
+          l: channel,
+          m: { c: clientId, p: decodePosition(data), r: decodeRotation(data) },
+          t: Date.now(),
+          s: 0
+        });
+      }
     }
   }
 
@@ -157,6 +166,29 @@ export class AvatarSyncHelper {
 
       const arrToSend = this._selfAvatarTransformBuffer.getEncodedAvatarTransform(part);
       this._sfu.broadcastUint8("#avatar-" + AvatarPart[part], arrToSend);
+
+      if (this._sfu._isRecording) {
+        const transform = this._client2Transform.get(part)?.get(this._sfu._clientId);
+        if (!transform) return;
+        this._sfu._recordedDataChannelMessages.push({
+          l: "#avatar-" + AvatarPart[part],
+          m: {
+            c: this._sfu._clientId,
+            p: {
+              x: Math.round(transform.pos.x * 1000) / 1000,
+              y: Math.round(transform.pos.y * 1000) / 1000,
+              z: Math.round(transform.pos.z * 1000) / 1000
+            },
+            r: {
+              x: Math.round(transform.rot.x * 1000) / 1000,
+              y: Math.round(transform.rot.y * 1000) / 1000,
+              z: Math.round(transform.rot.z * 1000) / 1000
+            }
+          },
+          t: Date.now(),
+          s: 1
+        });
+      }
     });
   }
 
