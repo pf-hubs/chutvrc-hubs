@@ -4,6 +4,7 @@ import { AvatarPart, AvatarTransformBuffer } from "./avatar-transform-buffer";
 import { decodePosition, decodeRotation, getAvatarSrc } from "./avatar-utils";
 import { createAvatarBoneEntities, removeAvatarEntityAndModel } from "../bit-systems/avatar-bones-system";
 import { loadModel } from "../components/gltf-model-plus";
+import { Object3D } from "three";
 
 type Vector3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number };
@@ -138,6 +139,9 @@ export class AvatarSyncHelper {
     // Load self-avatar after entering scene
     getAvatarSrc(avatarId).then((avatarSrc: string) => {
       loadModel(avatarSrc).then(gltf => {
+        gltf.scene.traverse(function (object: Object3D) {
+          object.frustumCulled = false;
+        });
         if (createAvatarBoneEntities(gltf.scene, clientId, this._avatarEid2ClientId, this._client2AvatarEid)) {
           APP.world.scene.add(gltf.scene);
         }
