@@ -6,7 +6,7 @@ import { Sidebar } from "../sidebar/Sidebar";
 import { CloseButton } from "../input/CloseButton";
 import { InputField } from "../input/InputField";
 import { FormattedMessage, useIntl } from "react-intl";
-import { ApplyButton } from "../input/Button";
+import { ApplyButton, Button } from "../input/Button";
 import { TextInputField } from "../input/TextInputField";
 import { TextAreaInputField } from "../input/TextAreaInputField";
 import { ToggleInput } from "../input/ToggleInput";
@@ -17,6 +17,7 @@ import { SceneInfo } from "./RoomSidebar";
 import { Column } from "../layout/Column";
 import { InviteLinkInputField } from "./InviteLinkInputField";
 import configs from "../../utils/configs";
+import { canShare, shareInviteUrl } from "../../utils/share";
 
 export function RoomSettingsSidebar({
   showBackButton,
@@ -135,7 +136,20 @@ export function RoomSettingsSidebar({
           />
         </RadioInputField>
         {entryMode === "invite" && (
-          <InviteLinkInputField fetchingInvite={fetchingInvite} inviteUrl={inviteUrl} onRevokeInvite={onRevokeInvite} />
+          <>
+            {canShare() && (
+              <Button preset="primary" onClick={shareInviteUrl.bind(this, intl, inviteUrl, room)}>
+                <span>
+                  <FormattedMessage id="invite-popover.share-invitation" defaultMessage="Share Invitation" />
+                </span>
+              </Button>
+            )}
+            <InviteLinkInputField
+              fetchingInvite={fetchingInvite}
+              inviteUrl={inviteUrl}
+              onRevokeInvite={onRevokeInvite}
+            />
+          </>
         )}
         {showPublicRoomSetting && (
           <ToggleInput
