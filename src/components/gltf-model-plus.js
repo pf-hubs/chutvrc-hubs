@@ -1123,6 +1123,14 @@ AFRAME.registerComponent("gltf-model-plus", {
 
       this.el.emit("model-loading");
       const gltf = await loadModel(src, contentType, this.data.useCache, this.jsonPreprocessor);
+      // if APP.publicSpeakersMirrorSfu && asset is emoji, send emoji back to public speaker
+      // TODO: refactor
+      if (APP.publicSpeakersMirrorSfu && src.includes("emojis")) {
+        console.log("send emoji back to public speaker");
+        APP.publicSpeakersMirrorSfu.broadcast("#emoji", src.split("/").pop().replace(".glb", ""));
+        // src example: https://localhost:8080/assets/models/emojis/emoji_0-82cb7fa66d0085cdce3e..glb
+        // send only `emoji_0-82cb7fa66d0085cdce3e.`
+      }
 
       // If we started loading something else already
       // TODO: there should be a way to cancel loading instead

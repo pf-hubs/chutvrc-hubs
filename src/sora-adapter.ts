@@ -92,6 +92,10 @@ export class SoraAdapter extends SfuAdapter {
           {
             label: "#laserPointer",
             direction: "sendrecv"
+          },
+          {
+            label: "#emoji",
+            direction: "sendrecv"
           }
         ])
         .concat(
@@ -232,6 +236,10 @@ export class SoraAdapter extends SfuAdapter {
             this._laserPointer = object;
             APP.world.scene.add(this._laserPointer);
           }
+        }
+
+        if (event.label === "#emoji") {
+          console.log("Emoji received!");
         }
       });
     }
