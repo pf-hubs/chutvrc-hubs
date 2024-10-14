@@ -195,7 +195,10 @@ export class SoraAdapter extends SfuAdapter {
             s: 0
           });
         while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
-        this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
+        if (!this._roomId.includes("public_speaking") || event.label !== "#avatarId") {
+          // avoid initPublicSpeakingMirroring client loading unnecessary avatar model
+          this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
+        }
 
         if (event.label === "#pdfPage") {
           this.emit("pdf-page-changed-in-public-speaker-room", { message: this._textDecoder.decode(event.data) });
@@ -503,6 +506,7 @@ export class SoraAdapter extends SfuAdapter {
       if (this._isRecording && !channel.includes("#avatar-"))
         this._recordedDataChannelMessages.push({ l: channel, m: message, t: Date.now(), s: 1 });
     } catch (error) {
+      // Error: Could not find DataChannel for channel laser-pointer for about 1 second
       console.error(error);
     }
   }
@@ -519,6 +523,7 @@ export class SoraAdapter extends SfuAdapter {
           s: 1
         });
     } catch (error) {
+      // Error: Could not find DataChannel for channel laser-pointer for about 1 second
       console.error(error);
     }
   }
