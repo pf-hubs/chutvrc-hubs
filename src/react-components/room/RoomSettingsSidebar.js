@@ -163,7 +163,7 @@ export function RoomSettingsSidebar({
                   <Checkbox
                     label={<FormattedMessage id="invite-popover.share-in-english" defaultMessage="Share in English" />}
                     checked={isShareInEnglish}
-                    onChange={_event => setIsShareInEnglish(inEnglish => !inEnglish)}
+                    onChange={() => setIsShareInEnglish(inEnglish => !inEnglish)}
                   />
                 )}
               </>
