@@ -16,7 +16,6 @@ import { BackButton } from "../input/BackButton";
 import { SceneInfo } from "./RoomSidebar";
 import { Column } from "../layout/Column";
 import { InviteLinkInputField } from "./InviteLinkInputField";
-import configs from "../../utils/configs";
 import { canShare, shareInviteUrl } from "../../utils/share";
 import { ReactComponent as ShareIcon } from "../icons/Share.svg";
 import { Checkbox } from "@mozilla/lilypad-ui";
