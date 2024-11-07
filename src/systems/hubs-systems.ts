@@ -96,7 +96,6 @@ import { snapMediaSystem } from "../bit-systems/snap-media-system";
 import { scaleWhenGrabbedSystem } from "../bit-systems/scale-when-grabbed-system";
 import { AvatarPart } from "../utils/avatar-transform-buffer";
 import { PublicSpeakingSystem } from "./public-speaking-system";
-import { interactableSystem } from "../bit-systems/interactable-system";
 
 declare global {
   interface Window {
@@ -245,7 +244,6 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   hubsSystems.hoverMenuSystem.tick();
   hubsSystems.positionAtBorderSystem.tick();
   hubsSystems.twoPointStretchingSystem.tick();
-  interactableSystem(world);
 
   hubsSystems.holdableButtonSystem.tick();
   hubsSystems.hoverButtonSystem.tick();
