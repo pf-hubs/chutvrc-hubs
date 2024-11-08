@@ -96,6 +96,7 @@ import { snapMediaSystem } from "../bit-systems/snap-media-system";
 import { scaleWhenGrabbedSystem } from "../bit-systems/scale-when-grabbed-system";
 import { AvatarPart } from "../utils/avatar-transform-buffer";
 import { PublicSpeakingSystem } from "./public-speaking-system";
+import { NimproSystem } from "./nimpro-system";
 
 declare global {
   interface Window {
@@ -153,6 +154,7 @@ AFRAME.registerSystem("hubs-systems", {
     this.environmentSystem = new EnvironmentSystem(this.el);
     this.nameTagSystem = new NameTagVisibilitySystem(this.el);
     this.publicSpeakingSystem = new PublicSpeakingSystem();
+    // this.nimproSystem = new NimproSystem();
 
     window.$S = this;
   },

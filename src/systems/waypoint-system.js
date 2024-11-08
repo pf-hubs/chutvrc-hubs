@@ -2,6 +2,7 @@ import { setMatrixWorld, affixToWorldUp } from "../utils/three-utils";
 import { isTagged } from "../components/tags";
 import { applyPersistentSync } from "../utils/permissions-utils";
 import { waitForDOMContentLoaded } from "../utils/async-utils";
+import { NimproSystem } from "./nimpro-system";
 const calculateIconTransform = (function () {
   const up = new THREE.Vector3();
   const backward = new THREE.Vector3();
@@ -159,6 +160,7 @@ export class WaypointSystem {
             waypointComponent.data
           );
           unoccupyWaypoints(previouslyOccupiedWaypoints.filter(wp => wp !== waypointComponent));
+          NimproSystem.init(false);
         }
       });
     }.bind(this);

@@ -96,6 +96,14 @@ export class SoraAdapter extends SfuAdapter {
           {
             label: "#emoji",
             direction: "sendrecv"
+          },
+          {
+            label: "#nimpro-ans",
+            direction: "sendrecv"
+          },
+          {
+            label: "#nimpro-score",
+            direction: "sendrecv"
           }
         ])
         .concat(
@@ -199,6 +207,11 @@ export class SoraAdapter extends SfuAdapter {
             s: 0
           });
         while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
+
+        if (event.label.includes("nimpro")) {
+          this.emit("nimpro_message_received", { label: event.label, message: this._textDecoder.decode(event.data) });
+        }
+
         if (!this._roomId.includes("public_speaking") || event.label !== "#avatarId") {
           // avoid initPublicSpeakingMirroring client loading unnecessary avatar model
           this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
