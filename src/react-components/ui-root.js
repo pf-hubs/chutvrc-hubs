@@ -104,8 +104,8 @@ import { usePermissions } from "./room/hooks/usePermissions";
 import { ChatContextProvider } from "./room/contexts/ChatContext";
 import ChatToolbarButton from "./room/components/ChatToolbarButton/ChatToolbarButton";
 import SeePlansCTA from "./room/components/SeePlansCTA/SeePlansCTA";
-import { PublicSpeakingPopoverContainer } from "./room/PublicSpeakingPopoverContainer";
 import RecordingButton from "./room/components/RecordingButton/RecordingButton";
+import { ChutvrcPopoversContainer } from "./room/ChutvrcPopoversContainer";
 
 const avatarEditorDebug = qsTruthy("avatarEditorDebug");
 
@@ -1137,7 +1137,7 @@ class UIRoot extends Component {
     const canCloseRoom = this.props.hubChannel && !!this.props.hubChannel.canOrWillIfCreator("close_hub");
     const isModerator = this.props.hubChannel && this.props.hubChannel.canOrWillIfCreator("kick_users") && !isMobileVR;
 
-    const canAccessPublicSpeaking =
+    const canToggleChutvrcPopovers =
       APP.sfu && APP.hubChannel.presence?.state[APP.sfu._clientId]?.metas[0].roles["owner"];
 
     const moreMenu = [
@@ -1669,8 +1669,8 @@ class UIRoot extends Component {
                         onClick={() => exit2DInterstitialAndEnterVR(true)}
                       />
                     )}
-                    {canAccessPublicSpeaking && (
-                      <PublicSpeakingPopoverContainer scene={this.props.scene} hubChannel={this.props.hubChannel} />
+                    {canToggleChutvrcPopovers && (
+                      <ChutvrcPopoversContainer scene={this.props.scene} hubChannel={this.props.hubChannel} />
                     )}
                   </>
                 }

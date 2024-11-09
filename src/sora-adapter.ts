@@ -102,7 +102,7 @@ export class SoraAdapter extends SfuAdapter {
             direction: "sendrecv"
           },
           {
-            label: "#nimpro-score",
+            label: "#nimpro-point",
             direction: "sendrecv"
           }
         ])

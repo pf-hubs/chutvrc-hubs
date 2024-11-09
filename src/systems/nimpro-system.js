@@ -5,32 +5,53 @@ export class NimproSystem {
   static isEventListnerRegistered = false;
 
   static answerByPID = {};
-  static scoreByPID = {};
+  static thisRoundPointByPID = {};
+  static selfPoint = 0;
 
-  // constructor() {}
+  // Store the bound handler to remove it later
+  static boundHandleDataChannelMessageReceived = null;
 
+  // Initialization and Cleanup Methods
   static init(isAdmin) {
-    // if (this.isInitialized) return;
+    if (this.isInitialized) return;
     this.isInitialized = true;
-    // this.isAdmin = isAdmin;
-    this.isAdmin = !this.isAdmin;
+    this.isAdmin = isAdmin;
 
     if (APP.sfu && !this.isEventListnerRegistered) {
-      APP.sfu.on("nimpro_message_received", NimproSystem.handleDataChannelMessageReceived.bind(this));
+      // Bind the handler and store it in a static property
+      this.boundHandleDataChannelMessageReceived = NimproSystem.handleDataChannelMessageReceived.bind(this);
+      APP.sfu.on("nimpro_message_received", this.boundHandleDataChannelMessageReceived);
 
-      document.addEventListener("keydown", event => {
-        if (event.key === "y") {
-          this.isCurrentAnswerYes = true;
-        }
-        if (event.key === "n") {
-          this.isCurrentAnswerYes = false;
-        }
-        if (event.key === "Enter") {
-          this.sendAnswer(this.isCurrentAnswerYes);
-        }
-      });
+      if (!isAdmin) {
+        document.addEventListener("keydown", event => {
+          if (event.key === "y") {
+            this.isCurrentAnswerYes = true;
+          }
+          if (event.key === "n") {
+            this.isCurrentAnswerYes = false;
+          }
+          if (event.key === "Enter") {
+            this.sendAnswer(this.isCurrentAnswerYes);
+          }
+        });
+      }
 
       this.isEventListnerRegistered = true;
+
+      console.log("Nimpro initialized as " + (isAdmin ? "admin" : "player"));
+    }
+  }
+
+  static quit() {
+    if (!this.isInitialized) return;
+    this.isInitialized = false;
+
+    // Remove the event listener if it was registered
+    if (APP.sfu && this.isEventListnerRegistered && this.boundHandleDataChannelMessageReceived) {
+      APP.sfu.off("nimpro_message_received", this.boundHandleDataChannelMessageReceived);
+      this.isEventListnerRegistered = false;
+
+      console.log("Nimpro quitted");
     }
   }
 
@@ -40,21 +61,83 @@ export class NimproSystem {
 
     switch (label) {
       case "#nimpro-ans":
-        if (this.isAdmin) {
-          this.answerByPID[pID] = value === "1";
-          console.log(this.answerByPID);
-        }
+        this.saveParticipantAnswer(pID, value);
         break;
-      case "#nimpro-score":
-        if (!this.isAdmin && pID === APP.sfu._clientId) {
-          console.log("Score: " + value);
-          // TODO: add to total score and update displayed score text
-        }
+      case "#nimpro-point":
+        this.receivePoint(pID, value);
         break;
       default:
         break;
     }
   }
+
+  /**
+   * Admin Methods
+   */
+
+  static saveParticipantAnswer(pID, answer) {
+    if (this.isAdmin) {
+      this.answerByPID[pID] = answer === "1";
+      console.log(this.answerByPID);
+    }
+  }
+
+  static calculateAnswer() {
+    if (!this.isInitialized || !this.isAdmin) return;
+
+    const answers = Object.values(this.answerByPID);
+    const participantCount = answers.length;
+
+    // If even number of participants, do not calculate the answer
+    if (participantCount % 2 === 0) {
+      console.log("Even number of participants: " + participantCount);
+      return;
+    }
+
+    const yesCount = answers.filter(answer => answer).length;
+    const noCount = answers.length - yesCount;
+
+    // Determine majority and minority
+    const majorityAnswer = yesCount > noCount ? true : false;
+    const minorityAnswer = !majorityAnswer;
+    const majorityCount = Math.max(yesCount, noCount);
+    const minorityCount = Math.min(yesCount, noCount);
+
+    // Allocate points
+    for (const pID in this.answerByPID) {
+      if (minorityCount === 0) {
+        this.thisRoundPointByPID[pID] = 0; // All members delivered the same answer. 0 points for everyone.
+      } else if (participantCount > 3 && minorityCount === 1 && this.answerByPID[pID] === minorityAnswer) {
+        this.thisRoundPointByPID[pID] = 3; // Single minority gets 3 points if more than 3 participants
+      } else if (this.answerByPID[pID] === majorityAnswer && minorityCount !== 1) {
+        this.thisRoundPointByPID[pID] = 1; // Majority gets 1 point if no single minority
+      } else {
+        this.thisRoundPointByPID[pID] = 0;
+      }
+    }
+
+    console.log("Point in this round:");
+    console.log(this.thisRoundPointByPID);
+    this.sendScores();
+  }
+
+  static sendScores() {
+    if (!this.isInitialized || !this.isAdmin) return;
+    for (const pID in this.thisRoundPointByPID) {
+      APP.sfu.broadcast("#nimpro-point", pID + "|" + this.thisRoundPointByPID[pID]);
+    }
+    // this.newRound();
+  }
+
+  static newRound() {
+    if (!this.isInitialized) return;
+    this.answerByPID = {};
+    console.log("New round started");
+  }
+
+  /**
+   * Non-Admin Methods
+   */
 
   static sendAnswer(isYes) {
     if (!this.isInitialized || this.isAdmin) return;
@@ -62,25 +145,13 @@ export class NimproSystem {
     APP.sfu.broadcast("#nimpro-ans", APP.sfu._clientId + "|" + (isYes ? 1 : 0));
   }
 
-  static calculateAnswer() {
-    if (!this.isInitialized || !this.isAdmin) return;
-    for (const pID in this.answerByPID) {
-      this.scoreByPID[pID] = 0; // TODO: calculation
+  static receivePoint(pID, point) {
+    if (!this.isAdmin && pID === APP.sfu._clientId) {
+      const parsedPoint = typeof point === "string" ? parseInt(point, 10) : point;
+      console.log("You got " + parsedPoint + " points in this round.");
+      this.selfPoint += parsedPoint;
+      console.log("Current total points: " + this.selfPoint);
+      // TODO: Update displayed point text
     }
-    this.sendScores();
-  }
-
-  static sendScores() {
-    if (!this.isInitialized || !this.isAdmin) return;
-    for (const pID in this.scoreByPID) {
-      APP.sfu.broadcast("#nimpro-score", pID + "|" + this.scoreByPID[pID]);
-    }
-    this.newRound();
-  }
-
-  static newRound() {
-    if (!this.isInitialized) return;
-    this.answerByPID = {};
-    this.scoreByPID = {};
   }
 }
