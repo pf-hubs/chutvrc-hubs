@@ -104,6 +104,10 @@ export class SoraAdapter extends SfuAdapter {
           {
             label: "#nimpro-point",
             direction: "sendrecv"
+          },
+          {
+            label: "#nimpro-button-visibility",
+            direction: "sendrecv"
           }
         ])
         .concat(

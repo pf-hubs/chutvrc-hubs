@@ -23,6 +23,7 @@ export class NimproSystem {
       APP.sfu.on("nimpro_message_received", this.boundHandleDataChannelMessageReceived);
 
       if (!isAdmin) {
+        // TODO: use 3D button in scene instead of keyboard event
         document.addEventListener("keydown", event => {
           if (event.key === "y") {
             this.isCurrentAnswerYes = true;
@@ -65,6 +66,9 @@ export class NimproSystem {
         break;
       case "#nimpro-point":
         this.receivePoint(pID, value);
+        break;
+      case "#nimpro-button-visibility":
+        this.setAnswerButtonsVisibility(message === "1");
         break;
       default:
         break;
@@ -126,12 +130,18 @@ export class NimproSystem {
     for (const pID in this.thisRoundPointByPID) {
       APP.sfu.broadcast("#nimpro-point", pID + "|" + this.thisRoundPointByPID[pID]);
     }
-    // this.newRound();
+    this.sendAnswerButtonsVisibility(false);
+  }
+
+  static sendAnswerButtonsVisibility(isVisible) {
+    if (!this.isInitialized || !this.isAdmin) return;
+    APP.sfu.broadcast("#nimpro-button-visibility", isVisible ? "1" : "0");
   }
 
   static newRound() {
     if (!this.isInitialized) return;
     this.answerByPID = {};
+    this.sendAnswerButtonsVisibility(true);
     console.log("New round started");
   }
 
@@ -153,5 +163,13 @@ export class NimproSystem {
       console.log("Current total points: " + this.selfPoint);
       // TODO: Update displayed point text
     }
+  }
+
+  static setAnswerButtonsVisibility(isVisible) {
+    // TODO: actually switch answer buttons' visibility
+  }
+
+  static updateScoreText(score) {
+    // TODO: actually switch answer buttons' visibility
   }
 }
