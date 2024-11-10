@@ -1,3 +1,7 @@
+import { Vector3 } from "three";
+import { createClickable3dButton } from "../utils/create-clickable-3d-button";
+import { WaypointSystem } from "./waypoint-system";
+
 export class NimproSystem {
   static isInitialized = false;
   static isAdmin = true;
@@ -8,11 +12,14 @@ export class NimproSystem {
   static thisRoundPointByPID = {};
   static selfPoint = 0;
 
+  static yesButton = null;
+  static noButton = null;
+
   // Store the bound handler to remove it later
   static boundHandleDataChannelMessageReceived = null;
 
   // Initialization and Cleanup Methods
-  static init(isAdmin) {
+  static joinGame(isAdmin) {
     if (this.isInitialized) return;
     this.isInitialized = true;
     this.isAdmin = isAdmin;
@@ -23,36 +30,19 @@ export class NimproSystem {
       APP.sfu.on("nimpro_message_received", this.boundHandleDataChannelMessageReceived);
 
       if (!isAdmin) {
-        // TODO: use 3D button in scene instead of keyboard event
-        document.addEventListener("keydown", event => {
-          if (event.key === "y") {
-            this.isCurrentAnswerYes = true;
-          }
-          if (event.key === "n") {
-            this.isCurrentAnswerYes = false;
-          }
-          if (event.key === "Enter") {
-            this.sendAnswer(this.isCurrentAnswerYes);
-          }
+        this.yesButton = createClickable3dButton(new Vector3(-0.5, 1.5, -2), () => {
+          this.isCurrentAnswerYes = true;
+          this.sendAnswer(this.isCurrentAnswerYes);
+        });
+        this.noButton = createClickable3dButton(new Vector3(0.5, 1.5, -2), () => {
+          this.isCurrentAnswerYes = false;
+          this.sendAnswer(this.isCurrentAnswerYes);
         });
       }
 
       this.isEventListnerRegistered = true;
 
       console.log("Nimpro initialized as " + (isAdmin ? "admin" : "player"));
-    }
-  }
-
-  static quit() {
-    if (!this.isInitialized) return;
-    this.isInitialized = false;
-
-    // Remove the event listener if it was registered
-    if (APP.sfu && this.isEventListnerRegistered && this.boundHandleDataChannelMessageReceived) {
-      APP.sfu.off("nimpro_message_received", this.boundHandleDataChannelMessageReceived);
-      this.isEventListnerRegistered = false;
-
-      console.log("Nimpro quitted");
     }
   }
 
@@ -78,6 +68,23 @@ export class NimproSystem {
   /**
    * Admin Methods
    */
+
+  static endGame() {
+    if (!this.isInitialized || !this.isAdmin) return;
+    this.isInitialized = false;
+
+    // Remove the event listener if it was registered
+    if (APP.sfu && this.isEventListnerRegistered && this.boundHandleDataChannelMessageReceived) {
+      APP.sfu.off("nimpro_message_received", this.boundHandleDataChannelMessageReceived);
+      this.isEventListnerRegistered = false;
+      this.sendAnswerButtonsVisibility(false);
+
+      const waypointSystem = APP.scene.systems["hubs-systems"].waypointSystem;
+      WaypointSystem.unoccupyWaypoints(waypointSystem.ready.filter(wp => wp.el.className.includes("N-impro-seat")));
+
+      console.log("Nimpro quitted");
+    }
+  }
 
   static saveParticipantAnswer(pID, answer) {
     if (this.isAdmin) {
@@ -166,7 +173,8 @@ export class NimproSystem {
   }
 
   static setAnswerButtonsVisibility(isVisible) {
-    // TODO: actually switch answer buttons' visibility
+    this.yesButton.visible = isVisible;
+    this.noButton.visible = isVisible;
   }
 
   static updateScoreText(score) {

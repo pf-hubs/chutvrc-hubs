@@ -12,11 +12,11 @@ function NimproMenu({ scene, hubChannel }) {
     if (nimproActive) {
       console.log("quitNimpro");
       setNimproActive(false);
-      NimproSystem.quit();
+      NimproSystem.endGame();
     } else {
       console.log("initNimpro");
       setNimproActive(true);
-      NimproSystem.init(true);
+      NimproSystem.joinGame(true);
     }
   }
 

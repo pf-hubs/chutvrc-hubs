@@ -82,6 +82,7 @@ function loadTemplatesForWaypointData(scene, data) {
 function shouldTryToOccupy(waypointComponent) {
   return (
     waypointComponent.data.canBeOccupied &&
+    !waypointComponent.data.isOccupied &&
     (NAF.utils.isMine(waypointComponent.el) ||
       !(
         waypointComponent.data.isOccupied &&
@@ -160,7 +161,10 @@ export class WaypointSystem {
             waypointComponent.data
           );
           unoccupyWaypoints(previouslyOccupiedWaypoints.filter(wp => wp !== waypointComponent));
-          NimproSystem.init(false);
+
+          if (waypointComponent.el.className.includes("N-impro-seat")) {
+            NimproSystem.joinGame(false);
+          }
         }
       });
     }.bind(this);
@@ -393,6 +397,10 @@ export class WaypointSystem {
       elementsFromTemplates.forEach(el => tickTemplateEl(el, waypointComponent));
     }
     this.ready.forEach(tickWaypoint.bind(this));
+  }
+
+  static unoccupyWaypoints(waypointComponents) {
+    unoccupyWaypoints(waypointComponents);
   }
 }
 
