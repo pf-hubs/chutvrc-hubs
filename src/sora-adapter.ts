@@ -98,6 +98,10 @@ export class SoraAdapter extends SfuAdapter {
             direction: "sendrecv"
           },
           {
+            label: "#nimpro-seat",
+            direction: "sendrecv"
+          },
+          {
             label: "#nimpro-ans",
             direction: "sendrecv"
           },
