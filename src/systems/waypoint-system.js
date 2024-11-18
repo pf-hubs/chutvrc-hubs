@@ -163,7 +163,7 @@ export class WaypointSystem {
           unoccupyWaypoints(previouslyOccupiedWaypoints.filter(wp => wp !== waypointComponent));
 
           if (waypointComponent.el.className.includes("N-impro-seat")) {
-            NimproSystem.joinGame(false);
+            NimproSystem.joinGame(false, waypointComponent.el.className.replace("N-impro-seat-", ""));
           }
         }
       });

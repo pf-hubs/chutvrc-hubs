@@ -1,5 +1,5 @@
-import { Vector3 } from "three";
-import { createClickable3dButton } from "../utils/create-clickable-3d-button";
+import { Quaternion, Vector3 } from "three";
+import { Clickable3DButton } from "../utils/clickable-3d-button";
 import { WaypointSystem } from "./waypoint-system";
 
 export class NimproSystem {
@@ -14,13 +14,17 @@ export class NimproSystem {
 
   static yesButton = null;
   static noButton = null;
+  static currentActiveButton = null;
 
   // Store the bound handler to remove it later
   static boundHandleDataChannelMessageReceived = null;
 
   // Initialization and Cleanup Methods
-  static joinGame(isAdmin) {
-    if (this.isInitialized) return;
+  static joinGame(isAdmin, pNum = "00") {
+    if (this.isInitialized) {
+      this.quitGame();
+      return;
+    }
     this.isInitialized = true;
     this.isAdmin = isAdmin;
 
@@ -30,14 +34,7 @@ export class NimproSystem {
       APP.sfu.on("nimpro_message_received", this.boundHandleDataChannelMessageReceived);
 
       if (!isAdmin) {
-        this.yesButton = createClickable3dButton(new Vector3(-0.5, 1.5, -2), () => {
-          this.isCurrentAnswerYes = true;
-          this.sendAnswer(this.isCurrentAnswerYes);
-        });
-        this.noButton = createClickable3dButton(new Vector3(0.5, 1.5, -2), () => {
-          this.isCurrentAnswerYes = false;
-          this.sendAnswer(this.isCurrentAnswerYes);
-        });
+        this.initAnswerButtons(pNum);
       }
 
       this.isEventListnerRegistered = true;
@@ -173,11 +170,81 @@ export class NimproSystem {
   }
 
   static setAnswerButtonsVisibility(isVisible) {
-    this.yesButton.visible = isVisible;
-    this.noButton.visible = isVisible;
+    if (this.yesButton) this.yesButton.buttonMesh.visible = isVisible;
+    if (this.noButton) this.noButton.buttonMesh.visible = isVisible;
   }
 
-  static updateScoreText(score) {
-    // TODO: actually switch answer buttons' visibility
+  static initAnswerButtons(pNum = "00") {
+    const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + pNum);
+    if (!seat) return;
+
+    const camera = document.getElementById("viewing-camera").object3DMap.camera;
+    const scene = APP.world.scene;
+
+    this.yesButton = new Clickable3DButton(
+      camera,
+      scene,
+      0x66ff66, // Default green color
+      0x00ff00, // Active bright green color
+      () => this.handleButtonClick("yes") // Handles the button click
+    );
+
+    this.noButton = new Clickable3DButton(
+      camera,
+      scene,
+      0xff6666, // Default red color
+      0xff0000, // Active bright red color
+      () => this.handleButtonClick("no") // Handles the button click
+    );
+
+    this.setAnswerButtonsVisibility(false);
+
+    const seatPos = new Vector3();
+    const seatQua = new Quaternion();
+    seat.object3D.getWorldPosition(seatPos);
+    seat.object3D.getWorldQuaternion(seatQua);
+
+    const seatForward = new THREE.Vector3(0, 0, -1).applyQuaternion(seatQua);
+    const right = new THREE.Vector3(0.5, 0, 0).applyQuaternion(seatQua);
+    const left = right.clone().negate();
+
+    const distanceInFront = -0.5;
+    const offsetFromCenter = 0.5;
+
+    const noObjectPosition = seatPos
+      .clone()
+      .add(seatForward.clone().multiplyScalar(distanceInFront))
+      .add(left.clone().multiplyScalar(offsetFromCenter));
+
+    const yesObjectPosition = seatPos
+      .clone()
+      .add(seatForward.clone().multiplyScalar(distanceInFront))
+      .add(right.clone().multiplyScalar(offsetFromCenter));
+
+    this.yesButton.setPosition(yesObjectPosition.add(new Vector3(0, 1.2, 0)));
+    this.noButton.setPosition(noObjectPosition.add(new Vector3(0, 1.2, 0)));
+  }
+
+  static handleButtonClick(buttonType) {
+    if (this.currentActiveButton === buttonType) return;
+
+    // Reset the previous active button's state
+    if (this.currentActiveButton === "yes") {
+      this.yesButton.resetActiveState();
+    } else if (this.currentActiveButton === "no") {
+      this.noButton.resetActiveState();
+    }
+
+    // Update the active button and current answer
+    if (buttonType === "yes") {
+      this.isCurrentAnswerYes = true;
+    } else if (buttonType === "no") {
+      this.isCurrentAnswerYes = false;
+    }
+
+    this.currentActiveButton = buttonType;
+
+    // Broadcast the answer
+    this.sendAnswer(this.isCurrentAnswerYes);
   }
 }
