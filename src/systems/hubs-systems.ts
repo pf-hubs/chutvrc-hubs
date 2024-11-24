@@ -337,7 +337,8 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
         rightController: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.RIGHT) || new Map()
       },
       APP.sfu._avatarSyncHelper._avatarEid2ClientId,
-      APP.sfu._avatarSyncHelper._client2VrMode
+      APP.sfu._avatarSyncHelper._client2VrMode,
+      APP.sfu._avatarSyncHelper._client2AnimState
     );
   }
   /* End of implementation for using bitECS */

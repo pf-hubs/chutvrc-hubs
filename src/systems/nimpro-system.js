@@ -62,9 +62,10 @@ export class NimproSystem {
       if (!isAdmin) {
         // For participants, assign seat number and initialize answer buttons
         this.seatNum = pNum;
-        console.log(pNum);
         APP.sfu.broadcast("#nimpro-seat", APP.sfu._clientId + "|" + pNum);
         this.initAnswerButtons(pNum);
+
+        APP.sfu._avatarSyncHelper?.switchSelfAnimState(2); // avatar anim state TODO: change number to type AvatarAnimState
       }
 
       console.log("Nimpro initialized as " + (isAdmin ? "admin" : "player"));
@@ -165,7 +166,7 @@ export class NimproSystem {
     const answerAndCurrentPointText = new Text();
     answerAndCurrentPointText.text = "";
     answerAndCurrentPointText.fontSize = 0.2;
-    answerAndCurrentPointText.position.set(seatPos.x, seatPos.y + 2, seatPos.z); // Position above the seat
+    answerAndCurrentPointText.position.set(seatPos.x, seatPos.y + 2.5, seatPos.z); // Position above the seat
     answerAndCurrentPointText.color = 0xffffff;
     answerAndCurrentPointText.visible = false; // Hide initially
     answerAndCurrentPointText.sync();
@@ -175,7 +176,7 @@ export class NimproSystem {
     const totalPointsText = new Text();
     totalPointsText.text = "0";
     totalPointsText.fontSize = 0.2;
-    totalPointsText.position.set(seatPos.x, seatPos.y + 2.5, seatPos.z); // Position above the answer text
+    totalPointsText.position.set(seatPos.x, seatPos.y + 3, seatPos.z); // Position above the answer text
     totalPointsText.color = 0xff9900;
     totalPointsText.sync();
     APP.world.scene.add(totalPointsText);
@@ -237,6 +238,8 @@ export class NimproSystem {
 
     // Dispose of Text objects
     this.disposeTextObjects();
+
+    // TODO: let participants stand up
   }
 
   /**
@@ -296,9 +299,9 @@ export class NimproSystem {
         if (minorityCount === 0) {
           // All members gave the same answer, 0 points
           this.thisRoundPointByPID[pID] = 0;
-        } else if (participantCount > 3 && minorityCount === 1 && this.answerByPID[pID] === minorityAnswer) {
-          // Single minority gets 3 points if more than 3 participants
-          this.thisRoundPointByPID[pID] = 3;
+        } else if (participantCount > 3 && minorityCount === 1) {
+          // If more than 3 participants (e.g., 5) and there is only 1 minority, the minority gets 3 points, while the majority gets 0 points
+          this.thisRoundPointByPID[pID] = this.answerByPID[pID] === minorityAnswer ? 3 : 0;
         } else if (this.answerByPID[pID] === majorityAnswer) {
           // Majority gets 1 point
           this.thisRoundPointByPID[pID] = 1;
@@ -334,7 +337,7 @@ export class NimproSystem {
       }
     }
 
-    console.log("Point in this round:");
+    console.log("Point in this round: ");
     console.log(this.thisRoundPointByPID);
     // Send the scores to participants
     this.sendScores();
@@ -469,7 +472,6 @@ export class NimproSystem {
       }
       if (answerAndCurrentPointText) {
         answerAndCurrentPointText.visible = true; // Show the text
-        console.log(this.answerByPID[pID]);
         const answerText = this.answerByPID[pID] ? "Y" : "N";
         answerAndCurrentPointText.text = `${answerText} +${parsedPoint}`;
         answerAndCurrentPointText.sync();
@@ -484,8 +486,15 @@ export class NimproSystem {
    * @param {boolean} isVisible - Whether the buttons should be visible
    */
   static setAnswerButtonsVisibility(isVisible) {
-    if (this.yesButton) this.yesButton.buttonMesh.visible = isVisible;
-    if (this.noButton) this.noButton.buttonMesh.visible = isVisible;
+    if (this.yesButton) {
+      this.yesButton.resetActiveState();
+      this.yesButton.buttonMesh.visible = isVisible;
+    }
+    if (this.noButton) {
+      this.noButton.resetActiveState();
+      this.noButton.buttonMesh.visible = isVisible;
+    }
+    this.currentActiveButton = "";
   }
 
   /**

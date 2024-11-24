@@ -17,6 +17,7 @@ export class AvatarSyncHelper {
   _sfu: SfuAdapter;
   _client2AvatarEid: Map<string, number>;
   _client2VrMode: Map<string, boolean>;
+  _client2AnimState: Map<string, number>; // avatar anim state TODO: change number to type AvatarAnimState
   _client2Transform: Map<AvatarPart, Map<string, Transform>>;
   _avatarEid2ClientId: Map<number, string>;
   _avatarPartsToSync: AvatarPart[];
@@ -25,6 +26,7 @@ export class AvatarSyncHelper {
   _sendSelfAvatarTransformIntervalId: NodeJS.Timer;
   _setSelfIsVrFlagIntervalId: NodeJS.Timer;
   _sendSelfIsVrFlagIntervalId: NodeJS.Timer;
+  _sendSelfAnimStateIntervalId: NodeJS.Timer;
 
   constructor(sfu: SfuAdapter) {
     this._sfu = sfu;
@@ -32,9 +34,10 @@ export class AvatarSyncHelper {
     this._avatarEid2ClientId = new Map<number, string>();
     this._client2AvatarEid = new Map<string, number>();
     this._client2VrMode = new Map<string, boolean>();
+    this._client2AnimState = new Map<string, number>(); // avatar anim state TODO: change number to type AvatarAnimState
     this._client2Transform = new Map<AvatarPart, Map<string, Transform>>();
     this._avatarPartsToSync = [AvatarPart.RIG, AvatarPart.HEAD, AvatarPart.LEFT, AvatarPart.RIGHT];
-    this._channelsForSync = ["#avatarId", "#isVR"].concat(
+    this._channelsForSync = ["#avatarId", "#isVR", "#avatarAnimState"].concat(
       this._avatarPartsToSync.map(part => "#avatar-" + AvatarPart[part])
     );
     this._avatarPartsToSync.forEach(part => {
@@ -48,6 +51,8 @@ export class AvatarSyncHelper {
       this.handleTransformSyncInit();
     } else if (channel === "#isVR") {
       this.handleVrModeSyncInit();
+    } else if (channel === "#avatarAnimState") {
+      this.handleAnimStateSyncInit();
     }
   }
 
@@ -76,6 +81,11 @@ export class AvatarSyncHelper {
     if (channel === "#isVR") {
       let [clientId, isVR] = new TextDecoder().decode(data).split("|");
       this._client2VrMode.set(clientId, isVR === "1");
+    }
+
+    if (channel === "#avatarAnimState") {
+      let [clientId, animState] = new TextDecoder().decode(data).split("|");
+      this.switchAnimState(clientId, parseInt(animState)); // avatar anim state TODO: change number to type AvatarAnimState
     }
 
     if (channel.includes("#avatar-")) {
@@ -219,6 +229,10 @@ export class AvatarSyncHelper {
     this._sendSelfIsVrFlagIntervalId = setInterval(() => this.sendSelfIsVrFlag(), 1000);
   }
 
+  private handleAnimStateSyncInit() {
+    this._sendSelfAnimStateIntervalId = setInterval(() => this.sendSelfAnimState(), 500);
+  }
+
   private setSelfIsVrFlag() {
     this._client2VrMode.set(
       this._sfu._clientId,
@@ -243,9 +257,27 @@ export class AvatarSyncHelper {
     );
   }
 
+  private sendSelfAnimState() {
+    this._sfu.broadcast(
+      "#avatarAnimState",
+      this._sfu._clientId + "|" + (this._client2AnimState.get(this._sfu._clientId) || 0) // avatar anim state TODO: change number to type AvatarAnimState
+    );
+  }
+
+  private switchAnimState(clientId: string, state: number) {
+    // avatar anim state TODO: change number to type AvatarAnimState
+    this._client2AnimState.set(clientId, state);
+  }
+
+  switchSelfAnimState(state: number) {
+    // avatar anim state TODO: change number to type AvatarAnimState
+    this.switchAnimState(this._sfu._clientId, state);
+  }
+
   stopSyncing() {
     if (this._sendSelfAvatarTransformIntervalId) clearInterval(this._sendSelfAvatarTransformIntervalId);
     if (this._setSelfIsVrFlagIntervalId) clearInterval(this._setSelfIsVrFlagIntervalId);
     if (this._sendSelfIsVrFlagIntervalId) clearInterval(this._sendSelfIsVrFlagIntervalId);
+    if (this._sendSelfAnimStateIntervalId) clearInterval(this._sendSelfAnimStateIntervalId);
   }
 }
