@@ -49,12 +49,12 @@ function NimproMenu({ scene, hubChannel }) {
         onClick={() => NimproSystem.newRound()}
         preset="accent2"
       />
-      <ToolbarButton
+      {/* <ToolbarButton
         icon={<></>}
-        label={<FormattedMessage id="nimpro-menu.set-question" defaultMessage="Question" />}
-        onClick={() => {} /* NimproSystem.setQuestion */}
+        label={<FormattedMessage id="nimpro-menu.next-question" defaultMessage="Question" />}
+        onClick={() => NimproSystem.nextQuestion()}
         preset="accent3"
-      />
+      /> */}
       <ToolbarButton
         icon={<></>}
         label={<FormattedMessage id="nimpro-menu.calculate-answer" defaultMessage="Result" />}

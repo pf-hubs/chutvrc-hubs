@@ -30,6 +30,9 @@ export class NimproSystem {
   // Store the bound event handler to remove it later
   static boundHandleDataChannelMessageReceived = null;
 
+  // media-pager component of the question slide
+  static questionSlidePager = null;
+
   // Initialization and Cleanup Methods
 
   /**
@@ -38,6 +41,8 @@ export class NimproSystem {
    * @param {string} pNum - Participant's seat number (default is "00")
    */
   static joinGame(isAdmin, pNum = "00") {
+    this.retrieveQuestionSlidePager();
+
     // If already initialized and role hasn't changed, do nothing
     if (this.isInitialized && (isAdmin || pNum === this.seatNum)) {
       return;
@@ -96,6 +101,12 @@ export class NimproSystem {
         // When a participant submits their answer
         console.log(`${value} from seat ${pID}`);
         this.answerByPID[pID] = value === "1";
+        if (this.isAdmin) {
+          const answerAndCurrentPointText = this.answerTextBySeatNum[this.seatByPID[pID]];
+          answerAndCurrentPointText.visible = true;
+          answerAndCurrentPointText.text = value === "1" ? "Y" : "N";
+          answerAndCurrentPointText.sync();
+        }
         // Do not reveal the answer yet
         break;
       case "#nimpro-point":
@@ -288,8 +299,8 @@ export class NimproSystem {
         } else if (participantCount > 3 && minorityCount === 1 && this.answerByPID[pID] === minorityAnswer) {
           // Single minority gets 3 points if more than 3 participants
           this.thisRoundPointByPID[pID] = 3;
-        } else if (this.answerByPID[pID] === majorityAnswer && minorityCount !== 1) {
-          // Majority gets 1 point if no single minority
+        } else if (this.answerByPID[pID] === majorityAnswer) {
+          // Majority gets 1 point
           this.thisRoundPointByPID[pID] = 1;
         } else {
           // Others get 0 points
@@ -358,6 +369,11 @@ export class NimproSystem {
    */
   static newRound() {
     if (!this.isInitialized) return;
+
+    if (this.questionSlidePager) {
+      this.questionSlidePager.setPage(this.questionSlidePager.data.index + 1);
+    }
+
     // Reset answers and points for the new round
     for (const pID in this.answerByPID) {
       this.answerByPID[pID] = undefined;
@@ -380,6 +396,35 @@ export class NimproSystem {
       APP.sfu.broadcast("#nimpro-seat", pID + "|" + this.seatByPID[pID]);
     }
     console.log("New round started");
+  }
+
+  // static nextQuestion() {
+  //   this.questionSlidePager.setPage(this.questionSlidePager.data.index + 1);
+  // }
+
+  static retrieveQuestionSlidePager() {
+    if (!this.isAdmin) return;
+    const frame = document.querySelector("#environment-root .N-impro .QuestionSlide");
+    if (!frame) return;
+
+    const framePos = new Vector3();
+    frame.object3D.getWorldPosition(framePos);
+
+    const pdfPos = new Vector3();
+    const interactables = [...document.querySelectorAll("a-scene a-entity.interactable")];
+    const questionSlide = interactables.find(interactable => {
+      if (interactable.hasAttribute("media-pager")) {
+        interactable.object3D.getWorldPosition(pdfPos);
+        if (framePos.distanceTo(pdfPos) < 0.1) {
+          return true;
+        }
+      }
+      return false;
+    });
+    if (questionSlide) {
+      this.questionSlidePager = questionSlide.components["media-pager"];
+      this.questionSlidePager.setPage(0);
+    }
   }
 
   /**
