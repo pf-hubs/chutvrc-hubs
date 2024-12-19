@@ -1,4 +1,4 @@
-import { Vector3, Mesh, MeshBasicMaterial, Quaternion } from "three";
+import { Vector3, Quaternion } from "three";
 import { Text } from "troika-three-text";
 import { Clickable3DButton } from "../utils/clickable-3d-button";
 import { WaypointSystem } from "./waypoint-system";
@@ -22,10 +22,13 @@ export class NimproSystem {
   static yesButton = null; // Button for "Yes" answer
   static noButton = null; // Button for "No" answer
   static currentActiveButton = null; // Currently active button ("yes" or "no")
+  static pointObjectLow = null;
+  static pointObjectHigh = null;
 
   // Text objects for displaying answers and points
   static answerTextBySeatNum = {}; // Text for answer and current round points by seat number
   static totalPointsTextBySeatNum = {}; // Text for total points by seat number
+  static totalPointObjectsBySeatNum = {}; // Objects that represent the total point by seat number
 
   // Store the bound event handler to remove it later
   static boundHandleDataChannelMessageReceived = null;
@@ -41,6 +44,7 @@ export class NimproSystem {
    * @param {string} pNum - Participant's seat number (default is "00")
    */
   static joinGame(isAdmin, pNum = "00") {
+    console.log(document.querySelector("#environment-root .N-impro").object3D);
     this.retrieveQuestionSlidePager();
 
     // If already initialized and role hasn't changed, do nothing
@@ -73,8 +77,11 @@ export class NimproSystem {
 
     // Initialize Text objects for all seats (from "01" to "05")
     ["01", "02", "03", "04", "05"].forEach(seatNum => {
-      this.createOrUpdateTextForSeat(seatNum);
+      this.initTextsAndObjectsForSeat(seatNum);
     });
+
+    this.pointObjectLow = document.querySelector("#environment-root .N-impro .point-object-low")?.object3D;
+    this.pointObjectHigh = document.querySelector("#environment-root .N-impro .point-object-high")?.object3D;
   }
 
   /**
@@ -129,10 +136,10 @@ export class NimproSystem {
   }
 
   /**
-   * Create or update Text objects for a seat
+   * Initialize Texts or Objects for a seat
    * @param {string} seatNum - The seat number
    */
-  static createOrUpdateTextForSeat(seatNum) {
+  static initTextsAndObjectsForSeat(seatNum) {
     // If text objects already exist, no need to create
     if (this.answerTextBySeatNum[seatNum]) {
       return;
@@ -204,6 +211,7 @@ export class NimproSystem {
     // Store the text objects
     this.answerTextBySeatNum[seatNum] = answerAndCurrentPointText;
     this.totalPointsTextBySeatNum[seatNum] = totalPointsText;
+    this.totalPointObjectsBySeatNum[seatNum] = [];
   }
 
   /**
@@ -264,7 +272,16 @@ export class NimproSystem {
         textObj.dispose();
       }
     }
+    for (const seatNum in this.totalPointObjectsBySeatNum) {
+      for (const pointObject of this.totalPointObjectsBySeatNum[seatNum]) {
+        if (pointObject) {
+          APP.world.scene.remove(pointObject);
+          pointObject.dispose();
+        }
+      }
+    }
     this.totalPointsTextBySeatNum = {};
+    this.totalPointObjectsBySeatNum = {};
   }
 
   /**
@@ -296,6 +313,7 @@ export class NimproSystem {
     // Allocate points to participants based on their answers
     for (const pID in this.answerByPID) {
       if (this.answerByPID[pID] !== undefined) {
+        /*
         if (minorityCount === 0) {
           // All members gave the same answer, 0 points
           this.thisRoundPointByPID[pID] = 0;
@@ -308,7 +326,9 @@ export class NimproSystem {
         } else {
           // Others get 0 points
           this.thisRoundPointByPID[pID] = 0;
-        }
+        }*/
+
+        this.thisRoundPointByPID[pID] = 3;
 
         // Update total points on admin's client
         if (this.pointsByPID[pID] !== undefined) {
@@ -322,6 +342,20 @@ export class NimproSystem {
         if (seatNum) {
           const totalPointsText = this.totalPointsTextBySeatNum[seatNum];
           const answerAndCurrentPointText = this.answerTextBySeatNum[seatNum];
+          const thisRoundPoint = this.thisRoundPointByPID[pID];
+          const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + seatNum);
+
+          if (thisRoundPoint > 0 && seat && this.pointObjectHigh && this.pointObjectLow) {
+            const pointObject = thisRoundPoint > 1 ? this.pointObjectHigh.clone() : this.pointObjectLow.clone();
+            pointObject.visible = true;
+            pointObject.position.copy(
+              seat.object3D.position
+                .clone()
+                .add(new Vector3(this.totalPointObjectsBySeatNum[seatNum].length / 10, 3, 0))
+            );
+            APP.world.scene.add(pointObject);
+            this.totalPointObjectsBySeatNum[seatNum].push(pointObject);
+          }
 
           if (totalPointsText) {
             totalPointsText.text = `${this.pointsByPID[pID]}`;
@@ -330,7 +364,7 @@ export class NimproSystem {
           if (answerAndCurrentPointText) {
             answerAndCurrentPointText.visible = true; // Show the text
             const answerText = this.answerByPID[pID] ? "Y" : "N";
-            answerAndCurrentPointText.text = `${answerText} +${this.thisRoundPointByPID[pID]}`;
+            answerAndCurrentPointText.text = `${answerText} +${thisRoundPoint}`;
             answerAndCurrentPointText.sync();
           }
         }
@@ -465,6 +499,19 @@ export class NimproSystem {
     if (seatNum) {
       const totalPointsText = this.totalPointsTextBySeatNum[seatNum];
       const answerAndCurrentPointText = this.answerTextBySeatNum[seatNum];
+      const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + seatNum);
+
+      if (parsedPoint > 0 && seat && this.pointObjectHigh && this.pointObjectLow) {
+        const pointObject = parsedPoint > 1 ? this.pointObjectHigh.clone() : this.pointObjectLow.clone();
+        pointObject.visible = true;
+        console.log(pointObject.position.clone());
+        pointObject.position.copy(
+          seat.object3D.position.clone().add(new Vector3(this.totalPointObjectsBySeatNum[seatNum].length / 10, 3, 0))
+        );
+        APP.world.scene.add(pointObject);
+        console.log(pointObject.position.clone());
+        this.totalPointObjectsBySeatNum[seatNum].push(pointObject);
+      }
 
       if (totalPointsText) {
         totalPointsText.text = `${this.pointsByPID[pID]}`;
