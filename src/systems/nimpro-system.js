@@ -24,10 +24,11 @@ export class NimproSystem {
   static currentActiveButton = null; // Currently active button ("yes" or "no")
   static pointObjectLow = null;
   static pointObjectHigh = null;
+  static yAnswerButton = null;
+  static nAnswerButton = null;
 
   // Text objects for displaying answers and points
-  static answerTextBySeatNum = {}; // Text for answer and current round points by seat number
-  static totalPointsTextBySeatNum = {}; // Text for total points by seat number
+  static thisRoundPointObjectBySeatNum = {};
   static totalPointObjectsBySeatNum = {}; // Objects that represent the total point by seat number
 
   // Store the bound event handler to remove it later
@@ -97,23 +98,13 @@ export class NimproSystem {
       case "#nimpro-seat":
         // When a participant joins and broadcasts their seat number
         this.seatByPID[pID] = value;
-        // Hide answer and current point texts at the start of a new round
-        for (const seatNum in this.answerTextBySeatNum) {
-          const answerAndCurrentPointText = this.answerTextBySeatNum[seatNum];
-          if (answerAndCurrentPointText) {
-            answerAndCurrentPointText.visible = false;
-          }
-        }
         break;
       case "#nimpro-ans":
         // When a participant submits their answer
         console.log(`${value} from seat ${pID}`);
         this.answerByPID[pID] = value === "1";
         if (this.isAdmin) {
-          const answerAndCurrentPointText = this.answerTextBySeatNum[this.seatByPID[pID]];
-          answerAndCurrentPointText.visible = true;
-          answerAndCurrentPointText.text = value === "1" ? "Y" : "N";
-          answerAndCurrentPointText.sync();
+          // TODO: display Y or N // value === "1" ? "Y" : "N";
         }
         // Do not reveal the answer yet
         break;
@@ -124,6 +115,11 @@ export class NimproSystem {
       case "#nimpro-button-visibility":
         // Control visibility of answer buttons
         this.setAnswerButtonsVisibility(message === "1");
+        if (!this.isAdmin && message === "1") {
+          for (const seatNum in this.thisRoundPointObjectBySeatNum) {
+            this.saveThisRoundPointObject(seatNum);
+          }
+        }
         // Optionally, reset the question slide for participants (commented out)
         // if (message !== "1") {
         //   const mediaPdfElement = document.querySelector("a-entity[media-pdf]");
@@ -140,11 +136,6 @@ export class NimproSystem {
    * @param {string} seatNum - The seat number
    */
   static initTextsAndObjectsForSeat(seatNum) {
-    // If text objects already exist, no need to create
-    if (this.answerTextBySeatNum[seatNum]) {
-      return;
-    }
-
     // Get the seat element
     const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + seatNum);
     if (!seat) return;
@@ -173,35 +164,23 @@ export class NimproSystem {
     const answerAndCurrentPointText = new Text();
     answerAndCurrentPointText.text = "";
     answerAndCurrentPointText.fontSize = 0.2;
-    answerAndCurrentPointText.position.set(seatPos.x, seatPos.y + 2.5, seatPos.z); // Position above the seat
+    answerAndCurrentPointText.position.set(seatPos.x, seatPos.y + 2, seatPos.z); // Position above the seat
     answerAndCurrentPointText.color = 0xffffff;
     answerAndCurrentPointText.visible = false; // Hide initially
     answerAndCurrentPointText.sync();
     APP.world.scene.add(answerAndCurrentPointText);
-
-    // Create Text for total points
-    const totalPointsText = new Text();
-    totalPointsText.text = "0";
-    totalPointsText.fontSize = 0.2;
-    totalPointsText.position.set(seatPos.x, seatPos.y + 3, seatPos.z); // Position above the answer text
-    totalPointsText.color = 0xff9900;
-    totalPointsText.sync();
-    APP.world.scene.add(totalPointsText);
 
     // Determine the eye position of the participant
     const selfEyePos = selfSeatPos.clone().add(new Vector3(0, 1.5, 0)); // Eye position at 1.5 units height
 
     // Make texts face the camera or participant
     answerAndCurrentPointText.lookAt(this.isAdmin ? cameraPos : selfEyePos);
-    totalPointsText.lookAt(this.isAdmin ? cameraPos : selfEyePos);
 
     if (seatNum === this.seatNum && selfSeat) {
       // For participant's own seat, locate text in front of the participant locally
       const offset = new Vector3(0, 0, 1).applyQuaternion(selfSeatQua); // Offset 1 unit in front of the seat
-      answerAndCurrentPointText.position.add(new Vector3(offset.x, -1, offset.z)); // Adjust position
+      answerAndCurrentPointText.position.add(new Vector3(offset.x, -0.5, offset.z)); // Adjust position
       answerAndCurrentPointText.lookAt(selfEyePos); // Make text face participant
-      totalPointsText.position.add(new Vector3(offset.x, -1, offset.z));
-      totalPointsText.lookAt(selfEyePos);
 
       // Optionally, rotate question slide to the participant locally (commented out)
       // const mediaPdfElement = document.querySelector("a-entity[media-pdf]");
@@ -209,8 +188,7 @@ export class NimproSystem {
     }
 
     // Store the text objects
-    this.answerTextBySeatNum[seatNum] = answerAndCurrentPointText;
-    this.totalPointsTextBySeatNum[seatNum] = totalPointsText;
+    this.thisRoundPointObjectBySeatNum[seatNum] = null;
     this.totalPointObjectsBySeatNum[seatNum] = [];
   }
 
@@ -254,24 +232,6 @@ export class NimproSystem {
    * Dispose of Text objects to free up resources
    */
   static disposeTextObjects() {
-    // Remove and dispose answer texts
-    for (const seatNum in this.answerTextBySeatNum) {
-      const textObj = this.answerTextBySeatNum[seatNum];
-      if (textObj) {
-        APP.world.scene.remove(textObj);
-        textObj.dispose();
-      }
-    }
-    this.answerTextBySeatNum = {};
-
-    // Remove and dispose total points texts
-    for (const seatNum in this.totalPointsTextBySeatNum) {
-      const textObj = this.totalPointsTextBySeatNum[seatNum];
-      if (textObj) {
-        APP.world.scene.remove(textObj);
-        textObj.dispose();
-      }
-    }
     for (const seatNum in this.totalPointObjectsBySeatNum) {
       for (const pointObject of this.totalPointObjectsBySeatNum[seatNum]) {
         if (pointObject) {
@@ -280,7 +240,6 @@ export class NimproSystem {
         }
       }
     }
-    this.totalPointsTextBySeatNum = {};
     this.totalPointObjectsBySeatNum = {};
   }
 
@@ -313,7 +272,6 @@ export class NimproSystem {
     // Allocate points to participants based on their answers
     for (const pID in this.answerByPID) {
       if (this.answerByPID[pID] !== undefined) {
-        /*
         if (minorityCount === 0) {
           // All members gave the same answer, 0 points
           this.thisRoundPointByPID[pID] = 0;
@@ -326,9 +284,9 @@ export class NimproSystem {
         } else {
           // Others get 0 points
           this.thisRoundPointByPID[pID] = 0;
-        }*/
+        }
 
-        this.thisRoundPointByPID[pID] = 3;
+        // this.thisRoundPointByPID[pID] = 3; // for test
 
         // Update total points on admin's client
         if (this.pointsByPID[pID] !== undefined) {
@@ -339,35 +297,7 @@ export class NimproSystem {
 
         // Update the Text objects on admin's client
         const seatNum = this.seatByPID[pID];
-        if (seatNum) {
-          const totalPointsText = this.totalPointsTextBySeatNum[seatNum];
-          const answerAndCurrentPointText = this.answerTextBySeatNum[seatNum];
-          const thisRoundPoint = this.thisRoundPointByPID[pID];
-          const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + seatNum);
-
-          if (thisRoundPoint > 0 && seat && this.pointObjectHigh && this.pointObjectLow) {
-            const pointObject = thisRoundPoint > 1 ? this.pointObjectHigh.clone() : this.pointObjectLow.clone();
-            pointObject.visible = true;
-            pointObject.position.copy(
-              seat.object3D.position
-                .clone()
-                .add(new Vector3(this.totalPointObjectsBySeatNum[seatNum].length / 10, 3, 0))
-            );
-            APP.world.scene.add(pointObject);
-            this.totalPointObjectsBySeatNum[seatNum].push(pointObject);
-          }
-
-          if (totalPointsText) {
-            totalPointsText.text = `${this.pointsByPID[pID]}`;
-            totalPointsText.sync();
-          }
-          if (answerAndCurrentPointText) {
-            answerAndCurrentPointText.visible = true; // Show the text
-            const answerText = this.answerByPID[pID] ? "Y" : "N";
-            answerAndCurrentPointText.text = `${answerText} +${thisRoundPoint}`;
-            answerAndCurrentPointText.sync();
-          }
-        }
+        this.addThisPointObject(seatNum, this.thisRoundPointByPID[pID]);
       }
     }
 
@@ -419,11 +349,8 @@ export class NimproSystem {
       this.thisRoundPointByPID[pID] = undefined;
     }
     // Hide answer and current point texts
-    for (const seatNum in this.answerTextBySeatNum) {
-      const answerAndCurrentPointText = this.answerTextBySeatNum[seatNum];
-      if (answerAndCurrentPointText) {
-        answerAndCurrentPointText.visible = false;
-      }
+    for (const seatNum in this.thisRoundPointObjectBySeatNum) {
+      this.saveThisRoundPointObject(seatNum);
     }
     // Do not hide totalPointsText
     // Show answer buttons
@@ -496,34 +423,7 @@ export class NimproSystem {
 
     // Update the Text objects
     const seatNum = this.seatByPID[pID];
-    if (seatNum) {
-      const totalPointsText = this.totalPointsTextBySeatNum[seatNum];
-      const answerAndCurrentPointText = this.answerTextBySeatNum[seatNum];
-      const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + seatNum);
-
-      if (parsedPoint > 0 && seat && this.pointObjectHigh && this.pointObjectLow) {
-        const pointObject = parsedPoint > 1 ? this.pointObjectHigh.clone() : this.pointObjectLow.clone();
-        pointObject.visible = true;
-        console.log(pointObject.position.clone());
-        pointObject.position.copy(
-          seat.object3D.position.clone().add(new Vector3(this.totalPointObjectsBySeatNum[seatNum].length / 10, 3, 0))
-        );
-        APP.world.scene.add(pointObject);
-        console.log(pointObject.position.clone());
-        this.totalPointObjectsBySeatNum[seatNum].push(pointObject);
-      }
-
-      if (totalPointsText) {
-        totalPointsText.text = `${this.pointsByPID[pID]}`;
-        totalPointsText.sync();
-      }
-      if (answerAndCurrentPointText) {
-        answerAndCurrentPointText.visible = true; // Show the text
-        const answerText = this.answerByPID[pID] ? "Y" : "N";
-        answerAndCurrentPointText.text = `${answerText} +${parsedPoint}`;
-        answerAndCurrentPointText.sync();
-      }
-    }
+    this.addThisPointObject(seatNum, parsedPoint);
 
     console.log(`Current total points of ${pID === APP.sfu._clientId ? "You" : pID}: ${this.pointsByPID[pID]}`);
   }
@@ -641,5 +541,60 @@ export class NimproSystem {
 
     // Broadcast the answer to the admin
     this.sendAnswer(this.isCurrentAnswerYes);
+  }
+
+  static saveThisRoundPointObject(seatNum) {
+    if (!this.thisRoundPointObjectBySeatNum[seatNum]) return;
+
+    // Clone this round's point object, add to total point objects and them re-align them.
+    const pointObject = this.thisRoundPointObjectBySeatNum[seatNum].clone();
+    APP.world.scene.add(pointObject);
+    this.totalPointObjectsBySeatNum[seatNum].push(pointObject);
+    this.alignPointObjectsToCenter(seatNum);
+
+    // Clear this round's point object
+    console.log(this.thisRoundPointObjectBySeatNum[seatNum]);
+    APP.world.scene.remove(this.thisRoundPointObjectBySeatNum[seatNum]);
+    this.thisRoundPointObjectBySeatNum[seatNum].clear();
+    this.thisRoundPointObjectBySeatNum[seatNum] = null;
+  }
+
+  static addThisPointObject(seatNum, point) {
+    // TODO: place objects of a user oneself lower and in front of oneself
+    if (!seatNum || point === 0 || !this.pointObjectHigh || !this.pointObjectLow) return;
+    const pointObject = point > 1 ? this.pointObjectHigh.clone() : this.pointObjectLow.clone();
+    const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + seatNum);
+    pointObject.position.copy(seat.object3D.position.clone().add(new Vector3(0, 2, 0)));
+    pointObject.visible = true;
+    APP.world.scene.add(pointObject); // Add the new point object to the scene
+    this.thisRoundPointObjectBySeatNum[seatNum] = pointObject;
+    // TODO: Switch Y N button // this.answerByPID[pID] ? "Y" : "N";
+  }
+
+  static alignPointObjectsToCenter(seatNum) {
+    // TODO: place objects of a user oneself lower and in front of oneself
+    // Adjust positions of all objects to ensure proper centering
+    const objects = this.totalPointObjectsBySeatNum[seatNum];
+    const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + seatNum);
+    const basePosition = seat.object3D.position.clone().add(new Vector3(0, 2.5, 0)); // Base position above the seat
+    const rowSize = 5; // Maximum number of objects per row
+    const spacing = 0.2; // Spacing between objects
+
+    objects.forEach((obj, index) => {
+      const row = Math.floor(index / rowSize); // Determine the row
+      const itemsInRow = Math.min(rowSize, objects.length - row * rowSize); // Number of items in this row
+
+      // Calculate the center offset for this row
+      const totalWidth = (itemsInRow - 1) * spacing; // Total width of the row
+      const startX = -totalWidth / 2; // Starting X position for centering the row
+
+      const column = index % rowSize; // Column within the row
+      const offsetX = startX + column * spacing; // X position relative to the center of the row
+      const offsetY = row * spacing; // Y position for stacking rows
+
+      obj.position.copy(basePosition.clone().add(new Vector3(offsetX, offsetY, 0)));
+      obj.visible = true; // Ensure all objects are visible
+      obj.updateMatrix();
+    });
   }
 }
