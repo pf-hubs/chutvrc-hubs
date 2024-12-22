@@ -24,12 +24,11 @@ export class NimproSystem {
   static currentActiveButton = null; // Currently active button ("yes" or "no")
   static pointObjectLow = null;
   static pointObjectHigh = null;
-  static yAnswerButton = null;
-  static nAnswerButton = null;
 
   // Text objects for displaying answers and points
   static thisRoundPointObjectBySeatNum = {};
   static totalPointObjectsBySeatNum = {}; // Objects that represent the total point by seat number
+  static answerHintBySeatNum = {};
 
   // Store the bound event handler to remove it later
   static boundHandleDataChannelMessageReceived = null;
@@ -286,7 +285,7 @@ export class NimproSystem {
           this.thisRoundPointByPID[pID] = 0;
         }
 
-        // this.thisRoundPointByPID[pID] = 3; // for test
+        // this.thisRoundPointByPID[pID] = this.answerByPID[pID] ? 3 : 1; // for test
 
         // Update total points on admin's client
         if (this.pointsByPID[pID] !== undefined) {
@@ -297,7 +296,7 @@ export class NimproSystem {
 
         // Update the Text objects on admin's client
         const seatNum = this.seatByPID[pID];
-        this.addThisPointObject(seatNum, this.thisRoundPointByPID[pID]);
+        this.showThisRoundResult(seatNum, this.answerByPID[pID], this.thisRoundPointByPID[pID]);
       }
     }
 
@@ -423,7 +422,7 @@ export class NimproSystem {
 
     // Update the Text objects
     const seatNum = this.seatByPID[pID];
-    this.addThisPointObject(seatNum, parsedPoint);
+    this.showThisRoundResult(seatNum, this.answerByPID[pID], parsedPoint);
 
     console.log(`Current total points of ${pID === APP.sfu._clientId ? "You" : pID}: ${this.pointsByPID[pID]}`);
   }
@@ -469,8 +468,8 @@ export class NimproSystem {
     this.yesButton = new Clickable3DButton(
       camera,
       scene,
-      0x66ff66, // Default green color
-      0x00ff00, // Active bright green color
+      0x6666ff, // Default blue color
+      0x0000ff, // Active bright blue color
       () => this.handleButtonClick("yes") // Handle the button click
     );
 
@@ -545,6 +544,7 @@ export class NimproSystem {
 
   static saveThisRoundPointObject(seatNum) {
     if (!this.thisRoundPointObjectBySeatNum[seatNum]) return;
+    this.answerHintBySeatNum[seatNum].visible = false;
 
     // Clone this round's point object, add to total point objects and them re-align them.
     const pointObject = this.thisRoundPointObjectBySeatNum[seatNum].clone();
@@ -559,15 +559,42 @@ export class NimproSystem {
     this.thisRoundPointObjectBySeatNum[seatNum] = null;
   }
 
-  static addThisPointObject(seatNum, point) {
+  static showThisRoundResult(seatNum, answerIsYes, point) {
     // TODO: place objects of a user oneself lower and in front of oneself
     if (!seatNum || point === 0 || !this.pointObjectHigh || !this.pointObjectLow) return;
     const pointObject = point > 1 ? this.pointObjectHigh.clone() : this.pointObjectLow.clone();
+    console.log(pointObject);
     const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + seatNum);
     pointObject.position.copy(seat.object3D.position.clone().add(new Vector3(0, 2, 0)));
+
+    const selfSeatPos = new Vector3();
+    const selfSeatQua = new Quaternion();
+    seat.object3D.getWorldPosition(selfSeatPos);
+    seat.object3D.getWorldQuaternion(selfSeatQua);
+
+    let offset = new Vector3(0, 0, 0.5).applyQuaternion(selfSeatQua);
+    if (!this.answerHintBySeatNum[seatNum]) {
+      const buttonGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+      const buttonMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x0000ff) });
+      this.answerHintBySeatNum[seatNum] = new THREE.Mesh(buttonGeometry, buttonMaterial);
+      APP.world.scene.add(this.answerHintBySeatNum[seatNum]);
+    }
+    this.answerHintBySeatNum[seatNum].position.copy(seat.object3D.position.clone().add(new Vector3(0, 2, 0)));
+    this.answerHintBySeatNum[seatNum].position.add(new Vector3(offset.x, -0.6, offset.z)); // Adjust position
+    this.answerHintBySeatNum[seatNum].material.color.copy(new THREE.Color(answerIsYes ? 0x0000ff : 0xff0000));
+    this.answerHintBySeatNum[seatNum].visible = true;
+
+    if (seatNum === this.seatNum && seat) {
+      const selfEyePos = selfSeatPos.clone().add(new Vector3(0, 1.5, 0)); // Eye position at 1.5 units height
+      offset = new Vector3(0, 0, 0.35).applyQuaternion(selfSeatQua); // Offset 1 unit in front of the seat
+      pointObject.position.add(new Vector3(offset.x, -0.6, offset.z)); // Adjust position
+      pointObject.lookAt(selfEyePos); // Make text face participant
+      // pointObject.scale.set(0.5, 0.5, 0.5);
+    }
     pointObject.visible = true;
     APP.world.scene.add(pointObject); // Add the new point object to the scene
     this.thisRoundPointObjectBySeatNum[seatNum] = pointObject;
+
     // TODO: Switch Y N button // this.answerByPID[pID] ? "Y" : "N";
   }
 
@@ -578,21 +605,33 @@ export class NimproSystem {
     const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + seatNum);
     const basePosition = seat.object3D.position.clone().add(new Vector3(0, 2.5, 0)); // Base position above the seat
     const rowSize = 5; // Maximum number of objects per row
-    const spacing = 0.2; // Spacing between objects
+    const xSpacing = seatNum === this.seatNum ? 0.05 : 0.2; // Spacing between objects
+    const ySpacing = seatNum === this.seatNum ? -0.1 : 0.2; // Spacing between objects
 
     objects.forEach((obj, index) => {
       const row = Math.floor(index / rowSize); // Determine the row
       const itemsInRow = Math.min(rowSize, objects.length - row * rowSize); // Number of items in this row
 
       // Calculate the center offset for this row
-      const totalWidth = (itemsInRow - 1) * spacing; // Total width of the row
+      const totalWidth = (itemsInRow - 1) * xSpacing; // Total width of the row
       const startX = -totalWidth / 2; // Starting X position for centering the row
 
       const column = index % rowSize; // Column within the row
-      const offsetX = startX + column * spacing; // X position relative to the center of the row
-      const offsetY = row * spacing; // Y position for stacking rows
+      const offsetX = startX + column * xSpacing; // X position relative to the center of the row
+      const offsetY = row * ySpacing; // Y position for stacking rows
 
       obj.position.copy(basePosition.clone().add(new Vector3(offsetX, offsetY, 0)));
+      if (seatNum === this.seatNum && seat) {
+        const selfSeatPos = new Vector3();
+        const selfSeatQua = new Quaternion();
+        seat.object3D.getWorldPosition(selfSeatPos);
+        seat.object3D.getWorldQuaternion(selfSeatQua);
+        const selfEyePos = selfSeatPos.clone().add(new Vector3(0, 1.5, 0)); // Eye position at 1.5 units height
+        const offset = new Vector3(0, 0, 0.35).applyQuaternion(selfSeatQua); // Offset 1 unit in front of the seat
+        obj.position.add(new Vector3(offset.x, -1.2, offset.z)); // Adjust position
+        obj.lookAt(selfEyePos); // Make text face participant
+        obj.scale.set(0.3, 0.3, 0.3);
+      }
       obj.visible = true; // Ensure all objects are visible
       obj.updateMatrix();
     });
