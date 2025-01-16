@@ -2,7 +2,7 @@ import { Object3D, Vector3 } from "three";
 import { HubsWorld } from "../app";
 import { AvatarComponent } from "../bit-components";
 import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-system";
-import { Transform } from "../types/transform";
+import { Position, Transform } from "../types/transform";
 import { HeadIk } from "./avatar-ik/head-ik";
 import { ArmIk } from "./avatar-ik/arm-ik";
 import { LegIk } from "./avatar-ik/leg-ik";
@@ -27,6 +27,7 @@ export class AvatarIkManager {
   private isInputReady: boolean;
   private isSelfAvatar: boolean;
   private isHalfBody: boolean;
+  private isNPC: boolean;
   private hips2HeadDist: number;
 
   private headIK: HeadIk;
@@ -35,7 +36,17 @@ export class AvatarIkManager {
   private leftLegIK: LegIk;
   private rightLegIK: LegIk;
 
-  constructor(world: HubsWorld, avatarEid: number) {
+  private rootPosBeforeWalk: Position;
+  private isWalking: boolean;
+  private walkingTimer = 0;
+  private leftFootTarget: Object3D;
+  private rightFootTarget: Object3D;
+  private leftFootWorldPosBuffer: Vector3;
+  private rightFootWorldPosBuffer: Vector3;
+  private leftFootWorldInput: Transform;
+  private rightFootWorldInput: Transform;
+
+  constructor(world: HubsWorld, avatarEid: number, isNPC?: boolean) {
     const head = world.eid2obj.get(AvatarComponent.head[avatarEid]);
     const spine = world.eid2obj.get(AvatarComponent.spine[avatarEid]);
     this.hipsBone = world.eid2obj.get(AvatarComponent.hips[avatarEid]);
@@ -51,6 +62,7 @@ export class AvatarIkManager {
     this.rootPos = new Vector3();
     this.isInputReady = false;
     this.isSelfAvatar = false;
+    this.isNPC = isNPC || false;
 
     let headWorldPos = new Vector3();
     let hipsWorldPos = new Vector3();
@@ -59,6 +71,22 @@ export class AvatarIkManager {
     this.hips2HeadDist = (headWorldPos.y || 1) - (hipsWorldPos.y || 0);
 
     this.isHalfBody = left?.parent === spine && right?.parent === spine && spine?.parent === this.hipsBone;
+
+    this.leftFootTarget = new Object3D();
+    this.rightFootTarget = new Object3D();
+    this.leftFootWorldPosBuffer = new Vector3();
+    this.rightFootWorldPosBuffer = new Vector3();
+    if (this.rootBone) {
+      this.leftFootTarget.parent = this.rootBone;
+      this.leftFootTarget.position.set(-0.1, -0.5, 0);
+      this.leftFootTarget.updateMatrix();
+
+      this.rightFootTarget.parent = this.rootBone;
+      this.rightFootTarget.position.set(0.1, -0.5, 0);
+      this.rightFootTarget.updateMatrix();
+    }
+    this.leftFootWorldInput = { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } };
+    this.rightFootWorldInput = { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } };
 
     if (this.rootBone && this.hipsBone) {
       if (this.rootBone.parent) this.rootBone.parent.visible = false;
@@ -124,6 +152,8 @@ export class AvatarIkManager {
         );
       }
     }
+
+    this.rootPosBeforeWalk = { x: 0, y: 0, z: 0 };
   }
 
   updateAvatarBoneIkById(poseInputs: InputTransformById, clientId: string, isVr: boolean) {
@@ -147,14 +177,20 @@ export class AvatarIkManager {
     if (!this.isInputReady) return;
     if (this.rootBone.parent && !this.rootBone.parent?.visible) this.rootBone.parent.visible = true;
 
-    this.rootInput = poseInput.rig;
-    this.updateRootAndHipsTransform(poseInput.hmd);
+    // this.handleWalkingState(poseInput.rig.pos);
 
-    this.headIK?.solve(poseInput.hmd, poseInput.hmd, this.isVR, this.isSelfAvatar);
-    this.leftArmIK?.solve(poseInput.leftController, poseInput.hmd, this.isVR, this.isSelfAvatar);
-    this.rightArmIK?.solve(poseInput.rightController, poseInput.hmd, this.isVR, this.isSelfAvatar);
-    this.leftLegIK?.solve(null, poseInput.hmd, this.isVR, this.isSelfAvatar);
-    this.rightLegIK?.solve(null, poseInput.hmd, this.isVR, this.isSelfAvatar);
+    this.rootInput = poseInput.rig;
+    if (!this.isNPC) this.updateRootAndHipsTransform(poseInput.hmd);
+
+    this.headIK?.solve(poseInput.hmd, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
+    this.leftArmIK?.solve(poseInput.leftController, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
+    this.rightArmIK?.solve(poseInput.rightController, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
+    /*
+    if (!this.isNPC && this.leftFootWorldInput)
+      this.leftLegIK?.solve(this.leftFootWorldInput, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
+    if (!this.isNPC && this.rightFootWorldInput)
+      this.rightLegIK?.solve(this.rightFootWorldInput, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
+    */
 
     if (this.isVR) this.rootBone?.updateWorldMatrix(false, true);
   }
@@ -186,6 +222,40 @@ export class AvatarIkManager {
       this.hipsBone.rotation.set(0, (hmdTransform?.rot.y || 0) + (this.isFlippedY ? 0 : Math.PI), 0);
       this.hipsBone.rotation._onChangeCallback();
       this.hipsBone.updateMatrix();
+    }
+  }
+
+  private handleWalkingState(inputRigPos: Position) {
+    if (!this.leftFootTarget || !this.rightFootTarget) return;
+    if (this.isWalking) {
+      if (this.rootInput && this.rootInput.pos.x === inputRigPos.x && this.rootInput.pos.z === inputRigPos.z) {
+        this.isWalking = false;
+        this.rootPosBeforeWalk = inputRigPos;
+        this.leftFootTarget.position.set(-0.1, -0.5, 0);
+        this.rightFootTarget.position.set(0.1, -0.5, 0);
+      } else {
+        this.walkingTimer += 0.005;
+        this.leftFootTarget.position.set(-0.1, -0.5, Math.sin(this.walkingTimer));
+        this.rightFootTarget.position.set(0.1, -0.5, Math.cos(this.walkingTimer));
+      }
+
+      this.leftFootTarget.getWorldPosition(this.leftFootWorldPosBuffer);
+      this.rightFootTarget.getWorldPosition(this.rightFootWorldPosBuffer);
+      this.leftFootWorldInput.pos = {
+        x: this.leftFootWorldPosBuffer.x,
+        y: this.leftFootWorldPosBuffer.y,
+        z: this.leftFootWorldPosBuffer.z
+      };
+      this.leftFootWorldInput.pos = {
+        x: this.rightFootWorldPosBuffer.x,
+        y: this.rightFootWorldPosBuffer.y,
+        z: this.rightFootWorldPosBuffer.z
+      };
+    } else if (
+      Math.abs(this.rootPosBeforeWalk.x - inputRigPos.x) > 0.1 ||
+      Math.abs(this.rootPosBeforeWalk.z - inputRigPos.z) > 0.1
+    ) {
+      this.isWalking = true;
     }
   }
 }

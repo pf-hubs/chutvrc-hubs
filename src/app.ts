@@ -27,13 +27,12 @@ import { mainTick } from "./systems/hubs-systems";
 import { waitForPreloads } from "./utils/preload";
 import SceneEntryManager from "./scene-entry-manager";
 import { store } from "./utils/store-instance";
-import { SoraAdapter } from "./sora-adapter";
-import { SFU } from "./available-sfu";
+import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
 import { SfuAdapter } from "./sfu-adapter";
-import { DialogAdapter } from "./naf-dialog-adapter";
 import { addObject3DComponent } from "./utils/jsx-entity";
 import { ElOrEid } from "./utils/bit-utils";
 import { AvatarIkManager } from "./utils/avatar-ik-manager";
+import { createSfuAdapter } from "./utils/sfu-adapter-utils";
 
 declare global {
   interface Window {
@@ -73,9 +72,6 @@ interface HubDescription {
   user_data?: any;
 }
 
-const dialogAdapter = new DialogAdapter();
-const soraAdapter = new SoraAdapter();
-
 export class App {
   scene?: AScene;
   hubChannel?: HubChannel;
@@ -110,12 +106,14 @@ export class App {
 
   audioListener: AudioListener;
 
-  usingSfu = SFU.DIALOG;
-  // usingSfu = SFU.SORA;
-  sfu: SfuAdapter = soraAdapter;
-  // sfu: SfuAdapter = dialogAdapter;
-  dialog = dialogAdapter;
-  sora = soraAdapter;
+  sfuCandidates = Object.keys(SFU)
+    .filter(v => !isNaN(Number(v)))
+    .map(sfuId => createSfuAdapter({ sfuId: Number(sfuId), connectionType: SFU_CONNECTION_TYPE.SENDRECV }));
+  // sfuCandidates: SfuAdapter[] = [new DialogAdapter(), new SoraAdapter()];
+  sfu: SfuAdapter;
+  publicSpeakingSfu: SfuAdapter;
+  publicSpeakersMirrorSfu: SfuAdapter;
+  publicSpeakerAgentSfus: { [clientId: string]: SfuAdapter };
 
   RENDER_ORDER = {
     HUD_BACKGROUND: 1,

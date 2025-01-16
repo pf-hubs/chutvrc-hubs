@@ -284,7 +284,11 @@ AFRAME.registerComponent("media-loader", {
 
       // TODO this does duplicate work in some cases, but finish() is the only consistent place to do it
       const contentBounds = getBox(this.el.object3D, this.el.getObject3D("mesh")).getSize(new THREE.Vector3());
-      addComponent(APP.world, MediaContentBounds, el.eid);
+      try {
+        addComponent(APP.world, MediaContentBounds, el.eid);
+      } catch (error) {
+        console.error(error);
+      }
       MediaContentBounds.bounds[el.eid].set(contentBounds.toArray());
 
       el.emit("media-loaded");
@@ -352,6 +356,12 @@ AFRAME.registerComponent("media-loader", {
       if (src.charAt(0) === "#") {
         src = this.data.src = `${window.location.origin}${window.location.pathname}${window.location.search}${src}`;
       }
+      const _isHubsAvatarUrl = await isHubsAvatarUrl(src);
+
+      if (_isHubsAvatarUrl) {
+        const tmpParsedUrl = new URL(src);
+        src = `${tmpParsedUrl.origin}/api/v1${tmpParsedUrl.pathname}/avatar.gltf`;
+      }
 
       let canonicalUrl = src;
       let canonicalAudioUrl = null; // set non-null only if audio track is separated from video track (eg. 360 video)
@@ -366,11 +376,17 @@ AFRAME.registerComponent("media-loader", {
       const isLocalAsset =
         isNonCorsProxyDomain(parsedUrl.hostname) &&
         !(await isHubsDestinationUrl(src)) &&
-        !(await isHubsAvatarUrl(src)) &&
+        !_isHubsAvatarUrl &&
         !src.match(hubsRoomRegex)?.groups.id &&
         !src.match(localHubsRoomRegex)?.groups.id;
 
-      if (this.data.resolve && !src.startsWith("data:") && !src.startsWith("hubs:") && !isLocalAsset) {
+      if (
+        this.data.resolve &&
+        !src.startsWith("data:") &&
+        !src.startsWith("hubs:") &&
+        !isLocalAsset &&
+        !_isHubsAvatarUrl
+      ) {
         const is360 = !!(this.data.mediaOptions.projection && this.data.mediaOptions.projection.startsWith("360"));
         const quality = getDefaultResolveQuality(is360);
         const result = await resolveUrl(src, quality, version, forceLocalRefresh);
@@ -562,6 +578,7 @@ AFRAME.registerComponent("media-loader", {
             modelToWorldScale: this.data.fitToBox ? 0.0001 : 1.0
           })
         );
+        // this.el.setAttribute("ai-chatbot", { displayText: true });
       } else if (contentType.startsWith("text/html")) {
         this.el.removeAttribute("gltf-model-plus");
         this.el.removeAttribute("media-video");
@@ -624,7 +641,8 @@ AFRAME.registerComponent("media-loader", {
 AFRAME.registerComponent("media-pager", {
   schema: {
     index: { default: 0 },
-    maxIndex: { default: 0 }
+    maxIndex: { default: 0 },
+    isPinned: { default: false }
   },
 
   init() {
@@ -632,6 +650,7 @@ AFRAME.registerComponent("media-pager", {
     this.onPrev = this.onPrev.bind(this);
     this.onSnap = this.onSnap.bind(this);
     this.update = this.update.bind(this);
+    this.setPage = this.setPage.bind(this);
 
     this.el.setAttribute("hover-menu__pager", { template: "#pager-hover-menu", isFlat: true });
     this.el.components["hover-menu__pager"].getHoverMenu().then(menu => {
@@ -663,6 +682,28 @@ AFRAME.registerComponent("media-pager", {
       .catch(() => {}); //ignore exception, entity might not be networked
 
     this.el.addEventListener("pdf-loaded", this.update);
+
+    // TODO: Define new component for this feature and have it call media-loader's functions
+    if (APP.sfu) {
+      APP.sfu.on("pdf-page-changed-in-public-speaker-room", ({ message }) => {
+        if (this.data.isPinned) {
+          this.setPage(message);
+          this.pauseSyncPage = true;
+        }
+      });
+      APP.sfu.on("public-speaking-sfu-initialized", () => {
+        if (APP.publicSpeakingSfu) {
+          this.syncPageAcrossRoomInterval = setInterval(() => {
+            if (this.data.isPinned && APP.publicSpeakingSfu && !this.pauseSyncPage) {
+              APP.publicSpeakingSfu.broadcast("#pdfPage", this.data.index);
+            }
+          }, 500);
+        }
+      });
+      APP.sfu.on("public-speaking-sfu-closed", () => {
+        if (this.syncPageAcrossRoomInterval) clearInterval(this.syncPageAcrossRoomInterval);
+      });
+    }
   },
 
   async update(oldData) {
@@ -678,9 +719,9 @@ AFRAME.registerComponent("media-pager", {
 
     if (this.prevButton && this.nextButton) {
       const pinnableElement = this.el.components["media-loader"].data.linkedEl || this.el;
-      const isPinned = pinnableElement.components.pinnable && pinnableElement.components.pinnable.data.pinned;
+      this.data.isPinned = pinnableElement.components.pinnable && pinnableElement.components.pinnable.data.pinned;
       this.prevButton.object3D.visible = this.nextButton.object3D.visible =
-        !isPinned || window.APP.hubChannel.can("pin_objects");
+        !this.data.isPinned || window.APP.hubChannel.can("pin_objects");
     }
   },
 
@@ -689,6 +730,11 @@ AFRAME.registerComponent("media-pager", {
     const newIndex = Math.min(this.data.index + 1, this.data.maxIndex);
     this.el.setAttribute("media-pdf", "index", newIndex);
     this.el.setAttribute("media-pager", "index", newIndex);
+
+    if (this.data.isPinned && APP.sfu) {
+      APP.sfu.emit("pdf-page-changed-in-public-speaker-room", { message: newIndex }); // For other local slides
+      this.pauseSyncPage = false;
+    }
   },
 
   onPrev() {
@@ -696,10 +742,23 @@ AFRAME.registerComponent("media-pager", {
     const newIndex = Math.max(this.data.index - 1, 0);
     this.el.setAttribute("media-pdf", "index", newIndex);
     this.el.setAttribute("media-pager", "index", newIndex);
+
+    if (this.data.isPinned && APP.sfu) {
+      APP.sfu.emit("pdf-page-changed-in-public-speaker-room", { message: newIndex }); // For other local slides
+      this.pauseSyncPage = false;
+    }
   },
 
   onSnap() {
     this.el.emit("pager-snap-clicked");
+  },
+
+  setPage(page) {
+    if (this.networkedEl && !NAF.utils.isMine(this.networkedEl) && !NAF.utils.takeOwnership(this.networkedEl)) return;
+    if (typeof page === "string") page = parseInt(page);
+    const newIndex = Math.max(Math.min(page, this.data.maxIndex), 0);
+    this.el.setAttribute("media-pdf", "index", newIndex);
+    this.el.setAttribute("media-pager", "index", newIndex);
   },
 
   remove() {
@@ -715,5 +774,7 @@ AFRAME.registerComponent("media-pager", {
     window.APP.hubChannel.removeEventListener("permissions_updated", this.update);
 
     this.el.removeEventListener("pdf-loaded", this.update);
+
+    if (this.syncPageAcrossRoomInterval) clearInterval(this.syncPageAcrossRoomInterval);
   }
 });

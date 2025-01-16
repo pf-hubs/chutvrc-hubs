@@ -25,7 +25,7 @@ import { MediaDevices, MediaDevicesEvents } from "./utils/media-devices-utils";
 import { addComponent, removeEntity } from "bitecs";
 import { MyCameraTool } from "./bit-components";
 import { anyEntityWith, shouldUseNewLoader } from "./utils/bit-utils";
-import { SFU } from "./available-sfu";
+import { SFU } from "./sfu-types";
 import { moveToSpawnPoint } from "./bit-systems/waypoint";
 import { spawnFromFileList, spawnFromUrl } from "./load-media-on-paste-or-drop";
 import { isLockedDownDemoRoom } from "./utils/hub-utils";
@@ -575,7 +575,7 @@ export default class SceneEntryManager {
       await APP.sfu.setLocalMediaStream(this.mediaDevicesManager.mediaStream);
       audioEl.play();
     };
-    if (APP.sfu._sendTransport || APP.sfu._sendrecv) {
+    if (APP.sfu._sendTransport || APP.sfu._connector) {
       connect();
     } else {
       this.scene.addEventListener("didConnectToSfu", connect);

@@ -21,6 +21,19 @@ export function findRemoteHoverTarget(world, object3D) {
   return findRemoteHoverTarget(world, object3D.parent);
 }
 
+function isHoverTargetMainScreen(object3D) {
+  if (!object3D) return false;
+  if (object3D.name === "" /* replace with object3D name */) {
+    return true;
+  } else {
+    if (object3D.parent) {
+      return isHoverTargetMainScreen(object3D.parent);
+    } else {
+      return false;
+    }
+  }
+}
+
 const hoveredRightRemoteQuery = defineQuery([HoveredRemoteRight]);
 const hoveredLeftRemoteQuery = defineQuery([HoveredRemoteLeft]);
 
@@ -121,6 +134,31 @@ AFRAME.registerComponent("cursor-controller", {
       })
     );
     this.el.setObject3D("line", this.line);
+
+    setInterval(() => {
+      if (APP.publicSpeakingSfu) {
+        if (!this.data.cursor.object3D.visible) this.data.cursor.object3D.visible = true;
+        const pos = this.data.cursor.object3D.position;
+        if (this.isHoverTargetMainScreen) {
+          this.pauseLaserPointertimer = 0;
+          APP.sfu.broadcast(
+            "#laserPointer",
+            [1, Math.round(pos.x * 1000) / 1000, Math.round(pos.y * 1000) / 1000, Math.round(pos.z * 1000) / 1000].join(
+              "|"
+            )
+          );
+          APP.publicSpeakingSfu.broadcast(
+            "#laserPointer",
+            [1, Math.round(pos.x * 1000) / 1000, Math.round(pos.y * 1000) / 1000, Math.round(pos.z * 1000) / 1000].join(
+              "|"
+            )
+          );
+        }
+      } else {
+        if (this.data.cursor.object3D.visible) this.data.cursor.object3D.visible = false;
+      }
+    }, 100);
+    this.pauseLaserPointertimer = 0;
   },
 
   update: function () {
@@ -158,7 +196,7 @@ AFRAME.registerComponent("cursor-controller", {
       this.raycaster.near = this.data.near * playerScale;
 
       const isGrabbing = left ? anyEntityWith(APP.world, HeldRemoteLeft) : anyEntityWith(APP.world, HeldRemoteRight);
-      let isHoveringSomething = false;
+      this.isHoveringSomething = false;
       if (!isGrabbing) {
         rawIntersections.length = 0;
         this.raycaster.ray.origin = cursorPose.position;
@@ -171,7 +209,8 @@ AFRAME.registerComponent("cursor-controller", {
         this.intersection = rawIntersections[0];
 
         const remoteHoverTarget = this.intersection && findRemoteHoverTarget(APP.world, this.intersection.object);
-        isHoveringSomething = !!remoteHoverTarget;
+        this.isHoveringSomething = !!remoteHoverTarget;
+        this.isHoveringMainScreen = !!(this.intersection && isHoverTargetMainScreen(this.intersection.object));
         if (remoteHoverTarget) {
           addComponent(APP.world, left ? HoveredRemoteLeft : HoveredRemoteRight, remoteHoverTarget);
         }
@@ -207,7 +246,7 @@ AFRAME.registerComponent("cursor-controller", {
           (!left && transformObjectSystem.hand.el.id === "player-right-controller"))
       ) {
         this.color.copy(TRANSFORM_COLOR_1).lerpHSL(TRANSFORM_COLOR_2, 0.5 + 0.5 * Math.sin(t / 1000.0));
-      } else if (isGrabbing || isHoveringSomething) {
+      } else if (isGrabbing || this.isHoveringSomething) {
         this.color.copy(HIGHLIGHT);
       } else {
         this.color.copy(NO_HIGHLIGHT);
@@ -227,6 +266,12 @@ AFRAME.registerComponent("cursor-controller", {
 
         this.line.geometry.attributes.position.needsUpdate = true;
         this.line.geometry.computeBoundingSphere();
+      }
+
+      this.pauseLaserPointertimer += 1;
+      if (this.pauseLaserPointertimer > 100) {
+        APP.sfu?.broadcast("#laserPointer", [0, 0, 0, 0].join("|"));
+        APP.publicSpeakingSfu?.broadcast("#laserPointer", [0, 0, 0, 0].join("|"));
       }
     };
   })()

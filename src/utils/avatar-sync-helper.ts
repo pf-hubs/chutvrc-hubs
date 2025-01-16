@@ -4,6 +4,7 @@ import { AvatarPart, AvatarTransformBuffer } from "./avatar-transform-buffer";
 import { decodePosition, decodeRotation, getAvatarSrc } from "./avatar-utils";
 import { createAvatarBoneEntities, removeAvatarEntityAndModel } from "../bit-systems/avatar-bones-system";
 import { loadModel } from "../components/gltf-model-plus";
+import { Object3D } from "three";
 
 type Vector3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number };
@@ -21,6 +22,9 @@ export class AvatarSyncHelper {
   _avatarPartsToSync: AvatarPart[];
   _channelsForSync: string[];
   _isStartSendingSelfAvatarTransform: boolean;
+  _sendSelfAvatarTransformIntervalId: NodeJS.Timer;
+  _setSelfIsVrFlagIntervalId: NodeJS.Timer;
+  _sendSelfIsVrFlagIntervalId: NodeJS.Timer;
 
   constructor(sfu: SfuAdapter) {
     this._sfu = sfu;
@@ -56,7 +60,7 @@ export class AvatarSyncHelper {
         if (this._client2AvatarAssetId.get(clientId) === avatarId) return; // if avatar is not changed, ignore it
       } else {
         // if avatar id of this client is not recorded, that means this client is new to this room, so send my avatar id & src to the client
-        this.sendSelfAvatarSrc(window.APP.store.state.profile.avatarId);
+        this.sendSelfAvatarSrc();
         // Also send my avatar transform to the new client without check if the transform is updated
         this.sendSelfAvatarTransform(false);
       }
@@ -76,18 +80,28 @@ export class AvatarSyncHelper {
 
     if (channel.includes("#avatar-")) {
       // receive other clients' avatar transform when updated
-      const clientId = new TextDecoder().decode(data.subarray(9));
+      const clientId = new TextDecoder().decode(data.subarray(9)).replace(/\u0000/g, "");
       const avatarPart = channel.substring(8) as unknown as AvatarPart;
-
       this._client2Transform.get(avatarPart)?.set(clientId, {
         pos: decodePosition(data),
         rot: decodeRotation(data)
       });
+
+      if (this._sfu._isRecording) {
+        this._sfu._recordedDataChannelMessages.push({
+          l: channel,
+          m: { c: clientId, p: decodePosition(data), r: decodeRotation(data) },
+          t: Date.now(),
+          s: 0
+        });
+      }
     }
   }
 
   handleOnClientLeave(clientId: string) {
     removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
+    this._client2AvatarAssetId.delete(clientId);
+    this._client2AvatarEid.delete(clientId);
   }
 
   initSelfAvatarTransform() {
@@ -99,7 +113,7 @@ export class AvatarSyncHelper {
 
     if (rig && head && left && right) {
       this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._sfu._clientId, rig, head, left, right);
-      setInterval(() => this.updateSelfAvatarTransform(), 10);
+      setInterval(() => this.updateSelfAvatarTransform(), 15);
       return true;
     }
 
@@ -125,9 +139,10 @@ export class AvatarSyncHelper {
     // Load self-avatar after entering scene
     getAvatarSrc(avatarId).then((avatarSrc: string) => {
       loadModel(avatarSrc).then(gltf => {
-        if (
-          createAvatarBoneEntities(APP.world, gltf.scene, clientId, this._avatarEid2ClientId, this._client2AvatarEid)
-        ) {
+        gltf.scene.traverse(function (object: Object3D) {
+          object.frustumCulled = false;
+        });
+        if (createAvatarBoneEntities(gltf.scene, clientId, this._avatarEid2ClientId, this._client2AvatarEid)) {
           APP.world.scene.add(gltf.scene);
         }
       });
@@ -137,8 +152,9 @@ export class AvatarSyncHelper {
     this._client2AvatarAssetId.set(clientId, avatarId);
   };
 
-  sendSelfAvatarSrc(avatarId: string) {
-    this._sfu.broadcast("#avatarId", this._sfu._clientId + "|" + avatarId);
+  sendSelfAvatarSrc(avatarId?: string) {
+    this._sfu.broadcast("#avatarId", this._sfu._clientId + "|" + (avatarId || window.APP.store.state.profile.avatarId));
+    this.sendSelfAvatarTransform(false);
   }
 
   sendSelfAvatarTransform(checkUpdatedRequired: boolean) {
@@ -154,6 +170,29 @@ export class AvatarSyncHelper {
 
       const arrToSend = this._selfAvatarTransformBuffer.getEncodedAvatarTransform(part);
       this._sfu.broadcastUint8("#avatar-" + AvatarPart[part], arrToSend);
+
+      if (this._sfu._isRecording) {
+        const transform = this._client2Transform.get(part)?.get(this._sfu._clientId);
+        if (!transform) return;
+        this._sfu._recordedDataChannelMessages.push({
+          l: "#avatar-" + AvatarPart[part],
+          m: {
+            c: this._sfu._clientId,
+            p: {
+              x: Math.round(transform.pos.x * 1000) / 1000,
+              y: Math.round(transform.pos.y * 1000) / 1000,
+              z: Math.round(transform.pos.z * 1000) / 1000
+            },
+            r: {
+              x: Math.round(transform.rot.x * 1000) / 1000,
+              y: Math.round(transform.rot.y * 1000) / 1000,
+              z: Math.round(transform.rot.z * 1000) / 1000
+            }
+          },
+          t: Date.now(),
+          s: 1
+        });
+      }
     });
   }
 
@@ -170,20 +209,22 @@ export class AvatarSyncHelper {
       getPlayerAvatarIntervalId = setInterval(getPlayerAvatar, 1000);
     } else if (this._selfAvatarTransformBuffer && !this._isStartSendingSelfAvatarTransform) {
       this._isStartSendingSelfAvatarTransform = true;
-      setInterval(() => this.sendSelfAvatarTransform(true), 10);
+      this._sendSelfAvatarTransformIntervalId = setInterval(() => this.sendSelfAvatarTransform(true), 15);
       return;
     }
   }
 
   private handleVrModeSyncInit() {
-    setInterval(() => this.setSelfIsVrFlag(), 1000);
-    setInterval(() => this.sendSelfIsVrFlag(), 1000);
+    this._setSelfIsVrFlagIntervalId = setInterval(() => this.setSelfIsVrFlag(), 1000);
+    this._sendSelfIsVrFlagIntervalId = setInterval(() => this.sendSelfIsVrFlag(), 1000);
   }
 
   private setSelfIsVrFlag() {
     this._client2VrMode.set(
       this._sfu._clientId,
-      AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting
+      AFRAME.scenes[0]?.renderer
+        ? AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting
+        : false
     );
   }
 
@@ -192,7 +233,19 @@ export class AvatarSyncHelper {
       "#isVR",
       this._sfu._clientId +
         "|" +
-        (AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting ? "1" : "0")
+        ((
+          AFRAME.scenes[0]?.renderer
+            ? AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting
+            : false
+        )
+          ? "1"
+          : "0")
     );
+  }
+
+  stopSyncing() {
+    if (this._sendSelfAvatarTransformIntervalId) clearInterval(this._sendSelfAvatarTransformIntervalId);
+    if (this._setSelfIsVrFlagIntervalId) clearInterval(this._setSelfIsVrFlagIntervalId);
+    if (this._sendSelfIsVrFlagIntervalId) clearInterval(this._sendSelfIsVrFlagIntervalId);
   }
 }

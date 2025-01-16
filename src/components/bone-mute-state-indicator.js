@@ -28,7 +28,13 @@ AFRAME.registerComponent("bone-mute-state-indicator", {
   },
 
   play() {
-    APP.sfu.on("mic-state-changed", this.onMicStateChanged);
+    if (APP.sfu) {
+      APP.sfu.on("mic-state-changed", this.onMicStateChanged);
+    } else {
+      APP.sfuCandidates.forEach(sfu => {
+        sfu.on("mic-state-changed", this.onMicStateChanged);
+      });
+    }
   },
 
   pause() {

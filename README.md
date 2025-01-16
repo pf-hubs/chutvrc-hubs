@@ -54,6 +54,18 @@ The client-side code for chutvrc, forked from [Mozilla Hubs](https://hubs.mozill
 - With this feature enabled, avatar transforms will be transmitted through DataChannel no matter you are using Dialog or Sora as the SFU.
 - It is an experimental implementation considering it is logical to have body language and voice real-time communication transmitted within the same protocol.
 
+### Public speaking: broadcasting audio and avatars across rooms
+
+If you want to deliver speeches to more users beyond the capacity limit of a single room, consider using the public speaking feature.
+
+When a user is designated as a public speaker, their voice and avatar are broadcast to other rooms.
+
+The picture below shows how an admin user can designate themselves or another user as a public speaker, or to enable their room to receive public speaking from other rooms.
+
+<div align="center">
+    <img src=".github/media/public-speaking-ui.png">
+</div>
+
 ## Instruction for local build
 
 Chutvrc is tested using the following repositories.
@@ -67,7 +79,7 @@ Chutvrc is tested using the following repositories.
 
 Please check [this gist](https://gist.github.com/YHhaoareyou/199410454695d804db5fe7f569d055f0) for local build / development.
 
-### For Ubuntu 
+### For Ubuntu
 
 Build instruction are planned to be released soon.
 
@@ -102,6 +114,7 @@ If you would like to deploy a custom client to your existing Hubs Cloud instance
 If you would like to contribute to the main fork of the Hubs client please see the [contributor guide](./CONTRIBUTING.md).
 
 If you just want to check out how Hubs works and make your own modifications continue on to our Quick Start Guide.
+
 ### Quick Start
 
 [Install NodeJS](https://nodejs.org) if you haven't already. We use 16.16.0 on our build servers. If you work on multiple javascript projects it may be useful to use something like [NVM](https://github.com/nvm-sh/nvm) to manage multiple versions of node for you.

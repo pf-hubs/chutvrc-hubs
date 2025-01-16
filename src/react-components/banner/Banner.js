@@ -220,7 +220,7 @@ const Banner = () => {
           {/* BRANDING  */}
           <div className={styles.branding_container}>
             <h2>
-              <FormattedMessage defaultMessage="Join the next evolution of Hubs!" id="banner.title" />
+              <FormattedMessage defaultMessage="Join the next evolution of chutvrc!" id="banner.title" />
             </h2>
             <p>
               <FormattedMessage defaultMessage="Be the first to get a sneak peek!" id="banner.subtitle" />
@@ -247,7 +247,7 @@ const Banner = () => {
             <div className={styles.expand_container}>
               <div className={styles.expand_header}>
                 <h2>
-                  <FormattedMessage defaultMessage="Join the next evolution of Hubs!" id="banner.expand-title" />
+                  <FormattedMessage defaultMessage="Join the next evolution of chutvrc!" id="banner.expand-title" />
                 </h2>
                 <CloseButton
                   className={styles.close_button}
@@ -267,8 +267,8 @@ const Banner = () => {
                       values={{
                         message: (
                           <>
-                            We&apos;re working on a new service that makes it easier than ever to deploy a Hub of your
-                            own.
+                            We&apos;re working on a new service that makes it easier than ever to deploy a chutvrc of
+                            your own.
                           </>
                         )
                       }}
@@ -282,9 +282,11 @@ const Banner = () => {
                       values={{
                         message: (
                           <>
-                            Sign up here to get updates on what is new with Hubs and we will keep you up to date with
-                            the latest news, updates, and product offerings. We can&apos;t wait to show you what we have
-                            been working on!
+                            Please give us feedback and comments at{" "}
+                            <a href="https://github.com/pf-hubs/chutvrc-hubs" target="_blank" rel="noopener noreferrer">
+                              GitHub
+                            </a>
+                            !
                           </>
                         )
                       }}
@@ -293,6 +295,7 @@ const Banner = () => {
                 </div>
 
                 {/* FORM  */}
+                {/*
                 <form className={styles.expand_form} onSubmit={handleSubmit(onSubmit)}>
                   {submitted ? (
                     <Messaging status={responseStatus} />
@@ -336,7 +339,7 @@ const Banner = () => {
                         onChange={onConfirm}
                       />
 
-                      {/* ACTIONS  */}
+                      // ACTIONS
                       <div className={styles.expand_actions}>
                         <Button type="submit" preset="primary" className={styles.primary_override} disabled={!confirm}>
                           <FormattedMessage defaultMessage="Join the Mailing List" id="banner.form-cta" />
@@ -353,6 +356,7 @@ const Banner = () => {
                     </div>
                   )}
                 </form>
+                */}
               </div>
             </div>
           </div>

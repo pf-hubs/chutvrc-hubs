@@ -20,13 +20,14 @@ export function MobileNav({ isHmc, showDocsLink, docsUrl, showSourceLink, showCo
           <header className={`${navOpen ? `is-active ${cloud}` : "hide"}`}>
             <nav role="navigation">
               <ul>
-                {isHmc && (
+                {isAdmin && isHmc && (
                   <li>
                     <a href="/spoke">
                       <FormattedMessage id="header.spoke" defaultMessage="Spoke" />
                     </a>
                   </li>
                 )}
+                {/*
                 {showDocsLink && (
                   <li>
                     <a href={docsUrl}>
@@ -62,6 +63,7 @@ export function MobileNav({ isHmc, showDocsLink, docsUrl, showSourceLink, showCo
                     </a>
                   </li>
                 )}
+                */}
                 {isAdmin && (
                   <li>
                     <a style={{ marginLeft: 0 }} href="/admin" rel="noreferrer noopener">

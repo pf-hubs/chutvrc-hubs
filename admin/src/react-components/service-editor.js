@@ -182,7 +182,6 @@ class ConfigurationEditor extends Component {
       config[service] = await this.getConfig(service);
     }
 
-    console.log(config);
     this.setState({ config });
   }
 
@@ -217,8 +216,9 @@ class ConfigurationEditor extends Component {
     this.setState({ saving: true }, async () => {
       try {
         for (const [service, config] of Object.entries(this.state.config)) {
-          if (Object.keys(config).length > 0) {
-            const res = await this.putConfig(service, config);
+          const configToUpdate = config || {};
+          if (Object.keys(configToUpdate).length > 0) {
+            const res = await this.putConfig(service, configToUpdate);
 
             if (res.error) {
               this.setState({ saveError: `Error saving: ${res.error}` });

@@ -269,8 +269,8 @@ import { swapActiveScene } from "./bit-systems/scene-loading";
 import { localClientID, setLocalClientID } from "./bit-systems/networking";
 import { listenForNetworkMessages } from "./utils/listen-for-network-messages";
 import { exposeBitECSDebugHelpers } from "./bitecs-debug-helpers";
-import { SFU } from "./available-sfu";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL } from "./sfu-adapter";
+import { connectSfu } from "./utils/sfu-adapter-utils";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
 import { shouldUseNewLoader } from "./utils/bit-utils";
@@ -674,40 +674,25 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
       updateEnvironmentForHub(hub, entryManager);
 
       // Disconnect in case this is a re-entry
-      APP.sfu.disconnect();
 
-      switch (data.sfu) {
-        case 1:
-          APP.usingSfu = SFU.SORA;
-          APP.sfu = APP.sora;
-          listenSfuConnection(scene);
-          registerNetworkSchemas();
-          APP.sfu.connect({
-            clientId: data.session_id,
-            channelId: data.sora_channel_id,
-            signalingUrl: data.sora_signaling_url,
-            accessToken: data.sora_access_token,
-            scene,
-            debug: data.sora_is_debug
-          });
-          break;
-        default:
-          APP.usingSfu = SFU.DIALOG;
-          APP.sfu = APP.dialog;
-          listenSfuConnection(scene);
-          registerNetworkSchemas();
-          APP.sfu.connect({
-            serverUrl: `wss://${hub.host}:4443`,
-            roomId: hub.hub_id,
-            serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
-            scene,
-            clientId: data.session_id,
-            forceTcp: qs.get("force_tcp"),
-            forceTurn: qs.get("force_turn"),
-            iceTransportPolicy: qs.get("force_tcp") || qs.get("force_turn") ? "relay" : "all"
-          });
-          break;
-      }
+      APP.sfu?.disconnect();
+      // APP.sfu = createSfuAdapter({ sfuId: data.sfu });
+      APP.sfu = APP.sfuCandidates.find((sfu, sfuId) => sfuId === data.sfu);
+      listenSfuConnection(scene);
+      registerNetworkSchemas();
+      connectSfu(APP.sfu, {
+        sfuId: data.sfu,
+        clientId: data.session_id,
+        channelId: data.sora_channel_id || hub.hub_id,
+        scene,
+        serverUrl: `wss://${hub.host}:4443`,
+        serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
+        signalingUrl: data.sora_signaling_url,
+        accessToken: data.sora_access_token,
+        forceTcp: qs?.get("force_tcp"),
+        forceTurn: qs?.get("force_turn"),
+        debug: data.sora_is_debug
+      });
 
       scene.addEventListener(
         "adapter-ready",
@@ -1006,8 +991,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     }
   });
-
-  // registerNetworkSchemas();
 
   remountUI({
     authChannel,
@@ -1503,31 +1486,31 @@ document.addEventListener("DOMContentLoaded", async () => {
       scene.emit("hub_closed");
     }
 
-    if (hub.sfu !== APP.usingSfu) {
-      scene.emit("hub_updated_require_refresh");
-    }
+    // if (hub.sfu !== APP.usingSfu) {
+    //   scene.emit("hub_updated_require_refresh");
+    // }
 
     scene.emit("hub_updated", { hub });
   });
 
   hubPhxChannel.on("host_changed", ({ host, port, turn }) => {
-    console.log("Dialog host changed. Disconnecting from current host and connecting to the new one.", {
+    console.log("WebRTC SFU host changed. Disconnecting from current host and connecting to the new one.", {
       hub_id: APP.hub.hub_id,
       host,
       port,
       turn
     });
 
-    APP.dialog.disconnect();
-    APP.dialog.connect({
-      serverUrl: `wss://${host}:${port}`,
-      roomId: APP.hub.hub_id,
-      serverParams: { host, port, turn },
-      scene,
+    APP.sfu.disconnect();
+    connectSfu({
+      sfuId: APP.sfu._sfuId,
       clientId: APP.getString(localClientID),
+      channelId: APP.hub.hub_id,
+      scene,
+      serverUrl: `wss://${host}:${port}`,
+      serverParams: { host, port, turn },
       forceTcp: qs.get("force_tcp"),
-      forceTurn: qs.get("force_turn"),
-      iceTransportPolicy: qs.get("force_tcp") || qs.get("force_turn") ? "relay" : "all"
+      forceTurn: qs.get("force_turn")
     });
   });
 

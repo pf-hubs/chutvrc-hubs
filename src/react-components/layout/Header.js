@@ -35,13 +35,14 @@ export function Header({
                 <AppLogo />
               </a>
             </li>
-            {enableSpoke && (
+            {isAdmin && enableSpoke && (
               <li>
                 <a href="/spoke">
                   {isHmc ? <FormattedMessage id="header.spoke" defaultMessage="Spoke" /> : editorName}
                 </a>
               </li>
             )}
+            {/*
             {showDocsLink && (
               <li>
                 <a href={docsUrl}>
@@ -77,6 +78,7 @@ export function Header({
                 </a>
               </li>
             )}
+            */}
             {isAdmin && (
               <li>
                 <a href="/admin" rel="noreferrer noopener">
@@ -108,7 +110,7 @@ export function Header({
             <SignInButton />
           )}
         </div>
-        {isHmc ? <SocialBar mobile /> : null}
+        {/* isHmc ? <SocialBar mobile /> :  */ null}
       </Container>
     </header>
   );

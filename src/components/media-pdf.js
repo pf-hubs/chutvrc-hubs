@@ -97,7 +97,7 @@ AFRAME.registerComponent("media-pdf", {
       this.canvas.width = pw;
       this.canvas.height = ph;
 
-      this.renderTask = page.render({ canvasContext: this.canvasContext, viewport });
+      this.renderTask = page.render({ canvasContext: this.canvasContext, viewport, intent: "print" });
 
       await this.renderTask.promise;
 

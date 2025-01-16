@@ -3,12 +3,16 @@ import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 import { MediaDevices } from "./utils/media-devices-utils";
 import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
+import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
+import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
+import { Object3D } from "three";
+
 const debug = newDebug("naf-dialog-adapter:debug");
 
 type ConnectProps = {
   clientId: string;
   channelId: string;
-  signalingUrl: string;
+  signalingUrl: string | string[];
   accessToken: string;
   scene: Element;
   debug: boolean;
@@ -16,8 +20,7 @@ type ConnectProps = {
 };
 
 export class SoraAdapter extends SfuAdapter {
-  _clientId: string;
-  _sendrecv: SoraType.ConnectionPublisher | null;
+  _connector: SoraType.ConnectionPublisher | SoraType.ConnectionSubscriber | null;
   _localMediaStream: MediaStream | null;
   _remoteMediaStreams: Map<string, MediaStream | null>;
   _clientStreamIdPair: Map<string, string>;
@@ -26,11 +29,21 @@ export class SoraAdapter extends SfuAdapter {
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
   _avatarSyncHelper: AvatarSyncHelper;
+  _signalingUrl?: string | string[];
+  _accessToken?: string;
+  crossRoomStreamerAudioSource: { [clientId: string]: CrossRoomStreamerAudioSource };
+  private _laserPointer: Object3D;
+  private _textEncoder: TextEncoder;
+  private _textDecoder: TextDecoder;
 
-  constructor() {
+  constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
     super();
+    this._textEncoder = new TextEncoder();
+    this._textDecoder = new TextDecoder();
+    this._sfuId = SFU.SORA;
+    this._connectionType = sfuType;
     this._clientId = "";
-    this._sendrecv = null;
+    this._connector = null;
     this._localMediaStream = null;
     this._remoteMediaStreams = new Map<string, MediaStream | null>();
     this._clientStreamIdPair = new Map<string, string>();
@@ -38,10 +51,17 @@ export class SoraAdapter extends SfuAdapter {
     this._blockedClients = new Map<string, boolean>();
     this._micShouldBeEnabled = false;
     this._avatarSyncHelper = new AvatarSyncHelper(this);
+    this._dataChannelMessages = [];
+    this._recordedDataChannelMessages = [];
+    this.crossRoomStreamerAudioSource = {};
+    this._publicSpeakerClientIdsInRoom = [];
   }
 
   async connect({ clientId, channelId, signalingUrl, accessToken, scene, debug }: ConnectProps) {
     this._scene = scene;
+    this._roomId = channelId;
+    this._signalingUrl = signalingUrl;
+    this._accessToken = accessToken;
     const sora = Sora.connection(signalingUrl, debug);
     const metadata = { access_token: accessToken };
     const options = {
@@ -50,95 +70,225 @@ export class SoraAdapter extends SfuAdapter {
       spotlight: true,
       audio: true,
       video: true,
+      simulcast: true,
       audioCodecType: "OPUS" as SoraType.AudioCodecType,
       videoCodecType: "H264" as SoraType.VideoCodecType,
       dataChannelSignaling: true,
-      dataChannels: this._avatarSyncHelper._channelsForSync.map(channel => ({
-        label: channel,
-        direction: "sendrecv" as SoraType.DataChannelDirection
-      })) // .concat(other channels if necessary)
+      dataChannels: this._avatarSyncHelper._channelsForSync
+        .map(channel => ({
+          label: channel,
+          direction:
+            this._connectionType === SFU_CONNECTION_TYPE.RECV
+              ? ("recvonly" as SoraType.DataChannelDirection)
+              : ((this._connectionType === SFU_CONNECTION_TYPE.SEND
+                  ? "sendonly"
+                  : "sendrecv") as SoraType.DataChannelDirection)
+        }))
+        .concat([
+          {
+            label: "#pdfPage",
+            direction: this._connectionType === SFU_CONNECTION_TYPE.SEND ? "sendonly" : "recvonly"
+          },
+          {
+            label: "#laserPointer",
+            direction: "sendrecv"
+          }
+        ])
+        .concat(
+          this._connectionType === SFU_CONNECTION_TYPE.SENDRECV
+            ? [
+                {
+                  label: "#togglePublicSpeaker",
+                  direction: "sendrecv"
+                }
+              ]
+            : []
+        )
+      // .concat(other channels if necessary)
     };
 
     this._clientId = clientId;
-    this._sendrecv = sora.sendrecv(channelId, metadata, options);
-    this._sendrecv.on("notify", event => {
+    this._connector =
+      this._connectionType === SFU_CONNECTION_TYPE.RECV
+        ? sora.recvonly(channelId, metadata, options)
+        : this._connectionType === SFU_CONNECTION_TYPE.SEND
+        ? sora.sendonly(channelId, metadata, options)
+        : sora.sendrecv(channelId, metadata, options);
+
+    this._connector.on("notify", event => {
       if (event.event_type === "connection.created") {
         event.data?.forEach(c => {
           // clients entering this room earlier
-          if (c.client_id && c.connection_id && !this._clientStreamIdPair.has(c.client_id)) {
+          if (
+            this._connectionType !== SFU_CONNECTION_TYPE.SEND &&
+            c.client_id &&
+            c.connection_id &&
+            !this._clientStreamIdPair.has(c.client_id)
+          ) {
             this._clientStreamIdPair.set(c.client_id, c.connection_id);
             this.resolvePendingMediaRequestForTrack(c.client_id);
+            this.tryAttachAudioToPublicSpeakerAgent(c.client_id, c.connection_id);
+            if (this._roomId.includes("public_speaking")) {
+              this.emit("stream_updated", c.client_id, "audio");
+              this.emit("stream_updated", c.client_id, "video");
+            }
           }
         });
 
         // clients entering this room later
         if (
+          this._connectionType !== SFU_CONNECTION_TYPE.SEND &&
           event.client_id &&
           event.client_id !== this._clientId &&
           event.connection_id &&
           !this._clientStreamIdPair.has(event.client_id)
         ) {
           this._clientStreamIdPair.set(event.client_id, event.connection_id);
-          this._avatarSyncHelper.sendSelfAvatarTransform(false);
+          // this._avatarSyncHelper.sendSelfAvatarTransform(false);
+          this.tryAttachAudioToPublicSpeakerAgent(event.client_id, event.connection_id);
           this.emit("stream_updated", event.client_id, "audio");
           this.emit("stream_updated", event.client_id, "video");
         }
+
+        if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) this._avatarSyncHelper.sendSelfAvatarTransform(false);
       }
-      if (event.event_type === "connection.updated") {
-        this.emit("stream_updated", event.client_id, "audio");
-        this.emit("stream_updated", event.client_id, "video");
-      }
-      if (event.event_type === "connection.destroyed" && event.client_id) {
-        this._avatarSyncHelper.handleOnClientLeave(event.client_id);
-      }
-    });
-    this._sendrecv.on("track", event => {
-      const stream = event.streams[0];
-      if (!stream) return;
-      if (!this._remoteMediaStreams.has(stream.id)) {
-        this._remoteMediaStreams.set(stream.id, stream);
-      }
-    });
-    this._sendrecv.on("removetrack", event => {
-      // @ts-ignore
-      console.log("Track removed: " + event.track.id);
-    });
-    this._sendrecv.on("datachannel", event => {
-      this._avatarSyncHelper.handleSyncInit(event.datachannel.label);
-    });
-    this._sendrecv.on("message", event => {
-      this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
-    });
-    this._scene?.addEventListener("audio_ready", async () => {
-      await new Promise(res => setTimeout(res, 1000));
-      this._avatarSyncHelper.sendSelfAvatarTransform(false);
-    });
-    this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    this._sendrecv
-      .connect(this._localMediaStream)
-      .then(stream => {
-        if (this._sendrecv) {
-          this.emit(this._sendrecv.stream ? SFU_CONNECTION_CONNECTED : SFU_CONNECTION_ERROR_FATAL);
+
+      if (this._connectionType !== SFU_CONNECTION_TYPE.SEND) {
+        if (event.event_type === "connection.updated") {
+          this.emit("stream_updated", event.client_id, "audio");
+          this.emit("stream_updated", event.client_id, "video");
         }
-      })
-      .catch(e => {
-        console.error(e);
-        this.emit(SFU_CONNECTION_ERROR_FATAL);
-        this.enableMicrophone(false);
-      })
-      .finally(() => {
-        this.enableMicrophone(false);
-        this._avatarSyncHelper.initSelfAvatarTransform();
+        if (event.event_type === "connection.destroyed" && event.client_id) {
+          this._avatarSyncHelper.handleOnClientLeave(event.client_id);
+          console.log("Connection destroyed: " + event.client_id);
+        }
+      }
+    });
+
+    if (this._connectionType !== SFU_CONNECTION_TYPE.SEND) {
+      this._connector.on("track", event => {
+        const stream = event.streams[0];
+        if (!stream) return;
+        // if (!this._remoteMediaStreams.has(stream.id)) {
+        this._remoteMediaStreams.set(stream.id, stream);
+        // }
       });
+      this._connector.on("removetrack", event => {
+        console.log("Track removed: " + event.track.id);
+        const stream = event.target;
+        if (!stream) return;
+        for (let [clientId, streamId] of this._clientStreamIdPair.entries()) {
+          // @ts-ignore
+          if (streamId === event.target?.id) {
+            this._clientStreamIdPair.delete(clientId);
+            if (clientId.includes("PS") && this._laserPointer) this._laserPointer.visible = false;
+          }
+        }
+      });
+      this._connector.on("message", event => {
+        this._dataChannelMessages.push({ channelLabel: event.label, message: event.data });
+        if (this._isRecording && !event.label.includes("#avatar-"))
+          this._recordedDataChannelMessages.push({
+            l: event.label,
+            m: this._textDecoder.decode(event.data),
+            t: Date.now(),
+            s: 0
+          });
+        while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
+        if (!this._roomId.includes("public_speaking") || event.label !== "#avatarId") {
+          // avoid initPublicSpeakingMirroring client loading unnecessary avatar model
+          this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
+        }
+
+        if (event.label === "#pdfPage") {
+          this.emit("pdf-page-changed-in-public-speaker-room", { message: this._textDecoder.decode(event.data) });
+        }
+
+        if (event.label === "#togglePublicSpeaker") {
+          this.emit("toggle-public-speaker", { message: this._textDecoder.decode(event.data) });
+        }
+
+        if (event.label === "#laserPointer" && this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
+          if (this._laserPointer) {
+            const message = this._textDecoder.decode(event.data);
+            const position = message.split("|");
+            if (position) {
+              this._laserPointer.visible = position[0] === "1"; // 1: visible; 0: visible
+              if (position[1] !== "0" && position[2] !== "0" && position[3] !== "0") {
+                this._laserPointer.position.set(
+                  parseFloat(position[1]), // x
+                  parseFloat(position[2]), // y
+                  parseFloat(position[3]) // z
+                );
+                this._laserPointer.updateMatrix();
+              }
+            }
+          } else {
+            const sphere = new THREE.SphereGeometry(0.2);
+            const object = new THREE.Mesh(
+              sphere,
+              new THREE.MeshBasicMaterial({ color: "#ff0000", transparent: true, opacity: 0.7 })
+            );
+            this._laserPointer = object;
+            APP.world.scene.add(this._laserPointer);
+          }
+        }
+      });
+    }
+
+    if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
+      this._connector.on("datachannel", event => {
+        if (!this._clientId.includes("PS-") || this._roomId.includes("public_speaking")) {
+          this._avatarSyncHelper.handleSyncInit(event.datachannel.label);
+        }
+      });
+      this._scene?.addEventListener("audio_ready", async () => {
+        await new Promise(res => setTimeout(res, 1000));
+        this._avatarSyncHelper.sendSelfAvatarTransform(false);
+      });
+    }
+
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) {
+      // @ts-ignore
+      this._connector.connect();
+    } else {
+      if (!this._clientId.includes("PS-"))
+        this._localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+
+      const connectSfuWithLocalMediaStream = () => {
+        if (!this._connector || !this._localMediaStream) {
+          window.setTimeout(connectSfuWithLocalMediaStream, 1000);
+        } else {
+          this._connector
+            .connect(this._localMediaStream)
+            .then(stream => {
+              if (this._connector) {
+                this.emit(this._connector.stream ? SFU_CONNECTION_CONNECTED : SFU_CONNECTION_ERROR_FATAL);
+              }
+            })
+            .catch(e => {
+              console.error(e);
+              this.emit(SFU_CONNECTION_ERROR_FATAL);
+              this.enableMicrophone(false);
+            })
+            .finally(() => {
+              if (!this._clientId.includes("PS-")) this.enableMicrophone(false);
+              this._avatarSyncHelper.initSelfAvatarTransform();
+            });
+        }
+      };
+      connectSfuWithLocalMediaStream();
+    }
   }
 
   async disconnect() {
-    if (this._sendrecv) {
-      await this._sendrecv.disconnect();
-      this._sendrecv = null;
+    if (this._connector) {
+      await this._connector.disconnect();
+      this._connector = null;
     }
+    if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
+    this._avatarSyncHelper?.stopSyncing();
     debug("disconnect()");
-    // ...
     this.emitRTCEvent("info", "Signaling", () => `[close]`);
   }
 
@@ -147,9 +297,12 @@ export class SoraAdapter extends SfuAdapter {
     let streamId: string | null | undefined = null;
     let tracks: MediaStreamTrack[] | null | undefined = null;
 
-    if (this._clientId === clientId) {
-      stream = this._sendrecv?.stream;
-    } else {
+    var isSelfStreamRetrievable = this._clientId === clientId && this._connectionType !== SFU_CONNECTION_TYPE.RECV;
+    var isOtherStreamRetrievable = this._clientId !== clientId && this._connectionType !== SFU_CONNECTION_TYPE.SEND;
+
+    if (isSelfStreamRetrievable) {
+      stream = this._connector?.stream;
+    } else if (isOtherStreamRetrievable) {
       streamId = this._clientStreamIdPair.get(clientId);
       if (streamId) {
         stream = this._remoteMediaStreams.get(streamId);
@@ -167,7 +320,7 @@ export class SoraAdapter extends SfuAdapter {
         });
         return promise;
       }
-    } else {
+    } else if (isSelfStreamRetrievable || isOtherStreamRetrievable) {
       console.log(`Waiting on ${kind} for ${clientId}`);
       debug(`Waiting on ${kind} for ${clientId}`);
       if (!this._pendingMediaRequests.has(clientId)) {
@@ -186,14 +339,23 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   getLocalMicTrack() {
-    return this._sendrecv?.stream?.getAudioTracks()[0];
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    return this._connector?.stream?.getAudioTracks()[0];
   }
 
   getLocalMediaStream() {
-    return this._sendrecv?.stream;
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    return this._connector?.stream;
+  }
+
+  getDataChannelMessage() {
+    return this._dataChannelMessages && this._dataChannelMessages.length > 0
+      ? this._dataChannelMessages.shift()
+      : { channelLabel: "", message: null };
   }
 
   async setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null = null) {
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     let sawAudio = false;
     let sawVideo = false;
     await Promise.all(
@@ -207,7 +369,7 @@ export class SoraAdapter extends SfuAdapter {
           )
             return;
           if (this._localMediaStream) {
-            this._sendrecv?.replaceAudioTrack(this._localMediaStream, track.clone());
+            this._connector?.replaceAudioTrack(this._localMediaStream, track.clone());
           }
         } else {
           sawVideo = true;
@@ -227,6 +389,17 @@ export class SoraAdapter extends SfuAdapter {
       this.disableCamera();
       this.disableShare();
     }
+    if (this._clientId.includes("PS-")) this._localMediaStream = stream;
+
+    // TODO: move to other appropriate place
+    if (this && this._clientId.includes("PS-") && this._roomId.includes("public_speaking")) {
+      this._sendSelfAvatarSrcIntervalId = setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
+    }
+  }
+
+  setLocalDataChannelMessage({ channelLabel, message }: { channelLabel: string; message: ArrayBuffer }) {
+    if (!channelLabel || !message) return;
+    this.broadcastUint8(channelLabel, new Uint8Array(message));
   }
 
   toggleMicrophone() {
@@ -238,8 +411,9 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   enableMicrophone(enabled: boolean) {
-    if (this._sendrecv?.stream) {
-      this._sendrecv.stream.getAudioTracks().forEach(track => track.kind === "audio" && (track.enabled = enabled));
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    if (this._connector?.stream) {
+      this._connector.stream.getAudioTracks().forEach(track => track.kind === "audio" && (track.enabled = enabled));
       this._micShouldBeEnabled = enabled;
       this.emit("mic-state-changed", { enabled: this._micShouldBeEnabled });
     }
@@ -247,18 +421,20 @@ export class SoraAdapter extends SfuAdapter {
 
   get isMicEnabled() {
     return (
-      this._sendrecv?.audio === true &&
-      this._sendrecv?.stream?.getAudioTracks()[0]?.enabled === true &&
+      this._connectionType !== SFU_CONNECTION_TYPE.RECV &&
+      this._connector?.audio === true &&
+      this._connector?.stream?.getAudioTracks()[0]?.enabled === true &&
       this._micShouldBeEnabled
     );
   }
 
   async enableCamera(track: MediaStreamTrack) {
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     if (this._localMediaStream) {
       track.enabled = true;
-      await this._sendrecv?.replaceVideoTrack(this._localMediaStream, track);
+      await this._connector?.replaceVideoTrack(this._localMediaStream, track);
     }
-    this._sendrecv?.on("removetrack", e => {
+    this._connector?.on("removetrack", e => {
       if (e.track.kind === "video") {
         this.emitRTCEvent("info", "RTC", () => `Camera track ended`);
         this.disableCamera();
@@ -267,18 +443,21 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   async disableCamera() {
-    if (this._sendrecv?.stream) {
-      this._sendrecv?.stopVideoTrack(this._sendrecv.stream);
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    if (this._connector?.stream) {
+      this._connector?.stopVideoTrack(this._connector.stream);
     }
   }
 
   async enableShare(track: MediaStreamTrack) {
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     if (this._localMediaStream) {
       track.enabled = true;
-      await this._sendrecv?.replaceVideoTrack(this._localMediaStream, track);
+      await this._connector?.replaceVideoTrack(this._localMediaStream, track);
     }
-    this._sendrecv?.on("removetrack", e => {
+    this._connector?.on("removetrack", e => {
       if (e.track.kind === "video") {
+        console.log("Remove video track");
         this.emitRTCEvent("info", "RTC", () => `Desktop Share transport track ended`);
         this.disableCamera();
       }
@@ -286,8 +465,9 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   async disableShare() {
-    if (this._sendrecv?.stream) {
-      this._sendrecv?.stopVideoTrack(this._sendrecv.stream);
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    if (this._connector?.stream) {
+      this._connector?.stopVideoTrack(this._connector.stream);
     }
   }
 
@@ -320,11 +500,32 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   broadcast(channel: string, message: string) {
-    this._sendrecv?.sendMessage(channel, new TextEncoder().encode(message));
+    if (!this._connector || this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    try {
+      this._connector.sendMessage(channel, this._textEncoder.encode(message));
+      if (this._isRecording && !channel.includes("#avatar-"))
+        this._recordedDataChannelMessages.push({ l: channel, m: message, t: Date.now(), s: 1 });
+    } catch (error) {
+      // Error: Could not find DataChannel for channel laser-pointer for about 1 second
+      console.error(error);
+    }
   }
 
   broadcastUint8(channel: string, message: Uint8Array) {
-    this._sendrecv?.sendMessage(channel, message);
+    if (!this._connector || this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    try {
+      this._connector.sendMessage(channel, message);
+      if (this._isRecording && !channel.includes("#avatar-"))
+        this._recordedDataChannelMessages.push({
+          l: channel,
+          m: this._textDecoder.decode(message),
+          t: Date.now(),
+          s: 1
+        });
+    } catch (error) {
+      // Error: Could not find DataChannel for channel laser-pointer for about 1 second
+      console.error(error);
+    }
   }
 
   emitRTCEvent(level: string, tag: string, msgFunc: () => void) {
@@ -340,6 +541,8 @@ export class SoraAdapter extends SfuAdapter {
   }
 
   resolvePendingMediaRequestForTrack(clientId: string) {
+    if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
+
     const requests = this._pendingMediaRequests.get(clientId);
     const streamId = this._clientStreamIdPair.get(clientId);
     if (streamId) {
@@ -360,6 +563,35 @@ export class SoraAdapter extends SfuAdapter {
 
     if (requests && Object.keys(requests).length === 0) {
       this._pendingMediaRequests.delete(clientId);
+    }
+  }
+
+  private async tryAttachAudioToPublicSpeakerAgent(remoteClientId: string, streamId: string) {
+    if (remoteClientId.includes("PS-") && !this._roomId.includes("public_speaking")) {
+      // const stream = this._remoteMediaStreams.get(streamId);
+      const stream = await this.getMediaStream(remoteClientId, "audio")?.catch(e => {
+        console.error(`Error getting audio stream for ${remoteClientId}`, e);
+      });
+      if (!stream) return;
+      // @ts-ignore
+      this.crossRoomStreamerAudioSource[remoteClientId] = new CrossRoomStreamerAudioSource(
+        // @ts-ignore
+        new MediaStream(stream)
+      );
+      const tryAttachAudioToAvatar = () => {
+        const avatarEid = this._avatarSyncHelper._client2AvatarEid.get(remoteClientId);
+        if (avatarEid) {
+          const avatarObj = APP.world.eid2obj.get(avatarEid);
+          if (avatarObj) {
+            this.crossRoomStreamerAudioSource[remoteClientId].attachAudio(avatarObj);
+          }
+        }
+        if (!this.crossRoomStreamerAudioSource[remoteClientId].node) {
+          window.setTimeout(tryAttachAudioToAvatar, 1000);
+        }
+      };
+
+      tryAttachAudioToAvatar();
     }
   }
 }
