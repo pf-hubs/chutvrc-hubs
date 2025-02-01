@@ -3,8 +3,9 @@ import { ToolbarButton } from "../../../input/ToolbarButton";
 // @ts-ignore
 import { ReactComponent as CameraIcon } from "../../../icons/Camera.svg";
 import { FormattedMessage, defineMessage, useIntl } from "react-intl";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ToolTip } from "@mozilla/lilypad-ui";
+import downloadRoomRecording from "../../../../utils/room-recording-utils";
 
 const recordingDescription = defineMessage({
   id: "recording.description",
@@ -17,32 +18,18 @@ const RecordingButton = () => {
   const intl = useIntl();
   const description = intl.formatMessage(recordingDescription);
 
+  useEffect(() => {
+    setSelectedState(APP.sfu._isRecording);
+  }, [APP.sfu._isRecording]);
+
   const SwitchRecordingState = () => {
     if (APP.sfu._isRecording) {
       // Download recording
-      const blob = new Blob([JSON.stringify(APP.sfu._recordedDataChannelMessages)], {
-        type: "text/json"
-      });
-      const link = document.createElement("a");
-
-      link.download = "chutvrc-recording-" + APP.sfu._roomId + "-" + Date.now();
-      link.href = window.URL.createObjectURL(blob);
-      link.dataset.downloadurl = ["text/json", link.download, link.href].join(":");
-
-      const evt = new MouseEvent("click", {
-        view: window,
-        bubbles: true,
-        cancelable: true
-      });
-
-      link.dispatchEvent(evt);
-      link.remove();
-
-      APP.sfu._recordedDataChannelMessages = [];
+      downloadRoomRecording();
     }
 
     APP.sfu._isRecording = !APP.sfu._isRecording;
-    setSelectedState(APP.sfu._isRecording);
+    // setSelectedState(APP.sfu._isRecording);
   };
 
   return (

@@ -106,6 +106,7 @@ import ChatToolbarButton from "./room/components/ChatToolbarButton/ChatToolbarBu
 import SeePlansCTA from "./room/components/SeePlansCTA/SeePlansCTA";
 import { PublicSpeakingPopoverContainer } from "./room/PublicSpeakingPopoverContainer";
 import RecordingButton from "./room/components/RecordingButton/RecordingButton";
+import RecordingAcrossRoomsButton from "./room/components/RecordingButton/RecordingAcrossRoomsButton";
 
 const avatarEditorDebug = qsTruthy("avatarEditorDebug");
 
@@ -1660,6 +1661,9 @@ class UIRoot extends Component {
                       />
                     )}
                     {!isLockedDownDemo && <RecordingButton />}
+                    {!isLockedDownDemo &&
+                      APP.sfu._publicSpeakerClientIdsInRoom &&
+                      APP.sfu._publicSpeakerClientIdsInRoom.length > 0 && <RecordingAcrossRoomsButton />}
                     {entered && isMobileVR && (
                       <ToolbarButton
                         className={styleUtils.hideLg}

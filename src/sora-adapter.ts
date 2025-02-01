@@ -6,6 +6,7 @@ import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
 import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
 import { Object3D } from "three";
+import downloadRoomRecording from "./utils/room-recording-utils";
 
 const debug = newDebug("naf-dialog-adapter:debug");
 
@@ -35,6 +36,7 @@ export class SoraAdapter extends SfuAdapter {
   private _laserPointer: Object3D;
   private _textEncoder: TextEncoder;
   private _textDecoder: TextDecoder;
+  private _recordingTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
     super();
@@ -100,9 +102,18 @@ export class SoraAdapter extends SfuAdapter {
                 {
                   label: "#togglePublicSpeaker",
                   direction: "sendrecv"
+                },
+                {
+                  label: "#toggleRecordingViaPublicSpeaker",
+                  direction: "sendrecv"
                 }
               ]
-            : []
+            : [
+                {
+                  label: "#isRecordingAcrossRooms",
+                  direction: this._connectionType === SFU_CONNECTION_TYPE.SEND ? "sendonly" : "recvonly"
+                }
+              ]
         )
       // .concat(other channels if necessary)
     };
@@ -206,6 +217,33 @@ export class SoraAdapter extends SfuAdapter {
 
         if (event.label === "#togglePublicSpeaker") {
           this.emit("toggle-public-speaker", { message: this._textDecoder.decode(event.data) });
+        }
+
+        if (event.label === "#toggleRecordingViaPublicSpeaker") {
+          const [clientId, isOn] = this._textDecoder.decode(event.data).split("|");
+          if (clientId === this._clientId && APP.publicSpeakingSfu) {
+            APP.publicSpeakingSfu.broadcastUint8("#isRecordingAcrossRooms", new Uint8Array([isOn ? 1 : 0]));
+          }
+        }
+
+        if (event.label === "#isRecordingAcrossRooms") {
+          if (this._recordingTimer) {
+            clearTimeout(this._recordingTimer);
+            this._recordingTimer = null;
+          }
+
+          let isRecordingAcrossRooms = new Uint8Array(event.data)[0] === 1;
+          if (APP.sfu._isRecording && !isRecordingAcrossRooms) {
+            downloadRoomRecording();
+          }
+          APP.sfu._isRecording = isRecordingAcrossRooms;
+
+          this._recordingTimer = setTimeout(() => {
+            // No new message received for 5 seconds: assume recording has stopped.
+            APP.sfu._isRecording = false;
+            downloadRoomRecording();
+            this._recordingTimer = null;
+          }, 5000);
         }
 
         if (event.label === "#laserPointer" && this._connectionType !== SFU_CONNECTION_TYPE.RECV) {

@@ -12,7 +12,8 @@ export class PublicSpeakingSystem {
           const isOn = message.split("|")[1] === "1";
           if (isOn) {
             if (clientId === APP.sfu._clientId) PublicSpeakingSystem.initPublicSpeaker();
-            APP.sfu._publicSpeakerClientIdsInRoom.push(clientId);
+            if (!APP.sfu._publicSpeakerClientIdsInRoom.includes(clientId))
+              APP.sfu._publicSpeakerClientIdsInRoom.push(clientId);
           } else {
             if (clientId === APP.sfu._clientId) PublicSpeakingSystem.closePublicSpeaker();
             const index = APP.sfu._publicSpeakerClientIdsInRoom.indexOf(clientId);
@@ -57,14 +58,18 @@ export class PublicSpeakingSystem {
     APP.sfu.emit("public-speaking-sfu-initialized");
 
     PublicSpeakingSystem.speakerTrySetLocalMediaStream();
+    this.toggleRemotePublicSpeaker(APP.sfu._clientId, true);
   }
 
   static closePublicSpeaker() {
     console.log("closePublicSpeaker");
+
     APP.publicSpeakingSfu.broadcast("#laserPointer", [0, 0, 0].join("|"));
     APP.publicSpeakingSfu.disconnect();
     APP.sfu.emit("public-speaking-sfu-closed");
     APP.publicSpeakingSfu = null;
+
+    this.toggleRemotePublicSpeaker(APP.sfu._clientId, false);
   }
 
   static speakerTrySetLocalMediaStream() {
@@ -155,5 +160,12 @@ export class PublicSpeakingSystem {
       iceTransportPolicy: APP.sfu._iceTransportPolicy || false,
       debug: false
     });
+  }
+
+  static toggleRecordingAcrossRooms() {
+    if (APP.publicSpeakingSfu) {
+      APP.publicSpeakingSfu._isRecording = !APP.publicSpeakingSfu._isRecording;
+      APP.sfu._isRecording = APP.publicSpeakingSfu._isRecording;
+    }
   }
 }
