@@ -1137,8 +1137,8 @@ class UIRoot extends Component {
     const canCloseRoom = this.props.hubChannel && !!this.props.hubChannel.canOrWillIfCreator("close_hub");
     const isModerator = this.props.hubChannel && this.props.hubChannel.canOrWillIfCreator("kick_users") && !isMobileVR;
 
-    const canToggleChutvrcPopovers =
-      APP.sfu && APP.hubChannel.presence?.state[APP.sfu._clientId]?.metas[0].roles["owner"];
+    // const canToggleChutvrcPopovers =
+    //   APP.sfu && APP.hubChannel.presence?.state[APP.sfu._clientId]?.metas[0].roles["owner"];
 
     const moreMenu = [
       {
@@ -1669,9 +1669,10 @@ class UIRoot extends Component {
                         onClick={() => exit2DInterstitialAndEnterVR(true)}
                       />
                     )}
-                    {canToggleChutvrcPopovers && (
+                    {
+                      // canToggleChutvrcPopovers &&
                       <ChutvrcPopoversContainer scene={this.props.scene} hubChannel={this.props.hubChannel} />
-                    )}
+                    }
                   </>
                 }
                 toolbarRight={

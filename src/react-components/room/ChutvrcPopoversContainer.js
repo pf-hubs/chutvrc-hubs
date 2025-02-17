@@ -9,7 +9,7 @@ import { ReactComponent as PublicSpeakingIcon } from "../icons/PublicSpeaking.sv
 
 export function ChutvrcPopoversContainer({ scene, hubChannel }) {
   const canTogglePublicSpeaking = useRole("owner");
-  const canToggleNimpro = useRole("owner");
+  const canToggleNimpro = true; // useRole("owner");
   const [activeMenu, setActiveMenu] = useState(null);
 
   const toggleMenu = menu => {
