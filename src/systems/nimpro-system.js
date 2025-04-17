@@ -3,6 +3,8 @@ import { Text } from "troika-three-text";
 import { Clickable3DButton } from "../utils/clickable-3d-button";
 import { WaypointSystem } from "./waypoint-system";
 
+const seats = ["01", "02", "03", "04", "05"];
+
 const sendNimproMessage = ({ messageType, pID = APP.sfu._clientId, value }) => {
   APP.sfu.broadcast("#nimpro", [messageType, pID, value].join("|"));
 };
@@ -82,9 +84,7 @@ export class NimproSystem {
     }
 
     // Initialize Text objects for all seats (from "01" to "05")
-    ["01", "02", "03", "04", "05"].forEach(seatNum => {
-      this.initTextsAndObjectsForSeat(seatNum);
-    });
+    seats.forEach(seatNum => this.initTextsAndObjectsForSeat(seatNum));
 
     this.pointObjectLow = document.querySelector("#environment-root .N-impro .point-object-low")?.object3D;
     this.pointObjectHigh = document.querySelector("#environment-root .N-impro .point-object-high")?.object3D;
@@ -134,6 +134,7 @@ export class NimproSystem {
           for (const seatNum in this.thisRoundPointObjectBySeatNum) {
             this.saveThisRoundPointObject(seatNum);
           }
+          seats.forEach(seatNum => this.ansHintBySeat[seatNum].material.color.set(0xffffff));
         }
         // Optionally, reset the question slide for participants (commented out)
         // if (message !== "1") {
@@ -233,7 +234,7 @@ export class NimproSystem {
       sendNimproMessage({ messageType: "stat", value: "0" });
       this.sendAnswerButtonsVisibility(false);
 
-      ["01", "02", "03", "04", "05"].forEach(seatNum => {
+      seats.forEach(seatNum => {
         APP.world.scene.remove(this.ansHintBySeat[seatNum]);
         this.ansHintBySeat[seatNum].geometry.dispose();
         this.ansHintBySeat[seatNum].material.dispose();
@@ -384,9 +385,7 @@ export class NimproSystem {
     for (const seatNum in this.thisRoundPointObjectBySeatNum) {
       this.saveThisRoundPointObject(seatNum);
     }
-    ["01", "02", "03", "04", "05"].forEach(seatNum => {
-      this.ansHintBySeat(seatNum).material.color.set(0xffffff);
-    });
+    seats.forEach(seatNum => this.ansHintBySeat[seatNum].material.color.set(0xffffff));
     // Do not hide totalPointsText
     // Show answer buttons
     this.sendAnswerButtonsVisibility(true);
@@ -580,7 +579,6 @@ export class NimproSystem {
 
   static saveThisRoundPointObject(seatNum) {
     if (!this.thisRoundPointObjectBySeatNum[seatNum]) return;
-    this.ansHintBySeat[seatNum].material.color.set(0xffffff);
 
     // Clone this round's point object, add to total point objects and them re-align them.
     const pointObject = this.thisRoundPointObjectBySeatNum[seatNum].clone();
