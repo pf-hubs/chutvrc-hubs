@@ -98,19 +98,7 @@ export class SoraAdapter extends SfuAdapter {
             direction: "sendrecv"
           },
           {
-            label: "#nimpro-seat",
-            direction: "sendrecv"
-          },
-          {
-            label: "#nimpro-ans",
-            direction: "sendrecv"
-          },
-          {
-            label: "#nimpro-point",
-            direction: "sendrecv"
-          },
-          {
-            label: "#nimpro-button-visibility",
+            label: "#nimpro",
             direction: "sendrecv"
           }
         ])
@@ -216,7 +204,7 @@ export class SoraAdapter extends SfuAdapter {
           });
         while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
 
-        if (event.label.includes("nimpro")) {
+        if (event.label === "#nimpro") {
           this.emit("nimpro_message_received", { label: event.label, message: this._textDecoder.decode(event.data) });
         }
 

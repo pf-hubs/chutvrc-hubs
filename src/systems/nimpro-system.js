@@ -3,6 +3,10 @@ import { Text } from "troika-three-text";
 import { Clickable3DButton } from "../utils/clickable-3d-button";
 import { WaypointSystem } from "./waypoint-system";
 
+const sendNimproMessage = ({ messageType, pID = APP.sfu._clientId, value }) => {
+  APP.sfu.broadcast("#nimpro", [messageType, pID, value].join("|"));
+};
+
 // NimproSystem: Class for managing the game logic of Nimpro
 export class NimproSystem {
   // Game initialization status and role
@@ -25,10 +29,10 @@ export class NimproSystem {
   static pointObjectLow = null;
   static pointObjectHigh = null;
 
-  // Text objects for displaying answers and points
+  // Hint objects for displaying answers and points
+  static ansHintBySeat = {};
   static thisRoundPointObjectBySeatNum = {};
   static totalPointObjectsBySeatNum = {}; // Objects that represent the total point by seat number
-  static answerHintBySeatNum = {};
 
   // Store the bound event handler to remove it later
   static boundHandleDataChannelMessageReceived = null;
@@ -63,10 +67,12 @@ export class NimproSystem {
         this.isEventListenerRegistered = true;
       }
 
-      if (!isAdmin) {
+      if (isAdmin) {
+        sendNimproMessage({ messageType: "stat", value: "1" });
+      } else {
         // For participants, assign seat number and initialize answer buttons
         this.seatNum = pNum;
-        APP.sfu.broadcast("#nimpro-seat", APP.sfu._clientId + "|" + pNum);
+        // sendNimproMessage({ messageType: "seat", value: pNum });
         this.initAnswerButtons(pNum);
 
         APP.sfu._avatarSyncHelper?.switchSelfAnimState(2); // avatar anim state TODO: change number to type AvatarAnimState
@@ -88,33 +94,43 @@ export class NimproSystem {
    * Event handler for data channel messages
    * @param {Object} param0 - Contains the label and message from the data channel
    */
-  static handleDataChannelMessageReceived({ label, message }) {
+  static handleDataChannelMessageReceived({ message }) {
     if (!this.isInitialized) return;
-    const [pID, value] = message.split("|");
-    console.log([label, pID, value].join("|"));
+    const [messageType, pID, value] = message.split("|");
 
-    switch (label) {
-      case "#nimpro-seat":
+    switch (messageType) {
+      case "stat": // value: "0" | "1"
+        if (value === "1") {
+          sendNimproMessage({ messageType: "seat", value: this.seatNum });
+        } else {
+          this.setAnswerButtonsVisibility(false);
+          // Unoccupy waypoints for seats
+          const waypointSystem = APP.scene.systems["hubs-systems"].waypointSystem;
+          WaypointSystem.unoccupyWaypoints(waypointSystem.ready.filter(wp => wp.el.className.includes("N-impro-seat")));
+        }
+        break;
+      case "seat": // value: "01" | "02" | "03" | "04" | "05"
         // When a participant joins and broadcasts their seat number
         this.seatByPID[pID] = value;
         break;
-      case "#nimpro-ans":
+      case "ans": // value: "0" | "1"
         // When a participant submits their answer
         console.log(`${value} from seat ${pID}`);
         this.answerByPID[pID] = value === "1";
         if (this.isAdmin) {
+          this.ansHintBySeat[this.seatByPID[pID]].material.color.set(value === "1" ? 0x0000ff : 0xff0000);
           // TODO: display Y or N // value === "1" ? "Y" : "N";
         }
         // Do not reveal the answer yet
         break;
-      case "#nimpro-point":
+      case "point": // value: "0" | "1" | "3"
         // When points are sent from the admin
         this.receivePoint(pID, value);
         break;
-      case "#nimpro-button-visibility":
+      case "buttonVis": // value: "0" | "1"
         // Control visibility of answer buttons
-        this.setAnswerButtonsVisibility(message === "1");
-        if (!this.isAdmin && message === "1") {
+        this.setAnswerButtonsVisibility(value === "1");
+        if (!this.isAdmin && value === "1") {
           for (const seatNum in this.thisRoundPointObjectBySeatNum) {
             this.saveThisRoundPointObject(seatNum);
           }
@@ -138,6 +154,14 @@ export class NimproSystem {
     // Get the seat element
     const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + seatNum);
     if (!seat) return;
+
+    const geometry = new THREE.RingGeometry(0.3, 0.6, 32);
+    const material = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(geometry, material);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.4;
+    seat.object3D.add(ring);
+    this.ansHintBySeat[seatNum] = ring;
 
     // Get participant's own seat
     const selfSeat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + this.seatNum);
@@ -206,7 +230,14 @@ export class NimproSystem {
     if (APP.sfu && this.isEventListenerRegistered && this.boundHandleDataChannelMessageReceived) {
       APP.sfu.off("nimpro_message_received", this.boundHandleDataChannelMessageReceived);
       this.isEventListenerRegistered = false;
+      sendNimproMessage({ messageType: "stat", value: "0" });
       this.sendAnswerButtonsVisibility(false);
+
+      ["01", "02", "03", "04", "05"].forEach(seatNum => {
+        this.ansHintBySeat[seatNum].dispose();
+        this.ansHintBySeat[seatNum] = null;
+      });
+      this.ansHintBySeat = {};
 
       // Unoccupy waypoints for seats
       const waypointSystem = APP.scene.systems["hubs-systems"].waypointSystem;
@@ -314,7 +345,7 @@ export class NimproSystem {
     // Broadcast points to participants
     for (const pID in this.thisRoundPointByPID) {
       if (this.thisRoundPointByPID[pID] !== undefined) {
-        APP.sfu.broadcast("#nimpro-point", pID + "|" + this.thisRoundPointByPID[pID]);
+        sendNimproMessage({ messageType: "point", pID, value: this.thisRoundPointByPID[pID] });
       }
     }
     // Hide answer buttons
@@ -327,7 +358,7 @@ export class NimproSystem {
    */
   static sendAnswerButtonsVisibility(isVisible) {
     if (!this.isInitialized || !this.isAdmin) return;
-    APP.sfu.broadcast("#nimpro-button-visibility", isVisible ? "1" : "0");
+    sendNimproMessage({ messageType: "buttonVis", value: isVisible ? "1" : "0" });
   }
 
   /**
@@ -356,7 +387,7 @@ export class NimproSystem {
     this.sendAnswerButtonsVisibility(true);
     // Broadcast seat assignments to all participants
     for (const pID in this.seatByPID) {
-      APP.sfu.broadcast("#nimpro-seat", pID + "|" + this.seatByPID[pID]);
+      sendNimproMessage({ messageType: "seat", pID, value: this.seatByPID[pID] });
     }
     console.log("New round started");
   }
@@ -401,7 +432,7 @@ export class NimproSystem {
   static sendAnswer(isYes) {
     if (!this.isInitialized || this.isAdmin) return;
     console.log("Send answer: " + isYes);
-    APP.sfu.broadcast("#nimpro-ans", APP.sfu._clientId + "|" + (isYes ? 1 : 0));
+    sendNimproMessage({ messageType: "ans", value: isYes ? "1" : "0" });
   }
 
   /**
@@ -544,7 +575,7 @@ export class NimproSystem {
 
   static saveThisRoundPointObject(seatNum) {
     if (!this.thisRoundPointObjectBySeatNum[seatNum]) return;
-    this.answerHintBySeatNum[seatNum].visible = false;
+    this.ansHintBySeat[seatNum].material.color.set(0xffffff);
 
     // Clone this round's point object, add to total point objects and them re-align them.
     const pointObject = this.thisRoundPointObjectBySeatNum[seatNum].clone();
@@ -553,17 +584,19 @@ export class NimproSystem {
     this.alignPointObjectsToCenter(seatNum);
 
     // Clear this round's point object
-    console.log(this.thisRoundPointObjectBySeatNum[seatNum]);
     APP.world.scene.remove(this.thisRoundPointObjectBySeatNum[seatNum]);
     this.thisRoundPointObjectBySeatNum[seatNum].clear();
     this.thisRoundPointObjectBySeatNum[seatNum] = null;
   }
 
   static showThisRoundResult(seatNum, answerIsYes, point) {
+    this.ansHintBySeat[seatNum].material.color.set(answerIsYes ? 0x0000ff : 0xff0000);
+
     // TODO: place objects of a user oneself lower and in front of oneself
     if (!seatNum || point === 0 || !this.pointObjectHigh || !this.pointObjectLow) return;
     const pointObject = point > 1 ? this.pointObjectHigh.clone() : this.pointObjectLow.clone();
-    console.log(pointObject);
+    pointObject.scale.set(pointObject.scale.x * 2, pointObject.scale.y * 2, pointObject.scale.z * 2);
+
     const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + seatNum);
     pointObject.position.copy(seat.object3D.position.clone().add(new Vector3(0, 2, 0)));
 
@@ -573,16 +606,6 @@ export class NimproSystem {
     seat.object3D.getWorldQuaternion(selfSeatQua);
 
     let offset = new Vector3(0, 0, 0.5).applyQuaternion(selfSeatQua);
-    if (!this.answerHintBySeatNum[seatNum]) {
-      const buttonGeometry = new THREE.SphereGeometry(0.1, 16, 16);
-      const buttonMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x0000ff) });
-      this.answerHintBySeatNum[seatNum] = new THREE.Mesh(buttonGeometry, buttonMaterial);
-      APP.world.scene.add(this.answerHintBySeatNum[seatNum]);
-    }
-    this.answerHintBySeatNum[seatNum].position.copy(seat.object3D.position.clone().add(new Vector3(0, 2, 0)));
-    this.answerHintBySeatNum[seatNum].position.add(new Vector3(offset.x, -0.6, offset.z)); // Adjust position
-    this.answerHintBySeatNum[seatNum].material.color.copy(new THREE.Color(answerIsYes ? 0x0000ff : 0xff0000));
-    this.answerHintBySeatNum[seatNum].visible = true;
 
     if (seatNum === this.seatNum && seat) {
       const selfEyePos = selfSeatPos.clone().add(new Vector3(0, 1.5, 0)); // Eye position at 1.5 units height
@@ -594,8 +617,6 @@ export class NimproSystem {
     pointObject.visible = true;
     APP.world.scene.add(pointObject); // Add the new point object to the scene
     this.thisRoundPointObjectBySeatNum[seatNum] = pointObject;
-
-    // TODO: Switch Y N button // this.answerByPID[pID] ? "Y" : "N";
   }
 
   static alignPointObjectsToCenter(seatNum) {
