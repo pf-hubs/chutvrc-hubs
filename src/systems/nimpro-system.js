@@ -234,7 +234,9 @@ export class NimproSystem {
       this.sendAnswerButtonsVisibility(false);
 
       ["01", "02", "03", "04", "05"].forEach(seatNum => {
-        this.ansHintBySeat[seatNum].dispose();
+        APP.world.scene.remove(this.ansHintBySeat[seatNum]);
+        this.ansHintBySeat[seatNum].geometry.dispose();
+        this.ansHintBySeat[seatNum].material.dispose();
         this.ansHintBySeat[seatNum] = null;
       });
       this.ansHintBySeat = {};
@@ -382,6 +384,9 @@ export class NimproSystem {
     for (const seatNum in this.thisRoundPointObjectBySeatNum) {
       this.saveThisRoundPointObject(seatNum);
     }
+    ["01", "02", "03", "04", "05"].forEach(seatNum => {
+      this.ansHintBySeat(seatNum).material.color.set(0xffffff);
+    });
     // Do not hide totalPointsText
     // Show answer buttons
     this.sendAnswerButtonsVisibility(true);

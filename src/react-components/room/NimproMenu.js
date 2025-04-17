@@ -6,22 +6,18 @@ import { NimproSystem } from "../../systems/nimpro-system";
 import { ToolbarButton } from "../input/ToolbarButton";
 
 function NimproMenu({ scene, hubChannel }) {
-  const [nimproActive, setNimproActive] = useState(false);
+  const [nimproActive, setNimproActive] = useState(APP.nimproActive);
 
   function toggleNimpro() {
+    APP.nimproActive = !nimproActive;
+    setNimproActive(!nimproActive);
     if (nimproActive) {
       console.log("quitNimpro");
-      setNimproActive(false);
       NimproSystem.endGame();
     } else {
       console.log("initNimpro");
-      setNimproActive(true);
       NimproSystem.joinGame(true);
     }
-  }
-
-  function startNewRound() {
-    NimproSystem.newRound();
   }
 
   function calculateAnswerAndReturnPoint() {
