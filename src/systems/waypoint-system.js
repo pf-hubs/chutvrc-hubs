@@ -82,7 +82,7 @@ function loadTemplatesForWaypointData(scene, data) {
 function shouldTryToOccupy(waypointComponent) {
   return (
     waypointComponent.data.canBeOccupied &&
-    !waypointComponent.data.isOccupied &&
+    // !waypointComponent.data.isOccupied &&
     (NAF.utils.isMine(waypointComponent.el) ||
       !(
         waypointComponent.data.isOccupied &&
