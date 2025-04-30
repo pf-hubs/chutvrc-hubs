@@ -135,6 +135,25 @@ export class WaypointSystem {
     });
     this.characterController = characterController;
   }
+  tryTeleportToNimproOccupiableWaypoint(seatNum) {
+    const waypointComponent = this.ready.find(component => component.el.object3D.name === "N-impro-seat-" + seatNum);
+    if (!waypointComponent) return;
+
+    const previouslyOccupiedWaypoints = this.ready.filter(isOccupiedByMe);
+    this.tryToOccupy(waypointComponent).then(didOccupy => {
+      if (didOccupy) {
+        waypointComponent.el.object3D.updateMatrices();
+        this.characterController.shouldLandWhenPossible = true;
+        this.characterController.enqueueWaypointTravelTo(
+          waypointComponent.el.object3D.matrixWorld,
+          false,
+          waypointComponent.data
+        );
+        unoccupyWaypoints(previouslyOccupiedWaypoints.filter(wp => wp !== waypointComponent));
+        NimproSystem.joinGame(false, seatNum);
+      }
+    });
+  }
 
   releaseAnyOccupiedWaypoints() {
     unoccupyWaypoints(this.ready);

@@ -15,6 +15,7 @@ import useAvatarVolume from "./hooks/useAvatarVolume";
 import { calcLevel, calcGainMultiplier, MAX_VOLUME_LABELS } from "../../utils/avatar-volume-utils";
 import { PublicSpeakingSystem } from "../../systems/public-speaking-system";
 import { useRole } from "./hooks/useRole";
+import { NimproSystem } from "../../systems/nimpro-system";
 
 const MIN = 0;
 const MAX = MAX_VOLUME_LABELS - 1;
@@ -161,6 +162,20 @@ export function UserProfileSidebar({
           <Button preset="cancel" onClick={togglePublicSpeaker}>
             <p>{publicSpeakerActive ? "Disable public speak" : "Enable public speak"}</p>
           </Button>
+        )}
+        {NimproSystem.isInitialized && NimproSystem.isAdmin && (
+          <div>
+            <p>{"Assign to N-impro seat: "}</p>
+            {[1, 2, 3, 4, 5].map(seat => (
+              <Button
+                key={seat}
+                preset="primary"
+                onClick={() => NimproSystem.assignSeat(seat.toString().padStart(2, "0"), userId)}
+              >
+                {seat}
+              </Button>
+            ))}
+          </div>
         )}
       </Column>
     </Sidebar>

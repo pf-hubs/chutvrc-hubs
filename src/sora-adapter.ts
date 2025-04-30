@@ -6,6 +6,7 @@ import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
 import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
 import { Object3D } from "three";
+import { NimproSystem } from "./systems/nimpro-system";
 
 const debug = newDebug("naf-dialog-adapter:debug");
 
@@ -205,6 +206,10 @@ export class SoraAdapter extends SfuAdapter {
         while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
 
         if (event.label === "#nimpro") {
+          const [messageType, seatNum, value] = this._textDecoder.decode(event.data).split("|");
+          if (messageType === "assigned" && value === this._clientId) {
+            NimproSystem.joinGame(false, seatNum);
+          }
           this.emit("nimpro_message_received", { label: event.label, message: this._textDecoder.decode(event.data) });
         }
 

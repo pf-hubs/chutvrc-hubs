@@ -20,10 +20,6 @@ function NimproMenu({ scene, hubChannel }) {
     }
   }
 
-  function calculateAnswerAndReturnPoint() {
-    NimproSystem.calculateAnswer();
-  }
-
   return (
     <div style={{ display: "flex", gap: "24px", marginBottom: "10px" }}>
       <ToolbarButton
@@ -54,7 +50,7 @@ function NimproMenu({ scene, hubChannel }) {
       <ToolbarButton
         icon={<></>}
         label={<FormattedMessage id="nimpro-menu.calculate-answer" defaultMessage="Result" />}
-        onClick={calculateAnswerAndReturnPoint}
+        onClick={() => NimproSystem.calculateAnswer()}
         preset="accent4"
       />
     </div>
