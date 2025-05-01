@@ -635,26 +635,36 @@ export class NimproSystem {
     // TODO: place objects of a user oneself lower and in front of oneself
     if (!seatNum || point === 0 || !this.pointObjectHigh || !this.pointObjectLow) return;
     const pointObject = point > 1 ? this.pointObjectHigh.clone() : this.pointObjectLow.clone();
-    pointObject.scale.set(pointObject.scale.x * 2, pointObject.scale.y * 2, pointObject.scale.z * 2);
+    const scaleOffset = seatNum === this.seatNum ? 2 : 4;
+    pointObject.scale.set(
+      pointObject.scale.x * scaleOffset,
+      pointObject.scale.y * scaleOffset,
+      pointObject.scale.z * scaleOffset
+    );
 
     const seat = document.querySelector("#environment-root .N-impro .N-impro-seat-" + seatNum);
-    pointObject.position.copy(seat.object3D.position.clone().add(new Vector3(0, 2, 0)));
+    if (seat) {
+      const seatPos = new Vector3();
+      const seatQua = new Quaternion();
+      seat.object3D.getWorldPosition(seatPos);
+      seat.object3D.getWorldQuaternion(seatQua);
+      let offset = new Vector3(0, 0, 0.5).applyQuaternion(seatQua);
 
-    const selfSeatPos = new Vector3();
-    const selfSeatQua = new Quaternion();
-    seat.object3D.getWorldPosition(selfSeatPos);
-    seat.object3D.getWorldQuaternion(selfSeatQua);
-
-    let offset = new Vector3(0, 0, 0.5).applyQuaternion(selfSeatQua);
-
-    if (seatNum === this.seatNum && seat) {
-      const selfEyePos = selfSeatPos.clone().add(new Vector3(0, 1.5, 0)); // Eye position at 1.5 units height
-      offset = new Vector3(0, 0, 0.35).applyQuaternion(selfSeatQua); // Offset 1 unit in front of the seat
-      pointObject.position.add(new Vector3(offset.x, -0.6, offset.z)); // Adjust position
-      pointObject.lookAt(selfEyePos); // Make text face participant
+      offset = new Vector3(0, 0, 0.35).applyQuaternion(seatQua); // Offset 1 unit in front of the seat
+      pointObject.position.copy(
+        seatPos.clone().add(new Vector3(offset.x, seatNum === this.seatNum ? 1.25 : 1, offset.z))
+      ); // Adjust position
+      pointObject.lookAt(seatPos.clone().add(new Vector3(0, seatNum === this.seatNum ? 1.25 : 1, 0))); // Make text face participant
       // pointObject.scale.set(0.5, 0.5, 0.5);
     }
     pointObject.visible = true;
+    console.log(pointObject);
+    console.log(pointObject.material);
+    if (pointObject.material) {
+      const c = pointObject.material.color; // current Color object
+      c.offsetHSL(0.05, 0.2, 0.0); // small hue & saturation shift
+      pointObject.material.needsUpdate = true;
+    }
     APP.world.scene.add(pointObject); // Add the new point object to the scene
     this.thisRoundPointObjectBySeat[seatNum] = pointObject;
   }
@@ -689,9 +699,9 @@ export class NimproSystem {
         seat.object3D.getWorldQuaternion(selfSeatQua);
         const selfEyePos = selfSeatPos.clone().add(new Vector3(0, 1.5, 0)); // Eye position at 1.5 units height
         const offset = new Vector3(0, 0, 0.35).applyQuaternion(selfSeatQua); // Offset 1 unit in front of the seat
-        obj.position.add(new Vector3(offset.x, -1.1, offset.z)); // Adjust position
+        obj.position.add(new Vector3(offset.x, -1, offset.z)); // Adjust position
         obj.lookAt(selfEyePos); // Make text face participant
-        obj.scale.set(0.3, 0.3, 0.3);
+        obj.scale.set(0.4, 0.4, 0.4);
       }
       obj.visible = true; // Ensure all objects are visible
       obj.updateMatrix();
