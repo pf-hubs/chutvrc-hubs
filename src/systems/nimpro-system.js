@@ -581,8 +581,8 @@ export class NimproSystem {
       .add(left.clone().multiplyScalar(offsetFromCenter));
 
     // Set positions of the buttons, adjusted for height
-    this.yesButton.setPosition(yesObjectPosition.add(new Vector3(0, 1.35, 0)));
-    this.noButton.setPosition(noObjectPosition.add(new Vector3(0, 1.35, 0)));
+    this.yesButton.setPosition(yesObjectPosition.add(new Vector3(0, 1.25, 0)));
+    this.noButton.setPosition(noObjectPosition.add(new Vector3(0, 1.25, 0)));
   }
 
   /**
