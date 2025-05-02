@@ -115,7 +115,7 @@ export class NimproSystem {
             this.sendNimproMessage({ messageType: "pID", seatNum: this.seatNum, value: APP.sfu._clientId });
           }
         } else {
-          this.setAnswerButtonsVisibility(false);
+          this.switchAnswerEnabledState(false);
           // Unoccupy waypoints for seats
           const waypointSystem = APP.scene.systems["hubs-systems"].waypointSystem;
           WaypointSystem.unoccupyWaypoints(waypointSystem.ready.filter(wp => wp.el.className.includes("N-impro-seat")));
@@ -157,7 +157,7 @@ export class NimproSystem {
         break;
       case "buttonVis": // value: "0" | "1"
         // Control visibility of answer buttons
-        this.setAnswerButtonsVisibility(value === "1");
+        this.switchAnswerEnabledState(value === "1");
         if (!this.isAdmin && value === "1") {
           for (const seatNum in this.thisRoundPointObjectBySeat) {
             this.saveThisRoundPointObject(seatNum);
@@ -501,18 +501,38 @@ export class NimproSystem {
 
   /**
    * Set visibility of answer buttons for participants
-   * @param {boolean} isVisible - Whether the buttons should be visible
+   * @param {boolean} isEnabled - Whether the answering function should be enabled
    */
-  static setAnswerButtonsVisibility(isVisible) {
+  static switchAnswerEnabledState(isEnabled) {
     if (this.yesButton) {
       this.yesButton.resetActiveState();
-      this.yesButton.buttonMesh.visible = isVisible;
+      this.yesButton.buttonMesh.visible = isEnabled;
     }
     if (this.noButton) {
       this.noButton.resetActiveState();
-      this.noButton.buttonMesh.visible = isVisible;
+      this.noButton.buttonMesh.visible = isEnabled;
     }
     this.currentActiveButton = "";
+
+    if (isEnabled) {
+      window.addEventListener("keydown", this.handleYesKey.bind(this));
+      window.addEventListener("keydown", this.handleNoKey.bind(this));
+    } else {
+      window.removeEventListener("keydown", this.handleYesKey.bind(this));
+      window.removeEventListener("keydown", this.handleNoKey.bind(this));
+    }
+  }
+
+  static handleYesKey(e) {
+    if (e.code === "ArrowLeft") {
+      this.handleButtonClick("yes");
+    }
+  }
+
+  static handleNoKey(e) {
+    if (e.code === "ArrowRight") {
+      this.handleButtonClick("no");
+    }
   }
 
   /**
@@ -554,7 +574,7 @@ export class NimproSystem {
     );
 
     // Hide buttons initially
-    this.setAnswerButtonsVisibility(false);
+    this.switchAnswerEnabledState(false);
 
     // Position the buttons relative to the seat
     const seatPos = new Vector3();
@@ -563,7 +583,7 @@ export class NimproSystem {
     seat.object3D.getWorldQuaternion(seatQua);
 
     const seatForward = new THREE.Vector3(0, 0, -1).applyQuaternion(seatQua);
-    const right = new THREE.Vector3(0.5, 0, 0).applyQuaternion(seatQua);
+    const right = new THREE.Vector3(0.4, 0, 0).applyQuaternion(seatQua);
     const left = right.clone().negate();
 
     const distanceInFront = -0.5; // Distance in front of the seat
@@ -581,8 +601,8 @@ export class NimproSystem {
       .add(left.clone().multiplyScalar(offsetFromCenter));
 
     // Set positions of the buttons, adjusted for height
-    this.yesButton.setPosition(yesObjectPosition.add(new Vector3(0, 1.25, 0)));
-    this.noButton.setPosition(noObjectPosition.add(new Vector3(0, 1.25, 0)));
+    this.yesButton.setPosition(yesObjectPosition.add(new Vector3(0, 1.35, 0)));
+    this.noButton.setPosition(noObjectPosition.add(new Vector3(0, 1.35, 0)));
   }
 
   /**
@@ -602,8 +622,10 @@ export class NimproSystem {
     // Update the active button and current answer
     if (buttonType === "yes") {
       this.isCurrentAnswerYes = true;
+      this.yesButton.setButtonActive();
     } else if (buttonType === "no") {
       this.isCurrentAnswerYes = false;
+      this.noButton.setButtonActive();
     }
     // Store the answer locally
     this.answerBySeat[this.seatNum] = this.isCurrentAnswerYes;

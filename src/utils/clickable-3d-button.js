@@ -71,6 +71,11 @@ export class Clickable3DButton {
     }
   }
 
+  setButtonActive() {
+    this.isActive = true;
+    this.updateButtonColor();
+  }
+
   resetActiveState() {
     this.isActive = false;
     this.updateButtonColor();
