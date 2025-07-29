@@ -38,7 +38,7 @@ yarn --version
 (Ref: https://phoenixnap.com/kb/how-to-install-postgresql-on-ubuntu)
 
 1. Run:
-    ```elixir
+    ```bash
     sudo apt install postgresql postgresql-contrib
     psql --version
     sudo su - postgres
