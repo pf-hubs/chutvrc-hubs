@@ -153,8 +153,7 @@ Then exit
             config :ret, Ret.PermsToken, perms_key: "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
             ```
 10. Fix redirection path:
-    # reticulum/lib/ret_web/controllers/page_controller.ex
-    # Change this:
+    In `reticulum/lib/ret_web/controllers/page_controller.ex` , replace this function:
     ```elixir
     def render_for_path("/", params, conn) do
       if !Enum.empty?(params) || Ret.Account.has_accounts?() do
@@ -164,8 +163,7 @@ Then exit
       end
     end
     ```
-    
-    # To this:
+    with the code below:
     ```elixir
     def render_for_path("/", params, conn) do
       render_index
