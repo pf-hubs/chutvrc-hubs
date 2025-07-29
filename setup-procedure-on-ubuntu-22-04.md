@@ -81,7 +81,7 @@ yarn --version
     sudo make install_sw
     export KERL_CONFIGURE_OPTIONS="-with-ssl=/usr/local/ssl"
     ```
-    ```elixir
+    ```bash
     # and then install erlang
     cd ~/chutvrc/chutvrc-reticulum
     asdf install
