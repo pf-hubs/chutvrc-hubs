@@ -291,26 +291,26 @@ Then exit
     # The Ita service, for configuration schemas and updates. (In the future this
     # will probably be proxied through Reticulum.)
     
-    ITA_SERVER="https://**your.domain**:3333" **# or "https://localhost:3333"**
+    ITA_SERVER="https://your.domain:3333" # or "https://localhost:3333"
     
     # The Reticulum backend to connect to. Used for storing information about active hubs.
     # See here for the server code: https://github.com/mozilla/reticulum
-    RETICULUM_SERVER="**your.domain**:4000" **# or "https://localhost:4000"**
+    RETICULUM_SERVER="your.domain:4000" # or "https://localhost:4000"
     
     # PostgREST server configured to allow administrative access to the db.
     # POSTGREST_SERVER="https://localhost:4000/api/postgrest"
-    POSTGREST_SERVER="https://**your.domain**/api/postgrest" # **not** your.domain**:4000**
+    POSTGREST_SERVER="https://your.domain/api/postgrest" # not your.domain:4000
     
     # BASE_ASSETS_PATH="https://localhost:8989/"
-    BASE_ASSETS_PATH="https://**your.domain**:8989/"
+    BASE_ASSETS_PATH="https://your.domain:8989/"
     
     # If running on local
-    INTERNAL_HOSTNAME="**localhost**"
-    HOST_IP="**localhost**"
+    INTERNAL_HOSTNAME="localhost"
+    HOST_IP="localhost"
     
     # If running on dev/prod
-    INTERNAL_HOSTNAME="**your.PRIVATE.ip.address**" # "**your.domain**" also works?
-    HOST_IP="**your.PRIVATE.ip.address**" # "**your.domain**" also works?
+    INTERNAL_HOSTNAME="your.PRIVATE.ip.address" # "your.domain" also works?
+    HOST_IP="your.PRIVATE.ip.address" # "your.domain" also works?
     ```
 
 ## Setup SSL
