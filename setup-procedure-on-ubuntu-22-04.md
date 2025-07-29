@@ -445,31 +445,35 @@ server {
 
 ### Local
 
-Reticulum: `./scripts/run-local.sh`
+- Reticulum: `./scripts/run-local.sh`
+- Hubs: `npm run local` 
+- Admin: `npm run local` 
+- Dialog: `nvm use v18 && npm run local`
+- Spoke: `nvm use v16 && ./scripts/run-local-reticulum.sh`
+- postgREST: `./postgrest reticulum.conf` inside Reticulum folder
 
-Hubs / Admin: `npm run local` 
-
-Dialog: `nvm use v18 && npm run local`
-
-Spoke: `nvm use v16 && ./scripts/run-local-reticulum.sh`
-
-postgREST: `./postgrest reticulum.conf` inside Reticulum folder
-
-Open browser and access `https://localhost:4000`
+Then open browser and access `https://localhost:4000`
 
 ### dev/prod
 
-Reticulum: `./scripts/run-dev.sh`
+- **Reticulum**: `./scripts/run-dev.sh`
+        <img width="1109" height="552" alt="image" src="https://github.com/user-attachments/assets/f67e5dfa-c22b-463b-9a94-2427bee87dff" />
+- **Hubs**: `npm run dev`
+        <img width="1104" height="554" alt="image" src="https://github.com/user-attachments/assets/8519f092-a833-438a-a123-e032b7766b86" />
+- **Admin**: `npm run dev`
+        <img width="1111" height="684" alt="image" src="https://github.com/user-attachments/assets/60f796ee-444e-43e0-8959-975d55ef221a" />
+- **Dialog**: `nvm use v18 && npm run prod`
+        <img width="1095" height="120" alt="image" src="https://github.com/user-attachments/assets/57184b6c-f020-4a41-85f2-9f33d5bb34a1" />
+        (omission)
+        <img width="1105" height="132" alt="image" src="https://github.com/user-attachments/assets/ab4ebc1c-4514-4776-9386-6942a0a52623" />
+- **Spoke**: `nvm use v16 && ./scripts/run-dev-reticulum.sh`
+        <img width="1108" height="492" alt="image" src="https://github.com/user-attachments/assets/bf5275c9-0c12-4141-976e-8d9234efd387" />
+        (omission)
+        <img width="1105" height="364" alt="image" src="https://github.com/user-attachments/assets/2d2af980-b162-4452-b85e-557d8998875a" />
+- **postgREST**: `./postgrest reticulum.conf` inside Reticulum folder
+        <img width="1106" height="135" alt="image" src="https://github.com/user-attachments/assets/990dbdfc-422f-483f-8a59-5ce90814dd11" />
 
-Hubs / Admin: `npm run dev`
-
-Dialog: `nvm use v18 && npm run prod`
-
-Spoke: `nvm use v16 && ./scripts/run-dev-reticulum.sh`
-
-postgREST: `./postgrest reticulum.conf` inside Reticulum folder
-
-Open browser and access [`https://your.domain`](https://your.domain) (port number not required)
+Then open browser and access [`https://your.domain`](https://your.domain) (port number not required)
 
 ## Set the first account as an admin
 
