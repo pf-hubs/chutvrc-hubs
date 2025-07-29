@@ -7,7 +7,7 @@
 
 ### NodeJS, npm
 
-```elixir
+```bash
 sudo apt install -y nodejs npm
 sudo npm install n -g
 sudo n 16.16.0
