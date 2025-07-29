@@ -130,7 +130,7 @@ output:
 6. inside postgres cli: `ALTER USER postgres WITH PASSWORD 'postgres';`
 Then exit
 7. Run:
-    ```elixir
+    ```bash
     mix ecto.create
     mkdir -p storage/dev
     ```
