@@ -45,7 +45,7 @@ yarn --version
     psql postgres
     ```
 2. inside postgres cli:
-    ```elixir
+    ```sql
     ALTER USER postgres WITH ENCRYPTED PASSWORD 'postgres';
     ALTER USER postgres WITH SUPERUSER;
     ```
