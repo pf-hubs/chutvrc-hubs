@@ -122,7 +122,7 @@ output:
       password: "" # fill in your email account password
     ```
 5. Run:
-    ```elixir
+    ```bash
     mix deps.get
     sudo su - postgres
     psql postgres
