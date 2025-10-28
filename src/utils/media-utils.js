@@ -47,12 +47,12 @@ const mediaAPIEndpoint = getReticulumFetchUrl("/api/v1/media");
 const getDirectMediaAPIEndpoint = () => getDirectReticulumFetchUrl("/api/v1/media");
 
 const isMobile = AFRAME.utils.device.isMobile();
-const isMobileVR = AFRAME.utils.device.isMobile();
+const isThisMobileVR = AFRAME.utils.device.isMobileVR();
 
 // Map<String, Promise<Object>
 const resolveUrlCache = new Map();
 export const getDefaultResolveQuality = (is360 = false) => {
-  const useLowerQuality = isMobile || isMobileVR;
+  const useLowerQuality = isMobile || isThisMobileVR;
   return !is360 ? (useLowerQuality ? "low" : "high") : useLowerQuality ? "low_360" : "high_360";
 };
 
@@ -70,7 +70,7 @@ export const resolveUrl = async (url, quality = null, version = 1, bustCache) =>
       try {
         const body = await response.text();
         throw new Error(message + " " + body);
-      } catch (e) {
+      } catch {
         throw new Error(message + " " + response.statusText);
       }
     }
@@ -593,10 +593,11 @@ export function parseURL(text) {
   let url;
   try {
     url = new URL(text);
-  } catch (e) {
+  } catch {
     try {
       url = new URL(`https://${text}`);
     } catch (e) {
+      console.warn("invalid URL ", e);
       return null;
     }
   }

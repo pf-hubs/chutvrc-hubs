@@ -145,11 +145,14 @@ AFRAME.registerComponent("media-video", {
         // annoying "auto-pause" feature that forces one non-autoplaying video to play
         // at once, which will pause the videos for everyone in the room if owned.
         if (!isIOS && NAF.utils.getNetworkOwner(this.networkedEl) === "scene") {
-          setTimeout(() => {
-            if (NAF.utils.getNetworkOwner(this.networkedEl) === "scene") {
-              NAF.utils.takeOwnership(this.networkedEl);
-            }
-          }, 2000 + Math.floor(Math.random() * 2000));
+          setTimeout(
+            () => {
+              if (NAF.utils.getNetworkOwner(this.networkedEl) === "scene") {
+                NAF.utils.takeOwnership(this.networkedEl);
+              }
+            },
+            2000 + Math.floor(Math.random() * 2000)
+          );
         }
       })
       .catch(() => {
@@ -368,7 +371,7 @@ AFRAME.registerComponent("media-video", {
 
     // Make sure that the audio is initialized to the right place.
     // Its matrix may not update if this element is not visible.
-    // See https://github.com/mozilla/hubs/issues/2855
+    // See https://github.com/Hubs-Foundation/hubs/issues/2855
     this.audio.updateMatrixWorld();
 
     APP.audios.set(this.el, this.audio);
@@ -409,7 +412,7 @@ AFRAME.registerComponent("media-video", {
 
       this.mediaElementAudioSource = null;
       if (!src.startsWith("hubs://")) {
-        // iOS video audio is broken on ios safari < 13.1.2, see: https://github.com/mozilla/hubs/issues/1797
+        // iOS video audio is broken on ios safari < 13.1.2, see: https://github.com/Hubs-Foundation/hubs/issues/1797
         if (!isIOS || semver.satisfies(detect().version, ">=13.1.2")) {
           // TODO FF error here if binding mediastream: The captured HTMLMediaElement is playing a MediaStream. Applying volume or mute status is not currently supported -- not an issue since we have no audio atm in shared video.
           this.mediaElementAudioSource =

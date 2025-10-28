@@ -11,7 +11,10 @@ import { Column } from "../layout/Column";
 export function AvatarUrlModal({ onSubmit, onClose }) {
   const { handleSubmit, register } = useForm();
   return (
-    <Modal title="Custom Avatar URL" beforeTitle={<CloseButton onClick={onClose} />}>
+    <Modal
+      title={<FormattedMessage id="avatar-url-modal.title" defaultMessage="Custom Avatar URL" />}
+      beforeTitle={<CloseButton onClick={onClose} />}
+    >
       <Column as="form" padding center onSubmit={handleSubmit(onSubmit)}>
         <TextInputField
           label={<FormattedMessage id="avatar-url-modal.avatar-url-label" defaultMessage="Avatar GLB URL" />}
@@ -21,7 +24,7 @@ export function AvatarUrlModal({ onSubmit, onClose }) {
             required: true
           })}
           description={
-            <a href="https://hubs.mozilla.com/docs/intro-avatars.html" target="_blank" rel="noopener noreferrer">
+            <a href="https://docs.hubsfoundation.org/intro-avatars.html" target="_blank" rel="noopener noreferrer">
               <FormattedMessage
                 id="avatar-url-modal.custom-avatar-docs-link"
                 defaultMessage="Learn more about custom avatars"

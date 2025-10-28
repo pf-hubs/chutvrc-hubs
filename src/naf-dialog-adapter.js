@@ -698,33 +698,26 @@ export class DialogAdapter extends SfuAdapter {
       proprietaryConstraints: PC_PROPRIETARY_CONSTRAINTS
     });
 
-    this._sendTransport.on(
-      "connect",
-      (
-        { dtlsParameters },
-        callback,
-        errback // eslint-disable-line no-shadow
-      ) => {
-        this.emitRTCEvent("info", "RTC", () => `Send transport [connect]`);
-        this._sendTransport.observer.on("close", () => {
-          this.emitRTCEvent("info", "RTC", () => `Send transport [close]`);
-        });
-        this._sendTransport.observer.on("newproducer", producer => {
-          this.emitRTCEvent("info", "RTC", () => `Send transport [newproducer]: ${producer.id}`);
-        });
-        this._sendTransport.observer.on("newconsumer", consumer => {
-          this.emitRTCEvent("info", "RTC", () => `Send transport [newconsumer]: ${consumer.id}`);
-        });
+    this._sendTransport.on("connect", ({ dtlsParameters }, callback, errback) => {
+      this.emitRTCEvent("info", "RTC", () => `Send transport [connect]`);
+      this._sendTransport.observer.on("close", () => {
+        this.emitRTCEvent("info", "RTC", () => `Send transport [close]`);
+      });
+      this._sendTransport.observer.on("newproducer", producer => {
+        this.emitRTCEvent("info", "RTC", () => `Send transport [newproducer]: ${producer.id}`);
+      });
+      this._sendTransport.observer.on("newconsumer", consumer => {
+        this.emitRTCEvent("info", "RTC", () => `Send transport [newconsumer]: ${consumer.id}`);
+      });
 
-        this._protoo
-          .request("connectWebRtcTransport", {
-            transportId: this._sendTransport.id,
-            dtlsParameters
-          })
-          .then(callback)
-          .catch(errback);
-      }
-    );
+      this._protoo
+        .request("connectWebRtcTransport", {
+          transportId: this._sendTransport.id,
+          dtlsParameters
+        })
+        .then(callback)
+        .catch(errback);
+    });
 
     this._sendTransport.on("connectionstatechange", connectionState => {
       let level = "info";
@@ -739,7 +732,6 @@ export class DialogAdapter extends SfuAdapter {
     this._sendTransport.on("produce", async ({ kind, rtpParameters, appData }, callback, errback) => {
       this.emitRTCEvent("info", "RTC", () => `Send transport [produce]: ${kind}`);
       try {
-        // eslint-disable-next-line no-shadow
         const { id } = await this._protoo.request("produce", {
           transportId: this._sendTransport.id,
           kind,
@@ -819,33 +811,26 @@ export class DialogAdapter extends SfuAdapter {
       iceTransportPolicy: this._iceTransportPolicy
     });
 
-    this._recvTransport.on(
-      "connect",
-      (
-        { dtlsParameters },
-        callback,
-        errback // eslint-disable-line no-shadow
-      ) => {
-        this.emitRTCEvent("info", "RTC", () => `Receive transport [connect]`);
-        this._recvTransport.observer.on("close", () => {
-          this.emitRTCEvent("info", "RTC", () => `Receive transport [close]`);
-        });
-        this._recvTransport.observer.on("newproducer", producer => {
-          this.emitRTCEvent("info", "RTC", () => `Receive transport [newproducer]: ${producer.id}`);
-        });
-        this._recvTransport.observer.on("newconsumer", consumer => {
-          this.emitRTCEvent("info", "RTC", () => `Receive transport [newconsumer]: ${consumer.id}`);
-        });
+    this._recvTransport.on("connect", ({ dtlsParameters }, callback, errback) => {
+      this.emitRTCEvent("info", "RTC", () => `Receive transport [connect]`);
+      this._recvTransport.observer.on("close", () => {
+        this.emitRTCEvent("info", "RTC", () => `Receive transport [close]`);
+      });
+      this._recvTransport.observer.on("newproducer", producer => {
+        this.emitRTCEvent("info", "RTC", () => `Receive transport [newproducer]: ${producer.id}`);
+      });
+      this._recvTransport.observer.on("newconsumer", consumer => {
+        this.emitRTCEvent("info", "RTC", () => `Receive transport [newconsumer]: ${consumer.id}`);
+      });
 
-        this._protoo
-          .request("connectWebRtcTransport", {
-            transportId: this._recvTransport.id,
-            dtlsParameters
-          })
-          .then(callback)
-          .catch(errback);
-      }
-    );
+      this._protoo
+        .request("connectWebRtcTransport", {
+          transportId: this._recvTransport.id,
+          dtlsParameters
+        })
+        .then(callback)
+        .catch(errback);
+    });
 
     this._recvTransport.on("connectionstatechange", connectionState => {
       let level = "info";

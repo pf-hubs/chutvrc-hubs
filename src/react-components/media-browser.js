@@ -18,7 +18,7 @@ import { proxiedUrlFor, scaledThumbnailUrlFor } from "../utils/media-url-utils";
 import { CreateTile, MediaTile } from "./room/MediaTiles";
 import { SignInMessages } from "./auth/SignInModal";
 const isMobile = AFRAME.utils.device.isMobile();
-const isMobileVR = AFRAME.utils.device.isMobileVR();
+const isThisMobileVR = AFRAME.utils.device.isMobileVR();
 
 const PRIVACY_POLICY_LINKS = {
   videos: "https://privacy.microsoft.com/en-us/privacystatement",
@@ -176,7 +176,7 @@ class MediaBrowserContainer extends Component {
   };
 
   sourceChanged = () => {
-    if (this.inputRef && !isMobile && !isMobileVR) {
+    if (this.inputRef && !isMobile && !isThisMobileVR) {
       this.inputRef.focus();
     }
   };
@@ -420,7 +420,7 @@ class MediaBrowserContainer extends Component {
             <a
               target="_blank"
               rel="noopener noreferrer"
-              href={configs.link("issue_report", "https://hubs.mozilla.com/docs/help.html")}
+              href={configs.link("issue_report", "https://docs.hubsfoundation.org/help.html")}
             >
               <FormattedMessage id="media-browser.report-issue" defaultMessage="Report Issue" />
             </a>
@@ -434,7 +434,7 @@ class MediaBrowserContainer extends Component {
         browserRef={r => (this.browserDiv = r)}
         onClose={this.close}
         searchInputRef={r => (this.inputRef = r)}
-        autoFocusSearch={!isMobile && !isMobileVR}
+        autoFocusSearch={!isMobile && !isThisMobileVR}
         query={this.state.query}
         onChangeQuery={e => this.handleQueryUpdated(e.target.value)}
         onSearchKeyDown={e => {

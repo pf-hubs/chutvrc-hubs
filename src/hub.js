@@ -10,7 +10,6 @@ import configs from "./utils/configs";
 import "./utils/theme";
 
 import "core-js/stable";
-import "regenerator-runtime/runtime";
 
 console.log(
   `App version: ${
@@ -226,7 +225,7 @@ const NOISY_OCCUPANT_COUNT = 30; // Above this # of occupants, we stop posting j
 
 const qs = new URLSearchParams(location.search);
 const isMobile = AFRAME.utils.device.isMobile();
-const isMobileVR = AFRAME.utils.device.isMobileVR();
+const isThisMobileVR = AFRAME.utils.device.isMobileVR();
 const isEmbed = window.self !== window.top;
 if (isEmbed && !qs.get("embed_token")) {
   // Should be covered by X-Frame-Options, but just in case.
@@ -778,6 +777,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (e) {
+      console.warn("standard API for microphone didn't work, falling back to another approach ", e);
       remountUI({ showSafariMicDialog: true });
       return;
     }
@@ -915,7 +915,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // If VR headset is activated, refreshing page will fire vrdisplayactivate
     // which puts A-Frame in VR mode, so exit VR mode whenever it is attempted
     // to be entered and we haven't entered the room yet.
-    if (scene.is("vr-mode") && !scene.is("vr-entered") && !isMobileVR) {
+    if (scene.is("vr-mode") && !scene.is("vr-entered") && !isThisMobileVR) {
       console.log("Pre-emptively exiting VR mode.");
       scene.exitVR();
       return true;
@@ -928,7 +928,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   scene.addEventListener("enter-vr", () => {
     if (handleEarlyVRMode()) return true;
 
-    if (isMobileVR) {
+    if (isThisMobileVR) {
       // Optimization, stop drawing UI if not visible
       remountUI({ hide: true });
     }
@@ -937,7 +937,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     availableVREntryTypesPromise.then(availableVREntryTypes => {
       // Don't stretch canvas on cardboard, since that's drawing the actual VR view :)
-      if ((!isMobile && !isMobileVR) || availableVREntryTypes.cardboard !== VR_DEVICE_AVAILABILITY.yes) {
+      if ((!isMobile && !isThisMobileVR) || availableVREntryTypes.cardboard !== VR_DEVICE_AVAILABILITY.yes) {
         document.body.classList.add("vr-mode-stretch");
       }
     });
@@ -1052,7 +1052,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   availableVREntryTypesPromise.then(async availableVREntryTypes => {
-    if (isMobileVR) {
+    if (isThisMobileVR) {
       remountUI({
         availableVREntryTypes,
         forcedVREntryType: qsVREntryType || "vr",
@@ -1147,7 +1147,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       pushSubscriptionEndpoint,
       permsToken,
       isMobile,
-      isMobileVR,
+      isMobileVR: isThisMobileVR,
       isEmbed,
       hubInviteId: qs.get("hub_invite_id"),
       authToken: store.state.credentials && store.state.credentials.token

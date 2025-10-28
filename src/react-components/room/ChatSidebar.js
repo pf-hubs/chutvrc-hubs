@@ -7,6 +7,7 @@ import { ReactComponent as WandIcon } from "../icons/Wand.svg";
 import { ReactComponent as AttachIcon } from "../icons/Attach.svg";
 import { ReactComponent as SendIcon } from "../icons/Send.svg";
 import { ReactComponent as ReactionIcon } from "../icons/Reaction.svg";
+import { ReactComponent as ShareIcon } from "../icons/Share.svg";
 import { IconButton } from "../input/IconButton";
 import { TextAreaInput } from "../input/TextAreaInput";
 import { Popover } from "../popover/Popover";
@@ -15,6 +16,8 @@ import styles from "./ChatSidebar.scss";
 import { formatMessageBody } from "../../utils/chat-message";
 import { FormattedMessage, useIntl, defineMessages, FormattedRelativeTime } from "react-intl";
 import { permissionMessage } from "./PermissionNotifications";
+import { share } from "../../utils/share";
+import configs from "../../utils/configs";
 
 export function SpawnMessageButton(props) {
   return (
@@ -377,7 +380,21 @@ MessageBubble.propTypes = {
   permission: PropTypes.bool
 };
 
-function getMessageComponent(message) {
+function getMessageComponent(message, intl) {
+  const onShareClick = async () => {
+    try {
+      await share({
+        url: message.body?.src,
+        title: intl.formatMessage(
+          { id: "photo-message.default-tweet", defaultMessage: "Taken in {shareHashtag}" },
+          { shareHashtag: configs.translation("share-hashtag") }
+        )
+      });
+    } catch (error) {
+      console.error(`while sharing (from chat sidebar):`, error);
+    }
+  };
+
   switch (message.type) {
     case "chat": {
       const { formattedBody, monospace, emoji } = formatMessageBody(message.body);
@@ -389,16 +406,34 @@ function getMessageComponent(message) {
     }
     case "video":
       return (
-        <MessageBubble key={message.id} media>
-          <video controls src={message.body.src} />
-        </MessageBubble>
+        <div className={styles.messageRow}>
+          <MessageBubble key={message.id} media>
+            <video controls src={message.body.src} />
+          </MessageBubble>
+          <IconButton
+            className={styles.iconButton}
+            onClick={onShareClick}
+            title={intl.formatMessage({ id: "share-popover.title", defaultMessage: "Share" })}
+          >
+            <ShareIcon />
+          </IconButton>
+        </div>
       );
     case "image":
     case "photo":
       return (
-        <MessageBubble key={message.id} media>
-          <img src={message.body.src} />
-        </MessageBubble>
+        <div className={styles.messageRow}>
+          <MessageBubble key={message.id} media>
+            <img src={message.body.src} />
+          </MessageBubble>
+          <IconButton
+            className={styles.iconButton}
+            onClick={onShareClick}
+            title={intl.formatMessage({ id: "share-popover.title", defaultMessage: "Share" })}
+          >
+            <ShareIcon />
+          </IconButton>
+        </div>
       );
     case "permission":
       return (
@@ -418,7 +453,11 @@ export function ChatMessageGroup({ sent, sender, timestamp, messages }) {
       <p className={styles.messageGroupLabel}>
         {sender} | <FormattedRelativeTime updateIntervalInSeconds={10} value={(timestamp - Date.now()) / 1000} />
       </p>
-      <ul className={styles.messageGroupMessages}>{messages.map(message => getMessageComponent(message, intl))}</ul>
+      <ul className={styles.messageGroupMessages}>
+        {messages.map(message => (
+          <li key={message.id}>{getMessageComponent(message, intl)}</li>
+        ))}
+      </ul>
     </li>
   );
 }
@@ -439,15 +478,17 @@ export function PermissionMessageGroup({ sent, timestamp, messages }) {
       </p>
       <ul className={styles.messageGroupMessages}>
         {messages.map(message => (
-          <MessageBubble key={message.id} permission>
-            {permissionMessage(
-              {
-                permission: message.body.permission,
-                status: message.body.status
-              },
-              intl
-            )}
-          </MessageBubble>
+          <li key={message.id}>
+            <MessageBubble permission>
+              {permissionMessage(
+                {
+                  permission: message.body.permission,
+                  status: message.body.status
+                },
+                intl
+              )}
+            </MessageBubble>
+          </li>
         ))}
       </ul>
     </li>

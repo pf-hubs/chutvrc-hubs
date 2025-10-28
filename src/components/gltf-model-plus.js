@@ -80,7 +80,6 @@ function defaultInflator(el, componentName, componentData) {
 }
 
 AFRAME.GLTFModelPlus = {
-  // eslint-disable-next-line no-unused-vars
   components: {},
   registerComponent(componentKey, componentName, inflator) {
     inflator = inflator || defaultInflator;
@@ -345,7 +344,7 @@ function getHubsComponentsExtension(node) {
   }
 }
 
-// Versions are documented here: https://github.com/mozilla/hubs/wiki/MOZ_hubs_components-Changelog
+// Versions are documented here: https://github.com/Hubs-Foundation/hubs/wiki/MOZ_hubs_components-Changelog
 // Make sure to update the wiki and Spoke when bumping a version
 function runMigration(version, json) {
   if (version < 2) {
@@ -478,7 +477,7 @@ class GLTFHubsPlugin {
            * This guarantees that components that add Object3Ds (ie. through addObject3DComponent) are not attached to non-Object3D
            * entities as it's not supported in the BitECS loader.
            * This was supported by the AFrame loader so this extension ensures backwards compatibility with all the existing scenes.
-           * For more context about this see: https://github.com/mozilla/hubs/pull/6121
+           * For more context about this see: https://github.com/Hubs-Foundation/hubs/pull/6121
            */
           if (
             node.mesh !== undefined ||
@@ -744,7 +743,7 @@ class GLTFMozTextureRGBE {
   }
 }
 
-// Mozilla Hubs loop-animation component has a problem in the spec.
+// Hubs loop-animation component has a problem in the spec.
 // The loop-animation component can refer to glTF.animations with
 // animation names but the glTF specification allows non-unique names
 // in glTF.animations so if there are multiple glTF.animations that
@@ -757,7 +756,7 @@ class GLTFMozTextureRGBE {
 // have the same animation data and loop-component refers to the
 // first glTF.animation of the ones having the same name. This
 // plugin follows the assumption for the compatibility.
-// Refer to https://github.com/mozilla/hubs/pull/6153 for details.
+// Refer to https://github.com/Hubs-Foundation/hubs/pull/6153 for details.
 // TODO: Deprecate the loop-animation animation reference with name
 class GLTFHubsLoopAnimationComponent {
   constructor(parser) {

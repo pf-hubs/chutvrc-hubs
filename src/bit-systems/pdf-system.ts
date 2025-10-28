@@ -1,5 +1,5 @@
 import { addComponent, defineQuery, enterQuery, exitQuery, hasComponent, removeComponent } from "bitecs";
-import { GlobalWorkerOptions, PDFPageProxy } from "pdfjs-dist";
+import { getDocument, GlobalWorkerOptions, PDFPageProxy } from "pdfjs-dist";
 import { Object3D } from "three";
 import { HubsWorld } from "../app";
 import { MediaPDF, MediaPDFUpdated, NetworkedPDF, Owned } from "../bit-components";

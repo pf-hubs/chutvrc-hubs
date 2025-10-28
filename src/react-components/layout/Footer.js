@@ -27,11 +27,10 @@ export function Footer({
             false && (
               <FormattedMessage
                 id="footer.powered-by"
-                defaultMessage="Powered by <a>Mozilla Hubs</a>"
+                defaultMessage="Powered by <a>Hubs</a>"
                 values={{
-                  // eslint-disable-next-line react/display-name
                   a: chunks => (
-                    <a className={styles.link} href="https://hubs.mozilla.com">
+                    <a className={styles.link} href="https://hubsfoundation.org">
                       {chunks}
                     </a>
                   )
@@ -66,14 +65,14 @@ export function Footer({
             )}
             {isHmc && (
               <li>
-                <a target="_blank" rel="noopener noreferrer" href={"https://shop.spreadshirt.com/mozillaMR/"}>
-                  <FormattedMessage id="footer.hubs-merch" defaultMessage="Hubs Merch" />
+                <a target="_blank" rel="noopener noreferrer" href={"https://hubsfoundation.org"}>
+                  <FormattedMessage id="footer.hubs-merch" defaultMessage="Hubs Merch (TBD)" />
                 </a>
               </li>
             )}
             {isHmc && (
               <li>
-                <a target="_blank" rel="noopener noreferrer" href={"https://hubs.mozilla.com/docs/hubs-faq.html"}>
+                <a target="_blank" rel="noopener noreferrer" href={"https://docs.hubsfoundation.org/hubs-faq.html"}>
                   <FormattedMessage id="footer.FAQ" defaultMessage="FAQ" />
                 </a>
               </li>

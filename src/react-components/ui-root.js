@@ -122,7 +122,7 @@ async function grantedMicLabels() {
 }
 
 const isMobile = AFRAME.utils.device.isMobile();
-const isMobileVR = AFRAME.utils.device.isMobileVR();
+const isThisMobileVR = AFRAME.utils.device.isMobileVR();
 const AUTO_EXIT_TIMER_SECONDS = 10;
 
 class UIRoot extends Component {
@@ -265,7 +265,7 @@ class UIRoot extends Component {
               });
             } catch (e) {
               console.error(e);
-              this.props.exitScene(ExitReason.sceneError); // https://github.com/mozilla/hubs/issues/1950
+              this.props.exitScene(ExitReason.sceneError); // https://github.com/Hubs-Foundation/hubs/issues/1950
             }
           }
 
@@ -864,7 +864,7 @@ class UIRoot extends Component {
               this.handleForceEntry();
             }
           }}
-          showEnterOnDevice={!this.state.waitingOnAudio && !this.props.entryDisallowed && !isMobileVR}
+          showEnterOnDevice={!this.state.waitingOnAudio && !this.props.entryDisallowed && !isThisMobileVR}
           onEnterOnDevice={() => this.attemptLink()}
           showSpectate={!this.state.waitingOnAudio}
           onSpectate={() => this.setState({ watching: true })}
@@ -1135,7 +1135,8 @@ class UIRoot extends Component {
 
     const canCreateRoom = !configs.feature("disable_room_creation") || configs.isAdmin();
     const canCloseRoom = this.props.hubChannel && !!this.props.hubChannel.canOrWillIfCreator("close_hub");
-    const isModerator = this.props.hubChannel && this.props.hubChannel.canOrWillIfCreator("kick_users") && !isMobileVR;
+    const isModerator =
+      this.props.hubChannel && this.props.hubChannel.canOrWillIfCreator("kick_users") && !isThisMobileVR;
 
     const canAccessPublicSpeaking =
       APP.sfu && APP.hubChannel.presence?.state[APP.sfu._clientId]?.metas[0].roles["owner"];
@@ -1210,7 +1211,7 @@ class UIRoot extends Component {
               id: "see-plans",
               label: <FormattedMessage id="more-menu.see-plans-cta" defaultMessage="See Plans" />,
               icon: { src: hubsLogo, alt: "Logo" },
-              href: "https://hubs.mozilla.com/#subscribe"
+              href: "https://hubsfoundation.org/getting-started"
             }
         ].filter(item => item)
       },
@@ -1301,7 +1302,7 @@ class UIRoot extends Component {
             id: "report-issue",
             label: <FormattedMessage id="more-menu.report-issue" defaultMessage="Report Issue" />,
             icon: WarningCircleIcon,
-            href: configs.link("issue_report", "https://hubs.mozilla.com/docs/help.html")
+            href: configs.link("issue_report", "https://docs.hubsfoundation.org/help.html")
           },
           entered && {
             id: "start-tour",
@@ -1313,13 +1314,13 @@ class UIRoot extends Component {
             id: "help",
             label: <FormattedMessage id="more-menu.help" defaultMessage="Help" />,
             icon: SupportIcon,
-            href: configs.link("docs", "https://hubs.mozilla.com/docs")
+            href: configs.link("docs", "https://docs.hubsfoundation.org")
           },
           configs.feature("show_controls_link") && {
             id: "controls",
             label: <FormattedMessage id="more-menu.controls" defaultMessage="Controls" />,
             icon: SupportIcon,
-            href: configs.link("controls", "https://hubs.mozilla.com/docs/hubs-controls.html")
+            href: configs.link("controls", "https://docs.hubsfoundation.org/hubs-controls.html")
           },
           configs.feature("show_whats_new_link") && {
             id: "whats-new",
@@ -1660,7 +1661,7 @@ class UIRoot extends Component {
                       />
                     )}
                     {!isLockedDownDemo && <RecordingButton />}
-                    {entered && isMobileVR && (
+                    {entered && isThisMobileVR && (
                       <ToolbarButton
                         className={styleUtils.hideLg}
                         icon={<VRIcon />}
@@ -1676,7 +1677,7 @@ class UIRoot extends Component {
                 }
                 toolbarRight={
                   <>
-                    {entered && isMobileVR && (
+                    {entered && isThisMobileVR && (
                       <ToolbarButton
                         icon={<VRIcon />}
                         preset="accept"

@@ -78,6 +78,7 @@ class ImportContentComponent extends Component {
       const type = isScene ? "scenes" : "avatars";
       return { url: `${parsedUrl.origin}/api/v1/${type}/${pathParts[2]}`, isScene };
     } catch (e) {
+      console.error("in apiInfoForSubmittedUrl:", e);
       return null;
     }
   }
@@ -215,6 +216,7 @@ class ImportContentComponent extends Component {
       try {
         res = await fetchReticulumAuthenticated(`/api/v1/${type}`, "POST", { url: importUrl });
       } catch (e) {
+        console.error("onImport:", e);
         this.setImportResult(url, RESULTS.failed);
         continue;
       }
@@ -441,8 +443,8 @@ class ImportContentComponent extends Component {
         <CardContent className={this.props.classes.info}>
           <Typography variant="body2" gutterBottom>
             You can import avatars and scenes from any other Hubs Cloud site, such as{" "}
-            <a href="https://hubs.mozilla.com" target="_blank" rel="noopener noreferrer">
-              hubs.mozilla.com
+            <a href="https://demo.hubsfoundation.org" target="_blank" rel="noopener noreferrer">
+              demo.hubsfoundation.org
             </a>
             .<br />
             Please ensure the content you import has a permissible license (such as{" "}
@@ -454,7 +456,7 @@ class ImportContentComponent extends Component {
           <Button
             className={this.props.classes.button}
             variant="outlined"
-            href="https://hubs.mozilla.com/docs/hubs-cloud-asset-packs.html"
+            href="https://docs.hubsfoundation.org/hubs-cloud-asset-packs.html"
             target="_blank"
             rel="noopener noreferrer"
           >

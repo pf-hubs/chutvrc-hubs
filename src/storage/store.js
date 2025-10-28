@@ -44,7 +44,7 @@ const defaultMaterialQuality = (function () {
 // use low audio panning quality (= equal power mode) by default
 // on Android as workaround until the root issue is fixed on
 // Android end. See
-//   - https://github.com/mozilla/hubs/issues/5057
+//   - https://github.com/Hubs-Foundation/hubs/issues/5057
 //   - https://bugs.chromium.org/p/chromium/issues/detail?id=1308962
 const defaultAudioPanningQuality = () => {
   return isAndroid() && !isMobileVR() ? "Low" : "High";
@@ -65,7 +65,7 @@ export const SCHEMA = {
       properties: {
         displayName: { type: "string", pattern: "^[A-Za-z0-9_~\\s\\-]{3,32}$" },
         avatarId: { type: "string" },
-        pronouns: { type: "string", pattern: "^([a-zA-Z]{1,32}\\/){0,4}[a-zA-Z]{1,32}$" },
+        pronouns: { type: "string", pattern: "^([a-zA-Z]{1,32}[\\/, ]\\s*){0,4}[a-zA-Z]{1,32}$" },
         // personalAvatarId is obsolete, but we need it here for backwards compatibility.
         personalAvatarId: { type: "string" }
       }

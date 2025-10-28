@@ -47,7 +47,7 @@ export async function getAvailableVREntryTypes() {
   const ua = navigator.userAgent;
   const isSamsungBrowser = browser.name === "chrome" && /SamsungBrowser/.test(ua);
   const isMobile = AFRAME.utils.device.isMobile();
-  const isMobileVR = AFRAME.utils.device.isMobileVR();
+  const isThisMobileVR = AFRAME.utils.device.isMobileVR();
 
   // This needs to be kept up-to-date with the latest browsers that can support VR and Hubs.
   // Checking for navigator.getVRDisplays always passes b/c of polyfill.
@@ -70,7 +70,7 @@ export async function getAvailableVREntryTypes() {
   let displays = [];
   try {
     // Skip getVRDisplays on desktop Chrome since the API is in a broken state there.
-    // See https://github.com/mozilla/hubs/issues/892
+    // See https://github.com/Hubs-Foundation/hubs/issues/892
     if (browser.name !== "chrome" || isMobile) {
       // We pull the displays on non-WebVR capable mobile browsers so we can pick up cardboard.
       displays = isWebVRCapableBrowser || isCardboardCapableBrowser ? await navigator.getVRDisplays() : [];
@@ -81,11 +81,11 @@ export async function getAvailableVREntryTypes() {
 
   const isOculusBrowser = /Oculus/.test(ua);
 
-  const screen = isMobileVR
+  const screen = isThisMobileVR
     ? VR_DEVICE_AVAILABILITY.no
     : isIDevice && isUIWebView
-    ? VR_DEVICE_AVAILABILITY.maybe
-    : VR_DEVICE_AVAILABILITY.yes;
+      ? VR_DEVICE_AVAILABILITY.maybe
+      : VR_DEVICE_AVAILABILITY.yes;
 
   // HACK -- we prompt the user to install firefox if they click the VR button on a non-WebVR compatible
   // browser. Without this check if you have FF on Mac/Linux you'll get the confusing flow of having a
@@ -107,7 +107,7 @@ export async function getAvailableVREntryTypes() {
   // For daydream detection, we first check if they are on an Android compatible device, and assume they
   // may support daydream *unless* this browser has WebVR capabilities, in which case we can do better.
   let daydream =
-    isMaybeDaydreamCompatibleDevice(ua) && !isMobileVR ? VR_DEVICE_AVAILABILITY.maybe : VR_DEVICE_AVAILABILITY.no;
+    isMaybeDaydreamCompatibleDevice(ua) && !isThisMobileVR ? VR_DEVICE_AVAILABILITY.maybe : VR_DEVICE_AVAILABILITY.no;
 
   cardboard =
     isCardboardCapableBrowser && displays.find(d => d.capabilities.canPresent && /cardboard/i.test(d.displayName))

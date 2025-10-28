@@ -12,7 +12,7 @@ const ask = q => new Promise(res => rl.question(q, res));
 
 (async () => {
   console.log("Logging into Hubs Cloud.\n");
-  const host = await ask("Host (eg hubs.mozilla.com): ");
+  const host = await ask("Host (eg demo.hubsfoundation.org): ");
   if (!host) {
     console.log("Invalid host.");
     process.exit(1);
@@ -26,8 +26,8 @@ const ask = q => new Promise(res => rl.question(q, res));
     if (!meta.phx_host) {
       throw new Error();
     }
-  } catch (e) {
-    console.log("Sorry, that doesn't look like a Hubs Cloud server.");
+  } catch {
+    console.log("Sorry, that doesn't look like a Hubs Cloud server: ", url);
     process.exit(0);
   }
 
