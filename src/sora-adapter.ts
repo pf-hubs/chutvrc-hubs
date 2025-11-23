@@ -6,6 +6,7 @@ import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
 import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
 import { Object3D } from "three";
+import { NimproSystem } from "./systems/nimpro-system";
 
 const debug = newDebug("naf-dialog-adapter:debug");
 
@@ -91,6 +92,14 @@ export class SoraAdapter extends SfuAdapter {
           },
           {
             label: "#laserPointer",
+            direction: "sendrecv"
+          },
+          {
+            label: "#emoji",
+            direction: "sendrecv"
+          },
+          {
+            label: "#nimpro",
             direction: "sendrecv"
           }
         ])
@@ -195,6 +204,15 @@ export class SoraAdapter extends SfuAdapter {
             s: 0
           });
         while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
+
+        if (event.label === "#nimpro") {
+          const [messageType, seatNum, value] = this._textDecoder.decode(event.data).split("|");
+          if (messageType === "assigned" && value === this._clientId) {
+            NimproSystem.joinGame(false, seatNum);
+          }
+          this.emit("nimpro_message_received", { label: event.label, message: this._textDecoder.decode(event.data) });
+        }
+
         if (!this._roomId.includes("public_speaking") || event.label !== "#avatarId") {
           // avoid initPublicSpeakingMirroring client loading unnecessary avatar model
           this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
@@ -232,6 +250,10 @@ export class SoraAdapter extends SfuAdapter {
             this._laserPointer = object;
             APP.world.scene.add(this._laserPointer);
           }
+        }
+
+        if (event.label === "#emoji") {
+          console.log("Emoji received!");
         }
       });
     }

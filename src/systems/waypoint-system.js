@@ -2,6 +2,7 @@ import { setMatrixWorld, affixToWorldUp } from "../utils/three-utils";
 import { isTagged } from "../components/tags";
 import { applyPersistentSync } from "../utils/permissions-utils";
 import { waitForDOMContentLoaded } from "../utils/async-utils";
+import { NimproSystem } from "./nimpro-system";
 const calculateIconTransform = (function () {
   const up = new THREE.Vector3();
   const backward = new THREE.Vector3();
@@ -81,6 +82,7 @@ function loadTemplatesForWaypointData(scene, data) {
 function shouldTryToOccupy(waypointComponent) {
   return (
     waypointComponent.data.canBeOccupied &&
+    // !waypointComponent.data.isOccupied &&
     (NAF.utils.isMine(waypointComponent.el) ||
       !(
         waypointComponent.data.isOccupied &&
@@ -133,6 +135,25 @@ export class WaypointSystem {
     });
     this.characterController = characterController;
   }
+  tryTeleportToNimproOccupiableWaypoint(seatNum) {
+    const waypointComponent = this.ready.find(component => component.el.object3D.name === "N-impro-seat-" + seatNum);
+    if (!waypointComponent) return;
+
+    const previouslyOccupiedWaypoints = this.ready.filter(isOccupiedByMe);
+    this.tryToOccupy(waypointComponent).then(didOccupy => {
+      if (didOccupy) {
+        waypointComponent.el.object3D.updateMatrices();
+        this.characterController.shouldLandWhenPossible = true;
+        this.characterController.enqueueWaypointTravelTo(
+          waypointComponent.el.object3D.matrixWorld,
+          false,
+          waypointComponent.data
+        );
+        unoccupyWaypoints(previouslyOccupiedWaypoints.filter(wp => wp !== waypointComponent));
+        NimproSystem.joinGame(false, seatNum);
+      }
+    });
+  }
 
   releaseAnyOccupiedWaypoints() {
     unoccupyWaypoints(this.ready);
@@ -159,6 +180,10 @@ export class WaypointSystem {
             waypointComponent.data
           );
           unoccupyWaypoints(previouslyOccupiedWaypoints.filter(wp => wp !== waypointComponent));
+
+          if (waypointComponent.el.className.includes("N-impro-seat")) {
+            NimproSystem.joinGame(false, waypointComponent.el.className.replace("N-impro-seat-", ""));
+          }
         }
       });
     }.bind(this);
@@ -391,6 +416,10 @@ export class WaypointSystem {
       elementsFromTemplates.forEach(el => tickTemplateEl(el, waypointComponent));
     }
     this.ready.forEach(tickWaypoint.bind(this));
+  }
+
+  static unoccupyWaypoints(waypointComponents) {
+    unoccupyWaypoints(waypointComponents);
   }
 }
 

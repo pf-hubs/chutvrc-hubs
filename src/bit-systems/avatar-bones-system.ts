@@ -13,6 +13,8 @@ export type InputTransformById = {
   hmd: Map<string, Transform>;
   leftController: Map<string, Transform>;
   rightController: Map<string, Transform>;
+  leftFoot?: Map<string, Transform>;
+  rightFoot?: Map<string, Transform>;
 };
 
 export type InputTransform = {
@@ -20,6 +22,8 @@ export type InputTransform = {
   hmd: Transform;
   leftController: Transform;
   rightController: Transform;
+  leftFoot?: Transform;
+  rightFoot?: Transform;
 };
 
 /*
@@ -247,7 +251,8 @@ export const avatarIkSystem = (
   world: HubsWorld,
   avatarPoseInputs: InputTransformById,
   avatarEid2ClientId: Map<number, string>,
-  isVrByClientId: Map<string, boolean>
+  isVrByClientId: Map<string, boolean>,
+  animStateByClientId: Map<string, number> // avatar anim state TODO: change number to type AvatarAnimState
 ) => {
   avatarQuery(world).forEach(avatarEid => {
     const clientId = avatarEid2ClientId.get(avatarEid);
@@ -256,7 +261,8 @@ export const avatarIkSystem = (
         // avatarEid,
         avatarPoseInputs,
         clientId,
-        isVrByClientId.get(clientId) || false
+        isVrByClientId.get(clientId) || false,
+        animStateByClientId.get(clientId) || 0 // avatar anim state TODO: change number to type AvatarAnimState
         // world.time.delta
       );
     }

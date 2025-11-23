@@ -115,6 +115,8 @@ export class App {
   publicSpeakersMirrorSfu: SfuAdapter;
   publicSpeakerAgentSfus: { [clientId: string]: SfuAdapter };
 
+  nimproActive = false;
+
   RENDER_ORDER = {
     HUD_BACKGROUND: 1,
     HUD_ICONS: 2,
