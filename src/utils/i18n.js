@@ -9,7 +9,7 @@ const defaultLocaleData = {
   "company-name": "Company",
   "share-hashtag": "#app",
   // what you can do here
-  "app-description": "Gather, share, and collaborate together in a virtual, private, and safe space.",
+  "app-description": "chutvrc: Gather, share, and collaborate together in a virtual, private, and safe space.",
   "app-tagline": "Private social VR in your web browser"
 };
 
