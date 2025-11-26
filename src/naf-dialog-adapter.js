@@ -6,6 +6,7 @@ import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from
 import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
 import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
+import { NimproSystem } from "./systems/nimpro-system";
 
 // Used for VP9 webcam video.
 //const VIDEO_KSVC_ENCODINGS = [{ scalabilityMode: "S3T3_KEY" }];
@@ -390,6 +391,16 @@ export class DialogAdapter extends SfuAdapter {
               if (this._isRecording) this._recordedDataChannelMessages.push({ l: label, m: data, t: Date.now() });
               while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
               this._avatarSyncHelper.handleRecvMessage(label, new Uint8Array(data));
+
+              if (label === "#nimpro") {
+                const textDecoder = new TextDecoder();
+                const decodedMessage = textDecoder.decode(data);
+                const [messageType, seatNum, value] = decodedMessage.split("|");
+                if (messageType === "assigned" && value === this._clientId) {
+                  NimproSystem.joinGame(false, seatNum);
+                }
+                this.emit("nimpro_message_received", { label: label, message: decodedMessage });
+              }
             });
 
             dataConsumer.on("transportclose", () => {
@@ -977,8 +988,9 @@ export class DialogAdapter extends SfuAdapter {
     this._localMediaStream = stream;
 
     // DataChannel implementation
+    const channelsToProduce = this._avatarSyncHelper._channelsForSync.concat(["#nimpro"]);
     await Promise.all(
-      this._avatarSyncHelper._channelsForSync.map(async label => {
+      channelsToProduce.map(async label => {
         const dataProducer = await this._sendTransport.produceData({ label });
 
         dataProducer.on("transportclose", () => {
