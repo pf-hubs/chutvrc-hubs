@@ -39,7 +39,7 @@ async function fetchAvatarGltfUrl(avatarId) {
   return fetchAvatar(avatarId).then(avatar => avatar && avatar.gltf_url);
 }
 
-export function getAvatarSrc(avatarId) {
+export async function getAvatarSrc(avatarId) {
   switch (getAvatarType(avatarId)) {
     case AVATAR_TYPES.SKINNABLE:
       return fetchAvatarGltfUrl(avatarId);
