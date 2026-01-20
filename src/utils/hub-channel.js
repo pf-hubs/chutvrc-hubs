@@ -460,6 +460,69 @@ export default class HubChannel extends EventTarget {
   favorite = () => this.channel.push("favorite", {});
   unfavorite = () => this.channel.push("unfavorite", {});
 
+  // ========== IoT Device Signaling (libpeer integration) ==========
+
+  /**
+   * Send SDP offer to a specific IoT device
+   * @param {string} deviceId - The device identifier
+   * @param {RTCSessionDescriptionInit} offer - The SDP offer
+   * @returns {Promise}
+   */
+  sendDeviceOffer = (deviceId, offer) => {
+    return new Promise((resolve, reject) => {
+      this.channel
+        .push("device:offer", { device_id: deviceId, offer })
+        .receive("ok", resolve)
+        .receive("error", reject);
+    });
+  };
+
+  /**
+   * Send SDP answer to a specific IoT device
+   * @param {string} deviceId - The device identifier
+   * @param {RTCSessionDescriptionInit} answer - The SDP answer
+   * @returns {Promise}
+   */
+  sendDeviceAnswer = (deviceId, answer) => {
+    return new Promise((resolve, reject) => {
+      this.channel
+        .push("device:answer", { device_id: deviceId, answer })
+        .receive("ok", resolve)
+        .receive("error", reject);
+    });
+  };
+
+  /**
+   * Send ICE candidate to a specific IoT device
+   * @param {string} deviceId - The device identifier
+   * @param {RTCIceCandidateInit} candidate - The ICE candidate
+   */
+  sendDeviceIceCandidate = (deviceId, candidate) => {
+    this.channel.push("device:ice_candidate", { device_id: deviceId, candidate });
+  };
+
+  /**
+   * Get list of IoT devices available in the current room
+   * @returns {Promise<Array>} Array of device info objects
+   */
+  getDevicesInRoom = () => {
+    return new Promise((resolve, reject) => {
+      this.channel
+        .push("device:list", {})
+        .receive("ok", ({ devices }) => resolve(devices || []))
+        .receive("error", reject);
+    });
+  };
+
+  /**
+   * Register a device signaling event handler
+   * @param {string} event - Event name (e.g., "device:offer", "device:answer", "device:ice_candidate")
+   * @param {Function} callback - Handler function
+   */
+  onDeviceSignaling = (event, callback) => {
+    this.channel.on(event, callback);
+  };
+
   disconnect = () => {
     if (this.channel) {
       this.channel.socket.disconnect();

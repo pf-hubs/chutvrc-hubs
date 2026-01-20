@@ -272,6 +272,7 @@ import { exposeBitECSDebugHelpers } from "./bitecs-debug-helpers";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL } from "./sfu-adapter";
 import { connectSfu } from "./utils/sfu-adapter-utils";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
+import { LibpeerDeviceManager } from "./libpeer";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
 import { shouldUseNewLoader } from "./utils/bit-utils";
 
@@ -694,6 +695,13 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
         debug: data.sora_is_debug
       });
 
+      // Initialize libpeer device manager for IoT device connections
+      if (!APP.libpeerDeviceManager) {
+        APP.libpeerDeviceManager = new LibpeerDeviceManager();
+      }
+      APP.libpeerDeviceManager.init(hubChannel);
+      console.log("LibpeerDeviceManager initialized for IoT device connections");
+
       scene.addEventListener(
         "adapter-ready",
         ({ detail: adapter }) => {
@@ -1011,6 +1019,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   scene.addEventListener("hub_closed", () => {
     APP.sfu.disconnect();
+    APP.libpeerDeviceManager?.destroy();
     scene.exitVR();
     entryManager.exitScene();
     remountUI({ roomUnavailableReason: ExitReason.closed });
@@ -1018,6 +1027,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   scene.addEventListener("hub_updated_require_refresh", () => {
     APP.sfu.disconnect();
+    APP.libpeerDeviceManager?.destroy();
     scene.exitVR();
     entryManager.exitScene();
     remountUI({ roomUnavailableReason: ExitReason.updated });
