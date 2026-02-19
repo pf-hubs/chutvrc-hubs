@@ -8,7 +8,7 @@ import qsTruthy from "./utils/qs_truthy";
 import type { AComponent, AScene } from "aframe";
 import HubChannel from "./utils/hub-channel";
 import MediaDevicesManager from "./utils/media-devices-manager";
-import { LibpeerDeviceManager } from "./libpeer";
+import { LibpeerDeviceManager, BridgeManager } from "./libpeer";
 
 import { EffectComposer, EffectPass } from "postprocessing";
 import {
@@ -118,6 +118,9 @@ export class App {
 
   // libpeer IoT device manager for external device WebRTC DataChannel connections
   libpeerDeviceManager?: LibpeerDeviceManager;
+
+  // IoT bridge manager for device <-> room communication
+  bridgeManager?: BridgeManager;
 
   nimproActive = false;
 

@@ -272,7 +272,7 @@ import { exposeBitECSDebugHelpers } from "./bitecs-debug-helpers";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL } from "./sfu-adapter";
 import { connectSfu } from "./utils/sfu-adapter-utils";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
-import { LibpeerDeviceManager } from "./libpeer";
+import { LibpeerDeviceManager, BridgeManager } from "./libpeer";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
 import { shouldUseNewLoader } from "./utils/bit-utils";
 
@@ -708,6 +708,13 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
           adapter.hubChannel = hubChannel;
           adapter.events = events;
           adapter.session_id = data.session_id;
+
+          // Initialize IoT bridge manager after SFU adapter is ready
+          if (APP.libpeerDeviceManager?.initialized && !APP.bridgeManager) {
+            APP.bridgeManager = new BridgeManager({ debug: true, receiveAllMessages: true });
+            APP.bridgeManager.init(APP.libpeerDeviceManager, APP.sfu);
+            console.log("BridgeManager initialized for IoT device <-> room communication");
+          }
         },
         { once: true }
       );
@@ -1019,6 +1026,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   scene.addEventListener("hub_closed", () => {
     APP.sfu.disconnect();
+    APP.bridgeManager?.destroy();
     APP.libpeerDeviceManager?.destroy();
     scene.exitVR();
     entryManager.exitScene();
@@ -1027,6 +1035,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   scene.addEventListener("hub_updated_require_refresh", () => {
     APP.sfu.disconnect();
+    APP.bridgeManager?.destroy();
     APP.libpeerDeviceManager?.destroy();
     scene.exitVR();
     entryManager.exitScene();

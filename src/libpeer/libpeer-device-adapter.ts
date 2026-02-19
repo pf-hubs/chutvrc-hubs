@@ -7,7 +7,6 @@
 
 import EventEmitter from "eventemitter3";
 import {
-  IoTDeviceInfo,
   IoTMessage,
   DEFAULT_ICE_SERVERS,
   IOT_DATACHANNEL_LABEL
@@ -29,8 +28,8 @@ export class LibpeerDeviceAdapter extends EventEmitter<LibpeerDeviceAdapterEvent
   private pc: RTCPeerConnection;
   private dataChannel: RTCDataChannel | null = null;
   private deviceId: string;
-  private deviceInfo: IoTDeviceInfo | null = null;
   private _connectedAt: number | null = null;
+  private _isOfferer: boolean = false;
   private textEncoder: TextEncoder;
   private textDecoder: TextDecoder;
 
@@ -105,15 +104,11 @@ export class LibpeerDeviceAdapter extends EventEmitter<LibpeerDeviceAdapterEvent
     try {
       const text = typeof data === "string" ? data : this.textDecoder.decode(data as ArrayBuffer);
       const message: IoTMessage = JSON.parse(text);
-
-      if (message.type === "register" && "payload" in message) {
-        this.deviceInfo = message.payload as IoTDeviceInfo;
-        console.log(`[LibpeerDevice ${this.deviceId}] Device registered:`, this.deviceInfo);
-      }
-
+      console.log(`[LibpeerDevice ${this.deviceId}] Received message:`, message);
       this.emit("message", this.deviceId, message);
     } catch (e) {
       // Not valid JSON, emit as raw message
+      console.log(`[LibpeerDevice ${this.deviceId}] Received raw data:`, data);
       this.emit("raw_message", this.deviceId, data);
     }
   }
@@ -122,6 +117,8 @@ export class LibpeerDeviceAdapter extends EventEmitter<LibpeerDeviceAdapterEvent
    * Create an SDP offer to initiate connection to device (browser is offerer)
    */
   async createOffer(): Promise<RTCSessionDescriptionInit> {
+    this._isOfferer = true;
+
     // Create DataChannel from browser side (we are the offerer)
     const channel = this.pc.createDataChannel(IOT_DATACHANNEL_LABEL, {
       ordered: true
@@ -223,10 +220,6 @@ export class LibpeerDeviceAdapter extends EventEmitter<LibpeerDeviceAdapterEvent
     return this.pc.iceConnectionState;
   }
 
-  get info(): IoTDeviceInfo | null {
-    return this.deviceInfo;
-  }
-
   get connectedAt(): number | null {
     return this._connectedAt;
   }
@@ -237,5 +230,9 @@ export class LibpeerDeviceAdapter extends EventEmitter<LibpeerDeviceAdapterEvent
 
   get isDataChannelOpen(): boolean {
     return this.dataChannel?.readyState === "open";
+  }
+
+  get isOfferer(): boolean {
+    return this._isOfferer;
   }
 }

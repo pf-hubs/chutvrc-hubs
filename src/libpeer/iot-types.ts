@@ -2,87 +2,33 @@
  * TypeScript interfaces for IoT device communication via WebRTC DataChannel
  */
 
-export interface IoTDeviceInfo {
-  deviceId: string;
-  deviceType: "esp32" | "raspberry_pi" | "pico" | "generic";
-  capabilities: string[];
-  label?: string;
-  firmware?: string;
+export type IoTMessageType = "request" | "response" | "error";
+
+export interface IoTMessage {
+  type: IoTMessageType;
+  /** Label for routing messages to subscribed clients */
+  label: string;
+  payload: Record<string, unknown>;
 }
-
-export interface SensorData {
-  deviceId: string;
-  timestamp: number;
-  type: string;
-  value: number | boolean | string | Record<string, unknown>;
-  unit?: string;
-}
-
-export interface ControlCommand {
-  deviceId: string;
-  command: string;
-  params?: Record<string, unknown>;
-}
-
-export type IoTMessageType = "sensor" | "control" | "register" | "heartbeat" | "ack" | "error";
-
-export interface IoTSensorMessage {
-  type: "sensor";
-  payload: SensorData;
-}
-
-export interface IoTControlMessage {
-  type: "control";
-  payload: ControlCommand;
-}
-
-export interface IoTRegisterMessage {
-  type: "register";
-  payload: IoTDeviceInfo;
-}
-
-export interface IoTHeartbeatMessage {
-  type: "heartbeat";
-  payload: { deviceId: string };
-}
-
-export interface IoTAckMessage {
-  type: "ack";
-  payload: { messageId?: string; deviceId: string };
-}
-
-export interface IoTErrorMessage {
-  type: "error";
-  payload: { deviceId: string; code: string; message: string };
-}
-
-export type IoTMessage =
-  | IoTSensorMessage
-  | IoTControlMessage
-  | IoTRegisterMessage
-  | IoTHeartbeatMessage
-  | IoTAckMessage
-  | IoTErrorMessage;
 
 export interface DeviceSignalingOffer {
-  deviceId: string;
+  device_id: string;
   offer: RTCSessionDescriptionInit;
 }
 
 export interface DeviceSignalingAnswer {
-  deviceId: string;
+  device_id: string;
   answer: RTCSessionDescriptionInit;
 }
 
 export interface DeviceSignalingIceCandidate {
-  deviceId: string;
+  device_id: string;
   candidate: RTCIceCandidateInit;
 }
 
 export interface DeviceConnectionState {
-  deviceId: string;
+  device_id: string;
   state: RTCPeerConnectionState;
-  info: IoTDeviceInfo | null;
   connectedAt: number | null;
 }
 

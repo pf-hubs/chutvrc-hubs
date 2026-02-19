@@ -81,6 +81,11 @@ export class DialogAdapter extends SfuAdapter {
     return this._downlinkBwe;
   }
 
+  // BridgeCapable implementation
+  get isBridgeChannelReady() {
+    return this._dataProducers?.has("#iot") && this._sendTransport && !this._sendTransport._closed;
+  }
+
   getIceServers(host, port, turn) {
     const iceServers = [];
 
@@ -400,6 +405,11 @@ export class DialogAdapter extends SfuAdapter {
                   NimproSystem.joinGame(false, seatNum);
                 }
                 this.emit("nimpro_message_received", { label: label, message: decodedMessage });
+              }
+
+              // IoT Bridge channel handling
+              if (label === "#iot") {
+                this.processBridgeChannelMessage(data);
               }
             });
 
@@ -988,7 +998,7 @@ export class DialogAdapter extends SfuAdapter {
     this._localMediaStream = stream;
 
     // DataChannel implementation
-    const channelsToProduce = this._avatarSyncHelper._channelsForSync.concat(["#nimpro"]);
+    const channelsToProduce = this._avatarSyncHelper._channelsForSync.concat(["#nimpro", "#iot"]);
     await Promise.all(
       channelsToProduce.map(async label => {
         const dataProducer = await this._sendTransport.produceData({ label });

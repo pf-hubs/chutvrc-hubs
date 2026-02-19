@@ -34,13 +34,9 @@ export class SoraAdapter extends SfuAdapter {
   _accessToken?: string;
   crossRoomStreamerAudioSource: { [clientId: string]: CrossRoomStreamerAudioSource };
   private _laserPointer: Object3D;
-  private _textEncoder: TextEncoder;
-  private _textDecoder: TextDecoder;
 
   constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
     super();
-    this._textEncoder = new TextEncoder();
-    this._textDecoder = new TextDecoder();
     this._sfuId = SFU.SORA;
     this._connectionType = sfuType;
     this._clientId = "";
@@ -100,6 +96,10 @@ export class SoraAdapter extends SfuAdapter {
           },
           {
             label: "#nimpro",
+            direction: "sendrecv"
+          },
+          {
+            label: "#iot",
             direction: "sendrecv"
           }
         ])
@@ -255,6 +255,11 @@ export class SoraAdapter extends SfuAdapter {
         if (event.label === "#emoji") {
           console.log("Emoji received!");
         }
+
+        // IoT Bridge channel handling
+        if (event.label === "#iot") {
+          this.processBridgeChannelMessage(event.data);
+        }
       });
     }
 
@@ -374,6 +379,11 @@ export class SoraAdapter extends SfuAdapter {
     return this._dataChannelMessages && this._dataChannelMessages.length > 0
       ? this._dataChannelMessages.shift()
       : { channelLabel: "", message: null };
+  }
+
+  // BridgeCapable implementation
+  get isBridgeChannelReady(): boolean {
+    return this._connector !== null && this._connectionType !== SFU_CONNECTION_TYPE.RECV;
   }
 
   async setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null = null) {
