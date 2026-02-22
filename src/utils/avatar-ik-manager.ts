@@ -7,6 +7,7 @@ import { HeadIk } from "./avatar-ik/head-ik";
 import { ArmIk } from "./avatar-ik/arm-ik";
 import { LegIk } from "./avatar-ik/leg-ik";
 import { JointSettings } from "./avatar-ik/joint-settings";
+import { AvatarAnimState } from "../types/avatar-types";
 
 const SelfHipsPositionOffset = new Vector3(0, 0, -0.1);
 const SelfHipsPositionFlippedOffset = new Vector3(0, 0, 0.1);
@@ -19,7 +20,7 @@ const DummyInputTransform = {
 export class AvatarIkManager {
   private world: HubsWorld;
   private isVR: boolean;
-  private animState: number; // avatar anim state TODO: change number to type AvatarAnimState
+  private animState: AvatarAnimState;
   private isFlippedY: boolean;
   private rootBone: Object3D | undefined;
   private rootPos: Vector3;
@@ -157,8 +158,7 @@ export class AvatarIkManager {
     this.rootPosBeforeWalk = { x: 0, y: 0, z: 0 };
   }
 
-  updateAvatarBoneIkById(poseInputs: InputTransformById, clientId: string, isVr: boolean, animState: number) {
-    // avatar anim state TODO: change number to type AvatarAnimState
+  updateAvatarBoneIkById(poseInputs: InputTransformById, clientId: string, isVr: boolean, animState: AvatarAnimState) {
     const poseInput: InputTransform = {
       rig: poseInputs.rig?.get(clientId) || DummyInputTransform,
       hmd: poseInputs.hmd?.get(clientId) || DummyInputTransform,
@@ -168,16 +168,16 @@ export class AvatarIkManager {
     this.isSelfAvatar = clientId === APP.sfu._clientId;
     this.isVR = isVr;
     if (this.animState !== animState) {
-      switch (
-        animState // avatar anim state TODO: change number to type AvatarAnimState
-      ) {
-        case 0:
+      switch (animState) {
+        case AvatarAnimState.STAND:
           this.stand();
           break;
-        case 1:
+        case AvatarAnimState.WALK:
           this.walk();
-        case 2:
+          break;
+        case AvatarAnimState.SIT:
           this.sit();
+          break;
         default:
           break;
       }

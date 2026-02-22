@@ -7,6 +7,7 @@ import { HubsWorld } from "../app";
 import { mapAvatarBone } from "../utils/map-avatar-bones";
 import { Transform } from "../types/transform";
 import { AvatarIkManager } from "../utils/avatar-ik-manager";
+import { AvatarAnimState } from "../types/avatar-types";
 
 export type InputTransformById = {
   rig: Map<string, Transform>;
@@ -252,18 +253,16 @@ export const avatarIkSystem = (
   avatarPoseInputs: InputTransformById,
   avatarEid2ClientId: Map<number, string>,
   isVrByClientId: Map<string, boolean>,
-  animStateByClientId: Map<string, number> // avatar anim state TODO: change number to type AvatarAnimState
+  animStateByClientId: Map<string, AvatarAnimState>
 ) => {
   avatarQuery(world).forEach(avatarEid => {
     const clientId = avatarEid2ClientId.get(avatarEid);
     if (clientId) {
       APP.world.eid2Ik.get(avatarEid)?.updateAvatarBoneIkById(
-        // avatarEid,
         avatarPoseInputs,
         clientId,
         isVrByClientId.get(clientId) || false,
-        animStateByClientId.get(clientId) || 0 // avatar anim state TODO: change number to type AvatarAnimState
-        // world.time.delta
+        animStateByClientId.get(clientId) || AvatarAnimState.STAND
       );
     }
   });

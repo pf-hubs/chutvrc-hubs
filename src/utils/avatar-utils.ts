@@ -4,7 +4,6 @@ import { fetchReticulumAuthenticated } from "./phoenix-utils";
 import { proxiedUrlFor } from "./media-url-utils";
 import avatarUnavailableImage from "../assets/images/avatar_unavailable.png";
 import { Object3D } from "three";
-import { floatToUInt8, radToUInt8, uInt8ToFloat, uInt8ToRad } from "./uint8-parser";
 
 const AVATARS_API = "/api/v1/avatars";
 
@@ -97,44 +96,106 @@ export async function remixAvatar(parentId, name) {
   return fetchReticulumAuthenticated(AVATARS_API, "POST", { avatar });
 }
 
-export function encodeAvatarTransform(avatarPartObj: Object3D, clientId: Uint8Array) {
-  return [
-    ...floatToUInt8(avatarPartObj.position.x),
-    ...floatToUInt8(avatarPartObj.position.y),
-    ...floatToUInt8(avatarPartObj.position.z),
-    radToUInt8(avatarPartObj.rotation.x),
-    radToUInt8(avatarPartObj.rotation.y),
-    radToUInt8(avatarPartObj.rotation.z),
-    ...clientId
-  ];
+// ============= Avatar Transform Encoding/Decoding =============
+
+/**
+ * Decoded avatar transform with client ID
+ */
+export interface AvatarTransformDecoded {
+  pos: { x: number; y: number; z: number };
+  rot: { x: number; y: number; z: number };
+  clientId: string;
 }
 
+/**
+ * Encode avatar transform using Float32 (4 bytes per axis) for full precision
+ * Format: [posX(4)] [posY(4)] [posZ(4)] [rotX(4)] [rotY(4)] [rotZ(4)] [clientId(n)]
+ * Total: 24 + clientId.length bytes
+ */
+export function encodeAvatarTransform(avatarPartObj: Object3D, clientId: Uint8Array): Uint8Array {
+  const buffer = new ArrayBuffer(24 + clientId.length);
+  const view = new DataView(buffer);
+  const result = new Uint8Array(buffer);
+
+  // Position (3 x Float32 = 12 bytes)
+  view.setFloat32(0, avatarPartObj.position.x, true);
+  view.setFloat32(4, avatarPartObj.position.y, true);
+  view.setFloat32(8, avatarPartObj.position.z, true);
+
+  // Rotation (3 x Float32 = 12 bytes)
+  view.setFloat32(12, avatarPartObj.rotation.x, true);
+  view.setFloat32(16, avatarPartObj.rotation.y, true);
+  view.setFloat32(20, avatarPartObj.rotation.z, true);
+
+  // Client ID
+  result.set(clientId, 24);
+
+  return result;
+}
+
+/**
+ * Decode position from encoded transform
+ */
+export function decodePosition(encodedTransform: Uint8Array) {
+  const view = new DataView(encodedTransform.buffer as ArrayBuffer, encodedTransform.byteOffset);
+  return {
+    x: Math.round(view.getFloat32(0, true) * 1000) / 1000,
+    y: Math.round(view.getFloat32(4, true) * 1000) / 1000,
+    z: Math.round(view.getFloat32(8, true) * 1000) / 1000
+  };
+}
+
+/**
+ * Decode rotation from encoded transform
+ */
+export function decodeRotation(encodedTransform: Uint8Array) {
+  const view = new DataView(encodedTransform.buffer as ArrayBuffer, encodedTransform.byteOffset);
+  return {
+    x: Math.round(view.getFloat32(12, true) * 1000) / 1000,
+    y: Math.round(view.getFloat32(16, true) * 1000) / 1000,
+    z: Math.round(view.getFloat32(20, true) * 1000) / 1000
+  };
+}
+
+/**
+ * Decode avatar transform with client ID
+ */
+export function decodeAvatarTransform(data: Uint8Array): AvatarTransformDecoded | null {
+  if (data.length < 24) {
+    console.warn("Avatar transform data too short");
+    return null;
+  }
+
+  const view = new DataView(data.buffer as ArrayBuffer, data.byteOffset);
+  return {
+    pos: {
+      x: Math.round(view.getFloat32(0, true) * 1000) / 1000,
+      y: Math.round(view.getFloat32(4, true) * 1000) / 1000,
+      z: Math.round(view.getFloat32(8, true) * 1000) / 1000
+    },
+    rot: {
+      x: Math.round(view.getFloat32(12, true) * 1000) / 1000,
+      y: Math.round(view.getFloat32(16, true) * 1000) / 1000,
+      z: Math.round(view.getFloat32(20, true) * 1000) / 1000
+    },
+    clientId: new TextDecoder().decode(data.subarray(24)).replace(/\u0000/g, "")
+  };
+}
+
+/**
+ * Decode and set avatar transform on an Object3D
+ */
 export function decodeAndSetAvatarTransform(encodedTransform: Uint8Array, avatarPartObj: Object3D): void {
+  const view = new DataView(encodedTransform.buffer as ArrayBuffer, encodedTransform.byteOffset);
   avatarPartObj.position.set(
-    uInt8ToFloat(encodedTransform[0], encodedTransform[1]),
-    uInt8ToFloat(encodedTransform[2], encodedTransform[3]),
-    uInt8ToFloat(encodedTransform[4], encodedTransform[5])
+    view.getFloat32(0, true),
+    view.getFloat32(4, true),
+    view.getFloat32(8, true)
   );
   avatarPartObj.rotation.set(
-    uInt8ToRad(encodedTransform[6]),
-    uInt8ToRad(encodedTransform[7]),
-    uInt8ToRad(encodedTransform[8]),
+    view.getFloat32(12, true),
+    view.getFloat32(16, true),
+    view.getFloat32(20, true),
     "YXZ"
   );
-}
-
-export function decodePosition(encodedTransform: Uint8Array) {
-  return {
-    x: Math.round(uInt8ToFloat(encodedTransform[0], encodedTransform[1]) * 1000) / 1000,
-    y: Math.round(uInt8ToFloat(encodedTransform[2], encodedTransform[3]) * 1000) / 1000,
-    z: Math.round(uInt8ToFloat(encodedTransform[4], encodedTransform[5]) * 1000) / 1000
-  };
-}
-
-export function decodeRotation(encodedTransform: Uint8Array) {
-  return {
-    x: Math.round(uInt8ToRad(encodedTransform[6]) * 1000) / 1000,
-    y: Math.round(uInt8ToRad(encodedTransform[7]) * 1000) / 1000,
-    z: Math.round(uInt8ToRad(encodedTransform[8]) * 1000) / 1000
-  };
 }
