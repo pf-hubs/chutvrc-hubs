@@ -275,6 +275,18 @@ export function RoomSettingsSidebar({
               error={errors?.sfu?.message}
               {...register("sfu")}
             />
+            <RadioInputOption
+              value={2}
+              label={<FormattedMessage id="room-settings-sidebar.webrtc-sfu-livekit" defaultMessage="LiveKit" />}
+              description={
+                <FormattedMessage
+                  id="room-settings-sidebar.webrtc-sfu-livekit-description"
+                  defaultMessage="LiveKit Cloud WebRTC SFU"
+                />
+              }
+              error={errors?.sfu?.message}
+              {...register("sfu")}
+            />
           </RadioInputField>
         )}
         <InputField
