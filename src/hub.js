@@ -317,7 +317,14 @@ if (qsTruthy("ecsDebug")) {
 function setupLobbyCamera() {
   console.log("Setting up lobby camera");
   const camera = document.getElementById("scene-preview-node");
-  const previewCamera = document.getElementById("environment-scene").object3D.getObjectByName("scene-preview-camera");
+  const environmentScene = document.getElementById("environment-scene");
+
+  if (!environmentScene) {
+    console.warn("Environment scene not found, skipping lobby camera setup");
+    return;
+  }
+
+  const previewCamera = environmentScene.object3D.getObjectByName("scene-preview-camera");
 
   if (previewCamera) {
     camera.object3D.position.copy(previewCamera.position);
@@ -466,7 +473,10 @@ export async function updateEnvironmentForHub(hub, entryManager) {
         console.log(`Scene file initial load took ${Math.round(performance.now() - loadStart)}ms`);
 
         // Show the canvas once the model has loaded
-        document.querySelector(".a-canvas").classList.remove("a-hidden");
+        const canvas = document.querySelector(".a-canvas");
+        if (canvas) {
+          canvas.classList.remove("a-hidden");
+        }
 
         sceneEl.addState("visible");
 
@@ -678,6 +688,7 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
 
       APP.sfu?.disconnect();
       APP.sfu = APP.sfuCandidates.find((sfu, sfuId) => sfuId === data.sfu);
+      APP.sfu.hubChannel = hubChannel;
       listenSfuConnection(scene);
       registerNetworkSchemas();
       connectSfu(APP.sfu, {
@@ -685,6 +696,9 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
         clientId: data.session_id,
         channelId: data.sora_channel_id || hub.hub_id,
         scene,
+        sfuAccessToken: data.sfu_access_token,
+        sfuServerUrl: data.sfu_server_url,
+        sfuRoomId: data.sfu_room_id,
         serverUrl: `wss://${hub.host}:4443`,
         serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
         signalingUrl: data.sora_signaling_url,
@@ -693,6 +707,10 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
         forceTurn: qs?.get("force_turn"),
         debug: data.sora_is_debug
       });
+
+      if (data.sfu_access_token) {
+        hubChannel.setSfuToken(data.sfu_access_token);
+      }
 
       // Initialize libpeer device manager for IoT device connections
       if (!APP.libpeerDeviceManager) {

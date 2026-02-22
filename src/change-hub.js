@@ -123,11 +123,15 @@ export async function changeHub(hubId, addToHistory = true, waypoint = "") {
   APP.retChannel.push("change_hub", { hub_id: hub.hub_id });
 
   APP.sfu = SfuAdapterFactory.create(data.sfu, SFU_CONNECTION_TYPE.SENDRECV);
+  APP.sfu.hubChannel = APP.hubChannel;
   const connectOption = {
     sfuId: data.sfu,
     clientId: data.session_id || APP.sfu._clientId,
     channelId: data.sora_channel_id || hub.hub_id,
     scene,
+    sfuAccessToken: data.sfu_access_token,
+    sfuServerUrl: data.sfu_server_url,
+    sfuRoomId: data.sfu_room_id,
     serverUrl: `wss://${hub.host}:${hub.port}`,
     serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
     signalingUrl: data.sora_signaling_url,
@@ -137,6 +141,10 @@ export async function changeHub(hubId, addToHistory = true, waypoint = "") {
     iceTransportPolicy: APP.sfu._iceTransportPolicy,
     debug: data.sora_is_debug
   };
+
+  if (data.sfu_access_token) {
+    APP.hubChannel.setSfuToken(data.sfu_access_token);
+  }
 
   await Promise.all([connectSfu(APP.sfu, connectOption), NAF.connection.adapter.connect()]);
 
