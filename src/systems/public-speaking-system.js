@@ -39,6 +39,10 @@ export class PublicSpeakingSystem {
   }
 
   static async initPublicSpeaker() {
+    if (APP.publicSpeakingSfu) {
+      console.log("initPublicSpeaker: already broadcasting, ignoring duplicate start request");
+      return;
+    }
     console.log("initPublicSpeaker");
     APP.publicSpeakingSfu = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.SEND);
     await connectSfu(APP.publicSpeakingSfu, {
@@ -77,6 +81,10 @@ export class PublicSpeakingSystem {
   }
 
   static async initPublicSpeakingMirroring() {
+    if (APP.publicSpeakersMirrorSfu) {
+      console.log("initPublicSpeakingMirroring: already mirroring, ignoring duplicate start request");
+      return;
+    }
     console.log("initPublicSpeakingMirroring");
     APP.publicSpeakersMirrorSfu = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.RECV);
     await connectSfu(APP.publicSpeakersMirrorSfu, {
@@ -136,6 +144,10 @@ export class PublicSpeakingSystem {
 
   static async initPublicSpeakerAgent(clientId) {
     if (!clientId.includes("PS-")) return;
+    if (APP.publicSpeakerAgentSfus?.[clientId]) {
+      console.log("initPublicSpeakerAgent: agent already exists for", clientId, ", ignoring duplicate start request");
+      return;
+    }
     console.log("initPublicSpeakerAgent");
     this.clientIds.push(clientId);
     APP.publicSpeakerAgentSfus[clientId] = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.SEND);

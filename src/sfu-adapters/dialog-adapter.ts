@@ -134,6 +134,7 @@ export class DialogAdapter extends SfuAdapter {
     this._avatarSyncHelper = new AvatarSyncHelper(this);
     this._dataChannelMessages = [];
     this._recordedDataChannelMessages = [];
+    this._publicSpeakerClientIdsInRoom = [];
 
     // Initialize message dispatcher with handlers for DialogAdapter
     this.initializeDialogHandlers();
@@ -486,6 +487,19 @@ export class DialogAdapter extends SfuAdapter {
             dataConsumer.on("message", (data: ArrayBuffer) => {
               // Dispatch message through handler system
               this.handleDataChannelMessage(label, data);
+
+              // Queue messages for relay when acting as public speaking mirror
+              // This enables mirrorDataChannelMessageFromSpeaker() to relay avatar data to receiving rooms
+              if (this._roomId.includes("public_speaking") && this._connectionType === SFU_CONNECTION_TYPE.RECV) {
+                this._dataChannelMessages.push({
+                  channelLabel: label,
+                  message: data
+                });
+                // Prevent memory leaks - cap queue size
+                while (this._dataChannelMessages.length > 100) {
+                  this._dataChannelMessages.shift();
+                }
+              }
 
               // Recording support
               if (this._isRecording) {

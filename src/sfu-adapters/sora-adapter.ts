@@ -242,6 +242,19 @@ export class SoraAdapter extends SfuAdapter {
         // Dispatch message through handler system
         this.handleDataChannelMessage(event.label, event.data);
 
+        // Queue messages for relay when acting as public speaking mirror
+        // This enables mirrorDataChannelMessageFromSpeaker() to relay avatar data to receiving rooms
+        if (this._roomId.includes("public_speaking") && this._connectionType === SFU_CONNECTION_TYPE.RECV) {
+          this._dataChannelMessages.push({
+            channelLabel: event.label,
+            message: event.data
+          });
+          // Prevent memory leaks - cap queue size
+          while (this._dataChannelMessages.length > 100) {
+            this._dataChannelMessages.shift();
+          }
+        }
+
         // Recording support (exclude avatar transform channels for size)
         if (this._isRecording && !event.label.includes("#avatar-")) {
           this._recordedDataChannelMessages.push({
