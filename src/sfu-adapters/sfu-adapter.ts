@@ -1,15 +1,33 @@
 import EventEmitter from "eventemitter3";
-import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
-import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
+import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
+import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import {
   BridgeCapable,
   BridgeEnvelope,
   BridgeMessageCallback,
   IOT_BRIDGE_CHANNEL
-} from "./libpeer/bridge/bridge-capable";
-import { serializeBridgeEnvelope, deserializeBridgeEnvelope } from "./libpeer/bridge/bridge-message-protocol";
+} from "../libpeer/bridge/bridge-capable";
+import { serializeBridgeEnvelope, deserializeBridgeEnvelope } from "../libpeer/bridge/bridge-message-protocol";
+import {
+  DataChannelMessage,
+  ISfuConnectable,
+  ISfuMediaStreams,
+  ISfuMicrophoneControl,
+  ISfuDataChannels,
+  ISfuParticipantControl,
+  ISfuDiagnostics,
+  SfuConnectionState
+} from "../types/sfu-adapter-interface";
+import {
+  DataChannelMessageDispatcher,
+  ChannelHandlerRegistry,
+  IChannelHandler
+} from "../utils/data-channel-handlers";
 
-type DataChannelMessage = { channelLabel: string; message: ArrayBuffer | null };
+// Re-export for backwards compatibility
+export type { DataChannelMessage };
+export { SfuConnectionState };
+
 type Vector3 = { x: number; y: number; z: number };
 type RecordedDataChannelAvatarTransform = { c: string; p: Vector3; r: Vector3 };
 type RecordedDataChannelMessage = {
@@ -33,6 +51,10 @@ export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
   _isRecording: boolean;
   _sendSelfAvatarSrcIntervalId: NodeJS.Timer;
   _publicSpeakerClientIdsInRoom: string[];
+
+  // Message dispatcher for structured channel handling
+  protected _messageDispatcher: DataChannelMessageDispatcher | null = null;
+  protected _handlerRegistry: ChannelHandlerRegistry | null = null;
 
   // BridgeCapable implementation
   protected _bridgeMessageCallbacks: Set<BridgeMessageCallback> = new Set();
@@ -65,6 +87,61 @@ export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
   broadcast(channel: string, message: string) {}
   broadcastUint8(channel: string, message: Uint8Array) {}
   emitRTCEvent(level: string, tag: string, msgFunc: () => void) {}
+
+  // ========== Message Dispatcher ==========
+
+  /**
+   * Initialize the message dispatcher with a handler registry.
+   * Call this in subclass constructors or connect methods.
+   */
+  protected initializeMessageDispatcher(registry: ChannelHandlerRegistry): void {
+    this._handlerRegistry = registry;
+    this._messageDispatcher = new DataChannelMessageDispatcher(this, this._avatarSyncHelper, registry);
+  }
+
+  /**
+   * Handle an incoming data channel message through the dispatcher.
+   * Subclasses should call this instead of handling messages inline.
+   */
+  protected handleDataChannelMessage(channelLabel: string, data: ArrayBuffer): void {
+    if (this._messageDispatcher) {
+      this._messageDispatcher.dispatchMessage(channelLabel, data);
+    }
+  }
+
+  /**
+   * Update dispatcher context after connection is established.
+   */
+  protected updateDispatcherContext(): void {
+    if (this._messageDispatcher) {
+      this._messageDispatcher.updateContext(this._clientId, this._roomId);
+    }
+  }
+
+  /**
+   * Register a channel handler.
+   */
+  protected registerHandler(handler: IChannelHandler): void {
+    if (this._handlerRegistry) {
+      this._handlerRegistry.register(handler);
+    }
+  }
+
+  /**
+   * Get the handler registry.
+   */
+  protected getHandlerRegistry(): ChannelHandlerRegistry | null {
+    return this._handlerRegistry;
+  }
+
+  /**
+   * Cleanup dispatcher on disconnect.
+   */
+  protected cleanupDispatcher(): void {
+    if (this._messageDispatcher) {
+      this._messageDispatcher.cleanup();
+    }
+  }
 
   // ========== BridgeCapable Implementation ==========
 
@@ -118,13 +195,13 @@ export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
 
   /**
    * Process incoming bridge channel message
-   * Called by concrete adapter implementations when receiving data on #iot channel
+   * Called by channel handlers when receiving data on #iot channel
    */
-  protected processBridgeChannelMessage(data: ArrayBuffer): void {
+  processBridgeChannelMessage(data: ArrayBuffer): void {
     const text = this._textDecoder.decode(data);
     const envelope = deserializeBridgeEnvelope(text);
     if (envelope) {
-      this._bridgeMessageCallbacks.forEach((cb) => cb(envelope));
+      this._bridgeMessageCallbacks.forEach(cb => cb(envelope));
     }
   }
 }
