@@ -91,18 +91,27 @@ export class SoraAdapter extends SfuAdapter {
     this.initializeMessageDispatcher(registry);
   }
 
+  protected _handleSfuTokenUpdated(event: CustomEvent): void {
+    this._accessToken = event.detail.token;
+  }
+
   async connect({ clientId, channelId, signalingUrl, accessToken, scene, debug }: ConnectProps) {
     this._scene = scene;
     this._roomId = channelId;
     this._clientId = clientId;
     this._signalingUrl = signalingUrl;
-    this._accessToken = accessToken;
 
-    // Update dispatcher context with connection info
+    let tokenToUse = accessToken;
+    if (!tokenToUse || tokenToUse === "") {
+      const freshToken = await this._ensureFreshToken();
+      if (freshToken) tokenToUse = freshToken;
+    }
+    this._accessToken = tokenToUse;
+
     this.updateDispatcherContext();
 
     const sora = Sora.connection(signalingUrl, debug);
-    const metadata = { access_token: accessToken };
+    const metadata = { access_token: tokenToUse };
     const options = {
       clientId: clientId,
       multistream: true,
@@ -320,6 +329,7 @@ export class SoraAdapter extends SfuAdapter {
     if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
     this._avatarSyncHelper?.stopSyncing();
     this.cleanupDispatcher();
+    this._cleanupTokenHandler();
     debug("disconnect()");
     this.emitRTCEvent("info", "Signaling", () => `[close]`);
   }

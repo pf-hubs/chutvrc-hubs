@@ -45,6 +45,11 @@ export default class HubChannel extends EventTarget {
     this._signedIn = !!this.store.state.credentials.token;
     this._permissions = {};
     this._blockedSessionIds = new Set();
+    this._sfuToken = null;
+    this._sfuTokenDecoded = null;
+    this.fetchSfuTokenTimeout = null;
+    this._sfuTokenRefreshInFlight = false;
+    this._sfuTokenRefreshPromise = null;
 
     store.addEventListener("profilechanged", this.sendProfileUpdate.bind(this));
   }
@@ -429,6 +434,66 @@ export default class HubChannel extends EventTarget {
     });
   };
 
+  setSfuToken = token => {
+    if (!token) return;
+    this._sfuToken = token;
+
+    try {
+      this._sfuTokenDecoded = jwtDecode(token);
+      const expiryMs = this._sfuTokenDecoded.exp * 1000;
+      const delayMs = Math.max(0, expiryMs - 5 * 60 * 1000 - Date.now());
+
+      if (this.fetchSfuTokenTimeout) clearTimeout(this.fetchSfuTokenTimeout);
+      if (delayMs > 0 && delayMs < 48 * 60 * 60 * 1000) {
+        this.fetchSfuTokenTimeout = setTimeout(this.fetchSfuToken, delayMs);
+      }
+    } catch (e) {
+      this._sfuTokenDecoded = null;
+    }
+
+    this.dispatchEvent(new CustomEvent("sfu_token_updated", { detail: { token } }));
+  };
+
+  fetchSfuToken = () => {
+    if (this._sfuTokenRefreshInFlight) return this._sfuTokenRefreshPromise;
+
+    this._sfuTokenRefreshInFlight = true;
+    this._sfuTokenRefreshPromise = new Promise((resolve, reject) => {
+      this.channel
+        .push("refresh_sfu_token", {}, 10000)
+        .receive("ok", res => {
+          this.setSfuToken(res.sfu_access_token);
+          resolve({ accessToken: res.sfu_access_token, serverUrl: res.sfu_server_url, roomId: res.sfu_room_id });
+        })
+        .receive("error", reject)
+        .receive("timeout", () => reject(new Error("timeout")));
+    }).finally(() => {
+      this._sfuTokenRefreshInFlight = false;
+    });
+
+    return this._sfuTokenRefreshPromise;
+  };
+
+  getSfuTokenOrFetch = async () => {
+    if (this._hasValidSfuToken()) return this._sfuToken;
+    return (await this.fetchSfuToken()).accessToken;
+  };
+
+  _hasValidSfuToken = () => {
+    if (!this._sfuToken) return false;
+    if (!this._sfuTokenDecoded) return true;
+    return this._sfuTokenDecoded.exp * 1000 - Date.now() > 5 * 60 * 1000;
+  };
+
+  clearSfuToken = () => {
+    if (this.fetchSfuTokenTimeout) clearTimeout(this.fetchSfuTokenTimeout);
+    this.fetchSfuTokenTimeout = null;
+    this._sfuToken = null;
+    this._sfuTokenDecoded = null;
+    this._sfuTokenRefreshInFlight = false;
+    this._sfuTokenRefreshPromise = null;
+  };
+
   mute = sessionId => this.channel.push("mute", { session_id: sessionId });
   addOwner = sessionId => this.channel.push("add_owner", { session_id: sessionId });
   removeOwner = sessionId => this.channel.push("remove_owner", { session_id: sessionId });
@@ -524,6 +589,7 @@ export default class HubChannel extends EventTarget {
   };
 
   disconnect = () => {
+    this.clearSfuToken();
     if (this.channel) {
       this.channel.socket.disconnect();
     }

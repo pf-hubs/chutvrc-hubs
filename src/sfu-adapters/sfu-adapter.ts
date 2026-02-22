@@ -60,6 +60,44 @@ export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
   protected _bridgeMessageCallbacks: Set<BridgeMessageCallback> = new Set();
   protected _textEncoder: TextEncoder = new TextEncoder();
   protected _textDecoder: TextDecoder = new TextDecoder();
+
+  // Token management
+  protected _hubChannel: any = null;
+  private _boundTokenHandler: ((event: CustomEvent) => void) | null = null;
+
+  set hubChannel(channel: any) {
+    if (this._hubChannel && this._boundTokenHandler) {
+      this._hubChannel.removeEventListener("sfu_token_updated", this._boundTokenHandler);
+    }
+    this._hubChannel = channel;
+    if (channel) {
+      this._boundTokenHandler = this._handleSfuTokenUpdated.bind(this);
+      channel.addEventListener("sfu_token_updated", this._boundTokenHandler);
+    }
+  }
+
+  get hubChannel(): any {
+    return this._hubChannel;
+  }
+
+  protected _handleSfuTokenUpdated(event: CustomEvent): void {}
+
+  protected async _ensureFreshToken(): Promise<string | null> {
+    if (!this._hubChannel) return null;
+    try {
+      return await this._hubChannel.getSfuTokenOrFetch();
+    } catch (error) {
+      return null;
+    }
+  }
+
+  protected _cleanupTokenHandler(): void {
+    if (this._hubChannel && this._boundTokenHandler) {
+      this._hubChannel.removeEventListener("sfu_token_updated", this._boundTokenHandler);
+      this._boundTokenHandler = null;
+    }
+  }
+
   connect(props: any) {}
   disconnect() {}
   getMediaStream(clientId: string, kind: string) {}
