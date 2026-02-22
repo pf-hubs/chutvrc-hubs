@@ -4,6 +4,7 @@ import { SfuAdapter } from "./sfu-adapter";
 // Import adapters
 import { DialogAdapter } from "./dialog-adapter";
 import { SoraAdapter } from "./sora-adapter";
+import { LivekitAdapter } from "./livekit-adapter";
 
 type AdapterConstructor = new (connectionType: SFU_CONNECTION_TYPE) => SfuAdapter;
 
@@ -14,7 +15,8 @@ type AdapterConstructor = new (connectionType: SFU_CONNECTION_TYPE) => SfuAdapte
 export class SfuAdapterFactory {
   private static readonly adapters: Map<SFU, AdapterConstructor> = new Map([
     [SFU.DIALOG, DialogAdapter as unknown as AdapterConstructor],
-    [SFU.SORA, SoraAdapter as AdapterConstructor]
+    [SFU.SORA, SoraAdapter as AdapterConstructor],
+    [SFU.LIVEKIT, LivekitAdapter as AdapterConstructor]
   ]);
 
   /**
