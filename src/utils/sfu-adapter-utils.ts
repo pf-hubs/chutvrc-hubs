@@ -1,7 +1,5 @@
-import { DialogAdapter } from "../naf-dialog-adapter";
-import { SfuAdapter } from "../sfu-adapter";
+import { SfuAdapter } from "../sfu-adapters/sfu-adapter";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
-import { SoraAdapter } from "../sora-adapter";
 
 type SfuConnectionParams = {
   sfuId: number;
@@ -16,22 +14,6 @@ type SfuConnectionParams = {
   forceTurn?: boolean;
   qs?: URLSearchParams;
   debug?: boolean;
-};
-
-export const createSfuAdapter = ({
-  sfuId,
-  connectionType = SFU_CONNECTION_TYPE.SENDRECV
-}: {
-  sfuId: number;
-  connectionType: SFU_CONNECTION_TYPE;
-}) => {
-  switch (sfuId) {
-    case SFU.SORA:
-      return new SoraAdapter(connectionType);
-    case SFU.DIALOG:
-    default:
-      return new DialogAdapter(connectionType);
-  }
 };
 
 export const connectSfu = async (sfu: SfuAdapter, params: SfuConnectionParams) => {

@@ -269,7 +269,7 @@ import { swapActiveScene } from "./bit-systems/scene-loading";
 import { localClientID, setLocalClientID } from "./bit-systems/networking";
 import { listenForNetworkMessages } from "./utils/listen-for-network-messages";
 import { exposeBitECSDebugHelpers } from "./bitecs-debug-helpers";
-import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL } from "./sfu-adapter";
+import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL } from "./sfu-adapters/sfu-adapter";
 import { connectSfu } from "./utils/sfu-adapter-utils";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
 import { LibpeerDeviceManager, BridgeManager } from "./libpeer";
@@ -677,7 +677,6 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
       // Disconnect in case this is a re-entry
 
       APP.sfu?.disconnect();
-      // APP.sfu = createSfuAdapter({ sfuId: data.sfu });
       APP.sfu = APP.sfuCandidates.find((sfu, sfuId) => sfuId === data.sfu);
       listenSfuConnection(scene);
       registerNetworkSchemas();

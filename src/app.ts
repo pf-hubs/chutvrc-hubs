@@ -29,11 +29,11 @@ import { waitForPreloads } from "./utils/preload";
 import SceneEntryManager from "./scene-entry-manager";
 import { store } from "./utils/store-instance";
 import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
-import { SfuAdapter } from "./sfu-adapter";
+import { SfuAdapter } from "./sfu-adapters/sfu-adapter";
+import { SfuAdapterFactory } from "./sfu-adapters/adapter-factory";
 import { addObject3DComponent } from "./utils/jsx-entity";
 import { ElOrEid } from "./utils/bit-utils";
 import { AvatarIkManager } from "./utils/avatar-ik-manager";
-import { createSfuAdapter } from "./utils/sfu-adapter-utils";
 
 declare global {
   interface Window {
@@ -109,7 +109,7 @@ export class App {
 
   sfuCandidates = Object.keys(SFU)
     .filter(v => !isNaN(Number(v)))
-    .map(sfuId => createSfuAdapter({ sfuId: Number(sfuId), connectionType: SFU_CONNECTION_TYPE.SENDRECV }));
+    .map(sfuId => SfuAdapterFactory.create(Number(sfuId) as SFU, SFU_CONNECTION_TYPE.SENDRECV));
   // sfuCandidates: SfuAdapter[] = [new DialogAdapter(), new SoraAdapter()];
   sfu: SfuAdapter;
   publicSpeakingSfu: SfuAdapter;

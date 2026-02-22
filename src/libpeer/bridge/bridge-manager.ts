@@ -13,13 +13,8 @@
 import EventEmitter from "eventemitter3";
 import { LibpeerDeviceManager } from "../libpeer-device-manager";
 import { IoTMessage } from "../iot-types";
-import { SfuAdapter } from "../../sfu-adapter";
-import {
-  BridgeCapable,
-  BridgeEnvelope,
-  BridgeMessageCallback,
-  isBridgeCapable
-} from "./bridge-capable";
+import { SfuAdapter } from "../../sfu-adapters/sfu-adapter";
+import { BridgeCapable, BridgeEnvelope, BridgeMessageCallback, isBridgeCapable } from "./bridge-capable";
 import {
   createDeviceToRoomEnvelope,
   createRoomToDeviceEnvelope,
@@ -271,11 +266,11 @@ export class BridgeManager extends EventEmitter<BridgeManagerEvents> {
     this.deviceManager.on("device_message", this.boundHandleDeviceMessage);
 
     // Log device state changes
-    this.deviceManager.on("device_connected", (deviceId) => {
+    this.deviceManager.on("device_connected", deviceId => {
       this.log("debug", `Device connected: ${deviceId}`);
     });
 
-    this.deviceManager.on("device_disconnected", (deviceId) => {
+    this.deviceManager.on("device_disconnected", deviceId => {
       this.log("debug", `Device disconnected: ${deviceId}`);
     });
   }
@@ -382,9 +377,7 @@ export class BridgeManager extends EventEmitter<BridgeManagerEvents> {
   /** Check if the bridge is ready for communication */
   get isReady(): boolean {
     return (
-      this._initialized &&
-      this.deviceManager?.initialized === true &&
-      this.sfuAdapter?.isBridgeChannelReady === true
+      this._initialized && this.deviceManager?.initialized === true && this.sfuAdapter?.isBridgeChannelReady === true
     );
   }
 

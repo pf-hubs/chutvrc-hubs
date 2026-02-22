@@ -1,5 +1,6 @@
-import { connectSfu, createSfuAdapter } from "../utils/sfu-adapter-utils";
+import { connectSfu } from "../utils/sfu-adapter-utils";
 import { SFU_CONNECTION_TYPE } from "../sfu-types";
+import { SfuAdapterFactory } from "../sfu-adapters/adapter-factory";
 
 export class PublicSpeakingSystem {
   static clientIds = [];
@@ -39,7 +40,7 @@ export class PublicSpeakingSystem {
 
   static async initPublicSpeaker() {
     console.log("initPublicSpeaker");
-    APP.publicSpeakingSfu = createSfuAdapter({ sfuId: APP.sfu._sfuId, connectionType: SFU_CONNECTION_TYPE.SEND });
+    APP.publicSpeakingSfu = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.SEND);
     await connectSfu(APP.publicSpeakingSfu, {
       sfuId: APP.sfu._sfuId,
       clientId: "PS-" + APP.sfu._clientId,
@@ -77,7 +78,7 @@ export class PublicSpeakingSystem {
 
   static async initPublicSpeakingMirroring() {
     console.log("initPublicSpeakingMirroring");
-    APP.publicSpeakersMirrorSfu = createSfuAdapter({ sfuId: APP.sfu._sfuId, connectionType: SFU_CONNECTION_TYPE.RECV });
+    APP.publicSpeakersMirrorSfu = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.RECV);
     await connectSfu(APP.publicSpeakersMirrorSfu, {
       sfuId: APP.sfu._sfuId,
       clientId: APP.sfu._clientId,
@@ -137,10 +138,7 @@ export class PublicSpeakingSystem {
     if (!clientId.includes("PS-")) return;
     console.log("initPublicSpeakerAgent");
     this.clientIds.push(clientId);
-    APP.publicSpeakerAgentSfus[clientId] = createSfuAdapter({
-      sfuId: APP.sfu._sfuId,
-      connectionType: SFU_CONNECTION_TYPE.SEND
-    });
+    APP.publicSpeakerAgentSfus[clientId] = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.SEND);
     await connectSfu(APP.publicSpeakerAgentSfus[clientId], {
       sfuId: APP.sfu._sfuId,
       clientId: clientId,

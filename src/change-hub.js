@@ -1,12 +1,13 @@
 import { getReticulumFetchUrl, hubUrl } from "./utils/phoenix-utils";
 import { updateEnvironmentForHub, getSceneUrlForHub, updateUIForHub, remountUI } from "./hub";
-import { SFU } from "./sfu-types";
+import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
+import { SfuAdapterFactory } from "./sfu-adapters/adapter-factory";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
 import { localClientID, pendingMessages, pendingParts } from "./bit-systems/networking";
 import { storedUpdates } from "./bit-systems/network-receive-system";
 import { shouldUseNewLoader } from "./utils/bit-utils";
-import { connectSfu, createSfuAdapter } from "./utils/sfu-adapter-utils";
+import { connectSfu } from "./utils/sfu-adapter-utils";
 
 function unloadRoomObjects() {
   document.querySelectorAll("[pinnable]").forEach(el => {
@@ -121,7 +122,7 @@ export async function changeHub(hubId, addToHistory = true, waypoint = "") {
 
   APP.retChannel.push("change_hub", { hub_id: hub.hub_id });
 
-  APP.sfu = createSfuAdapter({ sfuId: data.sfu });
+  APP.sfu = SfuAdapterFactory.create(data.sfu, SFU_CONNECTION_TYPE.SENDRECV);
   const connectOption = {
     sfuId: data.sfu,
     clientId: data.session_id || APP.sfu._clientId,
