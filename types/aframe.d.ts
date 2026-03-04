@@ -52,6 +52,7 @@ declare module "aframe" {
     drawingMenuSystem: DrawingMenuSystem;
     characterController: CharacterControllerSystem;
     waypointSystem: WaypointSystem;
+    mediaPDFOculusFix: MediaPDFOculusFix;
     cursorPoseTrackingSystem: CursorPoseTrackingSystem;
     menuAnimationSystem: MenuAnimationSystem;
     audioSettingsSystem: AudioSettingsSystem;

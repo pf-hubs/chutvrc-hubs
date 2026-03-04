@@ -30,6 +30,7 @@ import { AudioZonesSystem } from "./audio-zones-system";
 import { GainSystem } from "./audio-gain-system";
 import { EnvironmentSystem } from "./environment-system";
 import { NameTagVisibilitySystem } from "./name-tag-visibility-system";
+import { MediaPDFOculusFix } from "./media-pdf-oculus-fix";
 
 // new world
 import { networkReceiveSystem } from "../bit-systems/network-receive-system";
@@ -140,6 +141,7 @@ AFRAME.registerSystem("hubs-systems", {
     this.drawingMenuSystem = new DrawingMenuSystem(this.el);
     this.characterController = new CharacterControllerSystem(this.el);
     this.waypointSystem = new WaypointSystem(this.el, this.characterController);
+    this.mediaPDFOculusFix = new MediaPDFOculusFix(this.el);
     this.cursorPoseTrackingSystem = new CursorPoseTrackingSystem();
     this.menuAnimationSystem = new MenuAnimationSystem();
     this.audioSettingsSystem = new AudioSettingsSystem(this.el);
