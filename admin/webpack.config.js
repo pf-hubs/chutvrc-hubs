@@ -75,8 +75,8 @@ module.exports = (env, argv) => {
     dotenv.config({ path: ".prod.env" });
   } else {
     dotenv.config({ path: ".env" });
-    dotenv.config({ path: ".defaults.env" });
   }
+  dotenv.config({ path: ".defaults.env" });
 
   const localDevHost = process.env.INTERNAL_HOSTNAME || "localhost";
   if (env.local) {

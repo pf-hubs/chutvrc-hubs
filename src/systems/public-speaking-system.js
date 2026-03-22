@@ -1,5 +1,6 @@
-import { connectSfu, createSfuAdapter } from "../utils/sfu-adapter-utils";
+import { connectSfu } from "../utils/sfu-adapter-utils";
 import { SFU_CONNECTION_TYPE } from "../sfu-types";
+import { SfuAdapterFactory } from "../sfu-adapters/adapter-factory";
 
 export class PublicSpeakingSystem {
   static clientIds = [];
@@ -38,8 +39,13 @@ export class PublicSpeakingSystem {
   }
 
   static async initPublicSpeaker() {
+    if (APP.publicSpeakingSfu) {
+      console.log("initPublicSpeaker: already broadcasting, ignoring duplicate start request");
+      return;
+    }
     console.log("initPublicSpeaker");
-    APP.publicSpeakingSfu = createSfuAdapter({ sfuId: APP.sfu._sfuId, connectionType: SFU_CONNECTION_TYPE.SEND });
+    APP.publicSpeakingSfu = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.SEND);
+    APP.publicSpeakingSfu.hubChannel = APP.hubChannel;
     await connectSfu(APP.publicSpeakingSfu, {
       sfuId: APP.sfu._sfuId,
       clientId: "PS-" + APP.sfu._clientId,
@@ -76,8 +82,13 @@ export class PublicSpeakingSystem {
   }
 
   static async initPublicSpeakingMirroring() {
+    if (APP.publicSpeakersMirrorSfu) {
+      console.log("initPublicSpeakingMirroring: already mirroring, ignoring duplicate start request");
+      return;
+    }
     console.log("initPublicSpeakingMirroring");
-    APP.publicSpeakersMirrorSfu = createSfuAdapter({ sfuId: APP.sfu._sfuId, connectionType: SFU_CONNECTION_TYPE.RECV });
+    APP.publicSpeakersMirrorSfu = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.RECV);
+    APP.publicSpeakersMirrorSfu.hubChannel = APP.hubChannel;
     await connectSfu(APP.publicSpeakersMirrorSfu, {
       sfuId: APP.sfu._sfuId,
       clientId: APP.sfu._clientId,
@@ -135,12 +146,15 @@ export class PublicSpeakingSystem {
 
   static async initPublicSpeakerAgent(clientId) {
     if (!clientId.includes("PS-")) return;
+    if (APP.publicSpeakerAgentSfus?.[clientId]) {
+      console.log("initPublicSpeakerAgent: agent already exists for", clientId, ", ignoring duplicate start request");
+      return;
+    }
     console.log("initPublicSpeakerAgent");
     this.clientIds.push(clientId);
-    APP.publicSpeakerAgentSfus[clientId] = createSfuAdapter({
-      sfuId: APP.sfu._sfuId,
-      connectionType: SFU_CONNECTION_TYPE.SEND
-    });
+    APP.publicSpeakerAgentSfus[clientId] = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.SEND);
+    APP.publicSpeakerAgentSfus[clientId].hubChannel = APP.hubChannel;
+    const sfuToken = await APP.hubChannel.getSfuTokenOrFetch();
     await connectSfu(APP.publicSpeakerAgentSfus[clientId], {
       sfuId: APP.sfu._sfuId,
       clientId: clientId,
@@ -149,7 +163,7 @@ export class PublicSpeakingSystem {
       serverUrl: `wss://${APP.sfu._serverParams?.host || "localhost"}:4443`,
       serverParams: APP.sfu._serverParams || { host: "localhost", port: 3306, turn: null },
       signalingUrl: APP.sfu._signalingUrl || "",
-      accessToken: APP.sfu._accessToken || "",
+      sfuAccessToken: sfuToken,
       forceTcp: APP.sfu._forceTcp || false,
       forceTurn: APP.sfu._forceTurn || false,
       iceTransportPolicy: APP.sfu._iceTransportPolicy || false,

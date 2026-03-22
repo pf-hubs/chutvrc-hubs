@@ -7,12 +7,15 @@ import { HubsWorld } from "../app";
 import { mapAvatarBone } from "../utils/map-avatar-bones";
 import { Transform } from "../types/transform";
 import { AvatarIkManager } from "../utils/avatar-ik-manager";
+import { AvatarAnimState } from "../types/avatar-types";
 
 export type InputTransformById = {
   rig: Map<string, Transform>;
   hmd: Map<string, Transform>;
   leftController: Map<string, Transform>;
   rightController: Map<string, Transform>;
+  leftFoot?: Map<string, Transform>;
+  rightFoot?: Map<string, Transform>;
 };
 
 export type InputTransform = {
@@ -20,6 +23,8 @@ export type InputTransform = {
   hmd: Transform;
   leftController: Transform;
   rightController: Transform;
+  leftFoot?: Transform;
+  rightFoot?: Transform;
 };
 
 /*
@@ -247,17 +252,17 @@ export const avatarIkSystem = (
   world: HubsWorld,
   avatarPoseInputs: InputTransformById,
   avatarEid2ClientId: Map<number, string>,
-  isVrByClientId: Map<string, boolean>
+  isVrByClientId: Map<string, boolean>,
+  animStateByClientId: Map<string, AvatarAnimState>
 ) => {
   avatarQuery(world).forEach(avatarEid => {
     const clientId = avatarEid2ClientId.get(avatarEid);
     if (clientId) {
       APP.world.eid2Ik.get(avatarEid)?.updateAvatarBoneIkById(
-        // avatarEid,
         avatarPoseInputs,
         clientId,
-        isVrByClientId.get(clientId) || false
-        // world.time.delta
+        isVrByClientId.get(clientId) || false,
+        animStateByClientId.get(clientId) || AvatarAnimState.STAND
       );
     }
   });

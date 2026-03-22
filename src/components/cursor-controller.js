@@ -270,7 +270,7 @@ AFRAME.registerComponent("cursor-controller", {
 
       this.pauseLaserPointertimer += 1;
       if (this.pauseLaserPointertimer > 100) {
-        APP.sfu?.broadcast("#laserPointer", [0, 0, 0, 0].join("|"));
+        // APP.sfu?.broadcast("#laserPointer", [0, 0, 0, 0].join("|"));
         APP.publicSpeakingSfu?.broadcast("#laserPointer", [0, 0, 0, 0].join("|"));
       }
     };

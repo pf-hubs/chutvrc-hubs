@@ -21,7 +21,7 @@ function registerNetworkSchemas() {
 
   // Note: networked template ids are semantically important. We use the template suffix as a filter
   // for allowing and authorizing messages in reticulum.
-  // See `spawn_permitted?` in https://github.com/mozilla/reticulum/blob/master/lib/ret_web/channels/hub_channel.ex
+  // See `spawn_permitted?` in https://github.com/Hubs-Foundation/reticulum/blob/master/lib/ret_web/channels/hub_channel.ex
 
   // NAF schemas have been extended with a custom nonAuthorizedComponents property that is used to skip authorization
   // on certain components and properties regardless of hub or user permissions. See permissions-utils.js.
@@ -94,10 +94,10 @@ function registerNetworkSchemas() {
         component: "position",
         requiresNetworkUpdate: vectorRequiresUpdate(0.001)
       },
-      {
-        component: "rotation",
-        requiresNetworkUpdate: vectorRequiresUpdate(0.5)
-      },
+      // {
+      //   component: "rotation",
+      //   requiresNetworkUpdate: vectorRequiresUpdate(0.5)
+      // },
       {
         component: "scale",
         requiresNetworkUpdate: vectorRequiresUpdate(0.001)

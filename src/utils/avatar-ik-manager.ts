@@ -7,6 +7,7 @@ import { HeadIk } from "./avatar-ik/head-ik";
 import { ArmIk } from "./avatar-ik/arm-ik";
 import { LegIk } from "./avatar-ik/leg-ik";
 import { JointSettings } from "./avatar-ik/joint-settings";
+import { AvatarAnimState } from "../types/avatar-types";
 
 const SelfHipsPositionOffset = new Vector3(0, 0, -0.1);
 const SelfHipsPositionFlippedOffset = new Vector3(0, 0, 0.1);
@@ -19,6 +20,7 @@ const DummyInputTransform = {
 export class AvatarIkManager {
   private world: HubsWorld;
   private isVR: boolean;
+  private animState: AvatarAnimState;
   private isFlippedY: boolean;
   private rootBone: Object3D | undefined;
   private rootPos: Vector3;
@@ -57,6 +59,7 @@ export class AvatarIkManager {
 
     this.world = world;
     this.isVR = false;
+    this.animState = 0; // avatar anim state TODO: change number to type AvatarAnimState
     this.isFlippedY = (right?.position?.x || 0) - (left?.position?.x || 0) > 0;
     this.rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
     this.rootPos = new Vector3();
@@ -85,8 +88,7 @@ export class AvatarIkManager {
       this.rightFootTarget.position.set(0.1, -0.5, 0);
       this.rightFootTarget.updateMatrix();
     }
-    this.leftFootWorldInput = { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } };
-    this.rightFootWorldInput = { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } };
+    this.stand();
 
     if (this.rootBone && this.hipsBone) {
       if (this.rootBone.parent) this.rootBone.parent.visible = false;
@@ -156,7 +158,7 @@ export class AvatarIkManager {
     this.rootPosBeforeWalk = { x: 0, y: 0, z: 0 };
   }
 
-  updateAvatarBoneIkById(poseInputs: InputTransformById, clientId: string, isVr: boolean) {
+  updateAvatarBoneIkById(poseInputs: InputTransformById, clientId: string, isVr: boolean, animState: AvatarAnimState) {
     const poseInput: InputTransform = {
       rig: poseInputs.rig?.get(clientId) || DummyInputTransform,
       hmd: poseInputs.hmd?.get(clientId) || DummyInputTransform,
@@ -165,6 +167,22 @@ export class AvatarIkManager {
     };
     this.isSelfAvatar = clientId === APP.sfu._clientId;
     this.isVR = isVr;
+    if (this.animState !== animState) {
+      switch (animState) {
+        case AvatarAnimState.STAND:
+          this.stand();
+          break;
+        case AvatarAnimState.WALK:
+          this.walk();
+          break;
+        case AvatarAnimState.SIT:
+          this.sit();
+          break;
+        default:
+          break;
+      }
+      this.animState = animState;
+    }
 
     this.updateAvatarBoneIk(poseInput);
   }
@@ -185,12 +203,11 @@ export class AvatarIkManager {
     this.headIK?.solve(poseInput.hmd, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
     this.leftArmIK?.solve(poseInput.leftController, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
     this.rightArmIK?.solve(poseInput.rightController, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
-    /*
-    if (!this.isNPC && this.leftFootWorldInput)
-      this.leftLegIK?.solve(this.leftFootWorldInput, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
-    if (!this.isNPC && this.rightFootWorldInput)
-      this.rightLegIK?.solve(this.rightFootWorldInput, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
-    */
+
+    // if (!this.isNPC && this.leftFootWorldInput)
+    this.leftLegIK?.solve(this.leftFootWorldInput, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
+    // if (!this.isNPC && this.rightFootWorldInput)
+    this.rightLegIK?.solve(this.rightFootWorldInput, poseInput.hmd, this.isVR, this.isSelfAvatar, this.isNPC);
 
     if (this.isVR) this.rootBone?.updateWorldMatrix(false, true);
   }
@@ -246,7 +263,7 @@ export class AvatarIkManager {
         y: this.leftFootWorldPosBuffer.y,
         z: this.leftFootWorldPosBuffer.z
       };
-      this.leftFootWorldInput.pos = {
+      this.rightFootWorldInput.pos = {
         x: this.rightFootWorldPosBuffer.x,
         y: this.rightFootWorldPosBuffer.y,
         z: this.rightFootWorldPosBuffer.z
@@ -257,5 +274,29 @@ export class AvatarIkManager {
     ) {
       this.isWalking = true;
     }
+  }
+
+  stand() {
+    this.leftFootWorldInput = {
+      pos: { x: 0.1, y: 0, z: 0 },
+      rot: { x: -1, y: 0, z: 0 }
+    };
+    this.rightFootWorldInput = {
+      pos: { x: -0.1, y: 0, z: 0 },
+      rot: { x: -1, y: 0, z: 0 }
+    };
+  }
+
+  walk() {}
+
+  sit() {
+    this.leftFootWorldInput = {
+      pos: { x: 0.1, y: 0.3, z: 0.4 },
+      rot: { x: -1, y: 0, z: 0 }
+    };
+    this.rightFootWorldInput = {
+      pos: { x: -0.1, y: 0.3, z: 0.4 },
+      rot: { x: -1, y: 0, z: 0 }
+    };
   }
 }

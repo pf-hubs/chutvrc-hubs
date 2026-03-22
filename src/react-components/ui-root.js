@@ -104,8 +104,8 @@ import { usePermissions } from "./room/hooks/usePermissions";
 import { ChatContextProvider } from "./room/contexts/ChatContext";
 import ChatToolbarButton from "./room/components/ChatToolbarButton/ChatToolbarButton";
 import SeePlansCTA from "./room/components/SeePlansCTA/SeePlansCTA";
-import { PublicSpeakingPopoverContainer } from "./room/PublicSpeakingPopoverContainer";
 import RecordingButton from "./room/components/RecordingButton/RecordingButton";
+import { ChutvrcPopoversContainer } from "./room/ChutvrcPopoversContainer";
 
 const avatarEditorDebug = qsTruthy("avatarEditorDebug");
 
@@ -265,7 +265,7 @@ class UIRoot extends Component {
               });
             } catch (e) {
               console.error(e);
-              this.props.exitScene(ExitReason.sceneError); // https://github.com/mozilla/hubs/issues/1950
+              this.props.exitScene(ExitReason.sceneError); // https://github.com/Hubs-Foundation/hubs/issues/1950
             }
           }
 
@@ -1137,8 +1137,8 @@ class UIRoot extends Component {
     const canCloseRoom = this.props.hubChannel && !!this.props.hubChannel.canOrWillIfCreator("close_hub");
     const isModerator = this.props.hubChannel && this.props.hubChannel.canOrWillIfCreator("kick_users") && !isMobileVR;
 
-    const canAccessPublicSpeaking =
-      APP.sfu && APP.hubChannel.presence?.state[APP.sfu._clientId]?.metas[0].roles["owner"];
+    // const canToggleChutvrcPopovers =
+    //   APP.sfu && APP.hubChannel.presence?.state[APP.sfu._clientId]?.metas[0].roles["owner"];
 
     const moreMenu = [
       {
@@ -1210,7 +1210,7 @@ class UIRoot extends Component {
               id: "see-plans",
               label: <FormattedMessage id="more-menu.see-plans-cta" defaultMessage="See Plans" />,
               icon: { src: hubsLogo, alt: "Logo" },
-              href: "https://hubs.mozilla.com/#subscribe"
+              href: "https://hubsfoundation.org/getting-started"
             }
         ].filter(item => item)
       },
@@ -1301,7 +1301,7 @@ class UIRoot extends Component {
             id: "report-issue",
             label: <FormattedMessage id="more-menu.report-issue" defaultMessage="Report Issue" />,
             icon: WarningCircleIcon,
-            href: configs.link("issue_report", "https://hubs.mozilla.com/docs/help.html")
+            href: configs.link("issue_report", "https://docs.hubsfoundation.org/help.html")
           },
           entered && {
             id: "start-tour",
@@ -1313,13 +1313,13 @@ class UIRoot extends Component {
             id: "help",
             label: <FormattedMessage id="more-menu.help" defaultMessage="Help" />,
             icon: SupportIcon,
-            href: configs.link("docs", "https://hubs.mozilla.com/docs")
+            href: configs.link("docs", "https://docs.hubsfoundation.org")
           },
           configs.feature("show_controls_link") && {
             id: "controls",
             label: <FormattedMessage id="more-menu.controls" defaultMessage="Controls" />,
             icon: SupportIcon,
-            href: configs.link("controls", "https://hubs.mozilla.com/docs/hubs-controls.html")
+            href: configs.link("controls", "https://docs.hubsfoundation.org/hubs-controls.html")
           },
           configs.feature("show_whats_new_link") && {
             id: "whats-new",
@@ -1669,9 +1669,10 @@ class UIRoot extends Component {
                         onClick={() => exit2DInterstitialAndEnterVR(true)}
                       />
                     )}
-                    {canAccessPublicSpeaking && (
-                      <PublicSpeakingPopoverContainer scene={this.props.scene} hubChannel={this.props.hubChannel} />
-                    )}
+                    {
+                      // canToggleChutvrcPopovers &&
+                      <ChutvrcPopoversContainer scene={this.props.scene} hubChannel={this.props.hubChannel} />
+                    }
                   </>
                 }
                 toolbarRight={

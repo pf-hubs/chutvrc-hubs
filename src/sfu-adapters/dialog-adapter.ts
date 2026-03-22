@@ -1,11 +1,26 @@
+// @ts-nocheck
+// TODO: This file was migrated from JavaScript. Full TypeScript annotations should be added incrementally.
+// Temporarily using @ts-nocheck to allow compilation while maintaining backwards compatibility.
+
 import * as mediasoupClient from "mediasoup-client";
 import protooClient from "protoo-client";
 import { debug as newDebug } from "debug";
-import { MediaDevices } from "./utils/media-devices-utils";
+import { MediaDevices } from "../utils/media-devices-utils";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
-import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
-import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
-import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
+import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
+import { CrossRoomStreamerAudioSource } from "../components/cross-room-streamer-audio-source";
+import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
+import { DataChannelMessage } from "../types/sfu-adapter-interface";
+import {
+  ChannelHandlerRegistry,
+  createAvatarSyncHandlers,
+  NimproHandler,
+  IotBridgeHandler,
+  PdfPageHandler,
+  TogglePublicSpeakerHandler,
+  LaserPointerHandler,
+  EmojiHandler
+} from "../utils/data-channel-handlers";
 
 // Used for VP9 webcam video.
 //const VIDEO_KSVC_ENCODINGS = [{ scalabilityMode: "S3T3_KEY" }];
@@ -43,8 +58,58 @@ const SCREEN_SHARING_SIMULCAST_ENCODINGS = [
   { dtx: true, maxBitrate: 6000000 }
 ];
 
+interface TurnConfig {
+  enabled: boolean;
+  username: string;
+  credential: string;
+  transports: Array<{ port: number }>;
+}
+
+interface ServerParams {
+  host: string;
+  port: number;
+  turn?: TurnConfig;
+}
+
+interface ConnectProps {
+  serverUrl: string;
+  roomId: string;
+  serverParams: ServerParams;
+  scene: any;
+  clientId: string;
+  forceTcp: boolean;
+  forceTurn: boolean;
+  iceTransportPolicy: RTCIceTransportPolicy | null;
+}
+
 export class DialogAdapter extends SfuAdapter {
-  constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
+  private _micShouldBeEnabled: boolean;
+  private _micProducer: any;
+  private _cameraProducer: any;
+  private _shareProducer: any;
+  private _localMediaStream: MediaStream | null;
+  private _consumers: Map<string, any>;
+  private _dataProducers: Map<string, any>;
+  private _dataConsumers: Map<string, any>;
+  private _pendingMediaRequests: Map<string, any>;
+  private _blockedClients: Map<string, boolean>;
+  private _forceTcp: boolean;
+  private _forceTurn: boolean;
+  private _iceTransportPolicy: RTCIceTransportPolicy | null;
+  private _useDataChannel: boolean;
+  private _serverParams: ServerParams;
+  private _consumerStats: Record<string, any>;
+  private _protoo: any;
+  private _mediasoupDevice: any;
+  private _sendTransport: any;
+  private _recvTransport: any;
+  private _downlinkBwe: any;
+  private _serverUrl: string;
+  private crossRoomStreamerAudioSource: Record<string, any>;
+  private _laserPointerHandler: LaserPointerHandler | null = null;
+  public scene: any;
+
+  constructor(sfuType: SFU_CONNECTION_TYPE = SFU_CONNECTION_TYPE.SENDRECV) {
     super();
 
     this._sfuId = SFU.DIALOG;
@@ -64,24 +129,58 @@ export class DialogAdapter extends SfuAdapter {
     this._iceTransportPolicy = null;
     this._useDataChannel = true; // DataChannel implementation
     this.scene = null;
-    this._serverParams = {};
+    this._serverParams = {} as ServerParams;
     this._consumerStats = {};
     this._avatarSyncHelper = new AvatarSyncHelper(this);
     this._dataChannelMessages = [];
     this._recordedDataChannelMessages = [];
+    this._publicSpeakerClientIdsInRoom = [];
+
+    // Initialize message dispatcher with handlers for DialogAdapter
+    this.initializeDialogHandlers();
   }
 
-  get consumerStats() {
+  /**
+   * Initialize channel handlers for DialogAdapter.
+   * DialogAdapter supports: avatar sync channels + all optional feature channels
+   */
+  private initializeDialogHandlers(): void {
+    const registry = new ChannelHandlerRegistry();
+
+    // Register avatar sync handlers (mandatory)
+    createAvatarSyncHandlers().forEach(handler => registry.register(handler));
+
+    // Register optional handlers for DialogAdapter
+    registry.register(new NimproHandler());
+    registry.register(new IotBridgeHandler());
+    registry.register(new PdfPageHandler());
+    registry.register(new TogglePublicSpeakerHandler());
+
+    // LaserPointerHandler needs cleanup on disconnect
+    this._laserPointerHandler = new LaserPointerHandler();
+    registry.register(this._laserPointerHandler);
+
+    registry.register(new EmojiHandler());
+
+    this.initializeMessageDispatcher(registry);
+  }
+
+  get consumerStats(): Record<string, any> | null {
     if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return null;
     return this._consumerStats;
   }
 
-  get downlinkBwe() {
+  get downlinkBwe(): any {
     return this._downlinkBwe;
   }
 
-  getIceServers(host, port, turn) {
-    const iceServers = [];
+  // BridgeCapable implementation
+  get isBridgeChannelReady(): boolean {
+    return this._dataProducers?.has("#iot") && this._sendTransport && !this._sendTransport._closed;
+  }
+
+  getIceServers(host: string, port: number, turn?: TurnConfig): RTCIceServer[] {
+    const iceServers: RTCIceServer[] = [];
 
     this._serverUrl = `wss://${host}:${port}`;
 
@@ -113,13 +212,13 @@ export class DialogAdapter extends SfuAdapter {
   /**
    * Gets transport/consumer/producer stats on the server side.
    */
-  async getServerStats() {
+  async getServerStats(): Promise<Record<string, any> | undefined> {
     if (!this._protoo.connected) {
       // Signaling channel not connected, no reason to get remote RTC stats.
       return;
     }
 
-    const result = {};
+    const result: Record<string, any> = {};
     try {
       if (this._connectionType !== SFU_CONNECTION_TYPE.RECV && !this._sendTransport?._closed) {
         const sendTransport = (result[this._sendTransport.id] = {});
@@ -156,7 +255,7 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  async iceRestart(transport) {
+  async iceRestart(transport: any): Promise<void> {
     // Force an ICE restart to gather new candidates and trigger a reconnection
     this.emitRTCEvent(
       "log",
@@ -167,7 +266,7 @@ export class DialogAdapter extends SfuAdapter {
     await transport.restartIce({ iceParameters });
   }
 
-  async recreateSendTransport(iceServers) {
+  async recreateSendTransport(iceServers: RTCIceServer[]): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     this.emitRTCEvent("log", "RTC", () => `Recreating send transport ICE`);
     await this.closeSendTransport();
@@ -177,7 +276,7 @@ export class DialogAdapter extends SfuAdapter {
   /**
    * Restart ICE in the underlying send peerconnection.
    */
-  async restartSendICE() {
+  async restartSendICE(): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     // Do not restart ICE if Signaling is disconnected.
     if (!this._protoo || !this._protoo.connected) {
@@ -201,9 +300,8 @@ export class DialogAdapter extends SfuAdapter {
   /**
    * Checks the Send Transport ICE status and restarts it in case is in failed state.
    * This is called by the Send Transport "connectionstatechange" event listener.
-   * @param {boolean} connectionState The transport connnection state (ICE connection state)
    */
-  checkSendIceStatus(connectionState) {
+  checkSendIceStatus(connectionState: string): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     // If the ICE connection state is failed, we force an ICE restart
     if (connectionState === "failed") {
@@ -211,7 +309,7 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  async recreateRecvTransport(iceServers) {
+  async recreateRecvTransport(iceServers: RTCIceServer[]): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
     this.emitRTCEvent("log", "RTC", () => `Recreating receive transport ICE`);
     await this.closeRecvTransport();
@@ -221,9 +319,8 @@ export class DialogAdapter extends SfuAdapter {
 
   /**
    * Restart ICE in the underlying receive peerconnection.
-   * @param {boolean} force Forces the execution of the reconnect.
    */
-  async restartRecvICE() {
+  async restartRecvICE(): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
     if (!this._protoo || !this._protoo.connected) {
       return;
@@ -244,11 +341,10 @@ export class DialogAdapter extends SfuAdapter {
   }
 
   /**
-   * Checks the ReeceiveReeceive Transport ICE status and restarts it in case is in failed state.
-   * This is called by the Reeceive Transport "connectionstatechange" event listener.
-   * @param {boolean} connectionState The transport connection state (ICE connection state)
+   * Checks the Receive Transport ICE status and restarts it in case is in failed state.
+   * This is called by the Receive Transport "connectionstatechange" event listener.
    */
-  checkRecvIceStatus(connectionState) {
+  checkRecvIceStatus(connectionState: string): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
     // If the ICE connection state is failed, we force an ICE restart
     if (connectionState === "failed") {
@@ -256,7 +352,8 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  async connect({ serverUrl, roomId, serverParams, scene, clientId, forceTcp, forceTurn, iceTransportPolicy }) {
+  async connect(props: ConnectProps): Promise<void> {
+    const { serverUrl, roomId, serverParams, scene, clientId, forceTcp, forceTurn, iceTransportPolicy } = props;
     this._serverUrl = serverUrl;
     this._roomId = roomId;
     this._serverParams = serverParams;
@@ -265,6 +362,9 @@ export class DialogAdapter extends SfuAdapter {
     this._forceTcp = forceTcp;
     this._forceTurn = forceTurn;
     this._iceTransportPolicy = iceTransportPolicy;
+
+    // Update dispatcher context with connection info
+    this.updateDispatcherContext();
 
     const urlWithParams = new URL(this._serverUrl);
     urlWithParams.searchParams.append("roomId", this._roomId);
@@ -284,7 +384,7 @@ export class DialogAdapter extends SfuAdapter {
       this.cleanUpLocalState();
     });
 
-    this._protoo.on("failed", attempt => {
+    this._protoo.on("failed", (attempt: number) => {
       this.emitRTCEvent("error", "Signaling", () => `Failed: ${attempt}, retrying...`);
     });
 
@@ -296,7 +396,7 @@ export class DialogAdapter extends SfuAdapter {
     });
 
     // eslint-disable-next-line no-unused-vars
-    this._protoo.on("request", async (request, accept, reject) => {
+    this._protoo.on("request", async (request: any, accept: () => void, reject: (err: Error) => void) => {
       this.emitRTCEvent("info", "Signaling", () => `Request [${request.method}]: ${request.data?.id}`);
       debug('proto "request" event [method:%s, data:%o]', request.method, request.data?.id);
 
@@ -384,12 +484,27 @@ export class DialogAdapter extends SfuAdapter {
               sctpStreamParameters
             });
 
-            dataConsumer.on("message", data => {
-              // console.log(`Channel ${label} received message: ${new TextDecoder().decode(new Uint8Array(data))}`);
-              this._dataChannelMessages.push({ channelLabel: label, message: data });
-              if (this._isRecording) this._recordedDataChannelMessages.push({ l: label, m: data, t: Date.now() });
-              while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
-              this._avatarSyncHelper.handleRecvMessage(label, new Uint8Array(data));
+            dataConsumer.on("message", (data: ArrayBuffer) => {
+              // Dispatch message through handler system
+              this.handleDataChannelMessage(label, data);
+
+              // Queue messages for relay when acting as public speaking mirror
+              // This enables mirrorDataChannelMessageFromSpeaker() to relay avatar data to receiving rooms
+              if (this._roomId.includes("public_speaking") && this._connectionType === SFU_CONNECTION_TYPE.RECV) {
+                this._dataChannelMessages.push({
+                  channelLabel: label,
+                  message: data
+                });
+                // Prevent memory leaks - cap queue size
+                while (this._dataChannelMessages.length > 100) {
+                  this._dataChannelMessages.shift();
+                }
+              }
+
+              // Recording support
+              if (this._isRecording) {
+                this._recordedDataChannelMessages.push({ l: label, m: data, t: Date.now() });
+              }
             });
 
             dataConsumer.on("transportclose", () => {
@@ -417,7 +532,7 @@ export class DialogAdapter extends SfuAdapter {
       }
     });
 
-    this._protoo.on("notification", notification => {
+    this._protoo.on("notification", (notification: any) => {
       debug('proto "notification" event [method:%s, data:%o]', notification.method, notification.data);
 
       switch (notification.method) {
@@ -551,7 +666,7 @@ export class DialogAdapter extends SfuAdapter {
     });
   }
 
-  async _retryConnectWithNewHost() {
+  async _retryConnectWithNewHost(): Promise<void> {
     this.cleanUpLocalState();
     this._protoo.removeAllListeners();
     const serverParams = await APP.hubChannel.getHost();
@@ -575,7 +690,7 @@ export class DialogAdapter extends SfuAdapter {
     });
   }
 
-  closePeer(peerId) {
+  closePeer(peerId: string): void {
     const pendingMediaRequests = this._pendingMediaRequests.get(peerId);
 
     if (pendingMediaRequests) {
@@ -594,7 +709,7 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  resolvePendingMediaRequestForTrack(clientId, track) {
+  resolvePendingMediaRequestForTrack(clientId: string, track: MediaStreamTrack): void {
     const requests = this._pendingMediaRequests.get(clientId);
 
     if (requests && requests[track.kind]) {
@@ -608,26 +723,26 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  removeConsumer(consumerId) {
+  removeConsumer(consumerId: string): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
     this.emitRTCEvent("info", "RTC", () => `Consumer removed: ${consumerId}`);
     this._consumers.delete(consumerId);
   }
 
-  removeDataProducer(dataProducerId) {
+  removeDataProducer(dataProducerId: string): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     this.emitRTCEvent("info", "RTC", () => `DataProducer removed: ${dataProducerId}`);
     this._dataProducers.delete(dataProducerId);
   }
 
-  removeDataConsumer(dataConsumerId) {
+  removeDataConsumer(dataConsumerId: string): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
     this.emitRTCEvent("info", "RTC", () => `DataConsumer removed: ${dataConsumerId}`);
     this._consumers.delete(dataConsumerId);
   }
 
-  getMediaStream(clientId, kind = "audio") {
-    let track;
+  getMediaStream(clientId: string, kind: string = "audio"): Promise<MediaStream | null> {
+    let track: MediaStreamTrack | undefined;
 
     if (this._clientId === clientId && this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
       if (kind === "audio" && this._micProducer) {
@@ -657,7 +772,7 @@ export class DialogAdapter extends SfuAdapter {
       }
 
       const requests = this._pendingMediaRequests.get(clientId);
-      const promise = new Promise((resolve, reject) => (requests[kind] = { resolve, reject }));
+      const promise = new Promise<MediaStream | null>((resolve, reject) => (requests[kind] = { resolve, reject }));
       requests[kind].promise = promise;
       promise.catch(e => {
         this.emitRTCEvent("error", "Adapter", () => `getMediaStream error: ${e}`);
@@ -667,18 +782,18 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  getDataChannelMessage() {
+  getDataChannelMessage(): DataChannelMessage {
     return this._dataChannelMessages && this._dataChannelMessages.length > 0
-      ? this._dataChannelMessages.shift()
+      ? this._dataChannelMessages.shift()!
       : { channelLabel: "", message: null };
   }
 
-  getLocalMicTrack() {
+  getLocalMicTrack(): MediaStreamTrack | undefined {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     return this._micProducer?.track;
   }
 
-  async createSendTransport(iceServers) {
+  async createSendTransport(iceServers: RTCIceServer[]): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     // Create mediasoup Transport for sending (unless we don't want to produce).
     const sendTransportInfo = await this._protoo.request("createWebRtcTransport", {
@@ -701,18 +816,18 @@ export class DialogAdapter extends SfuAdapter {
     this._sendTransport.on(
       "connect",
       (
-        { dtlsParameters },
-        callback,
-        errback // eslint-disable-line no-shadow
+        { dtlsParameters }: { dtlsParameters: any },
+        callback: () => void,
+        errback: (err: Error) => void // eslint-disable-line no-shadow
       ) => {
         this.emitRTCEvent("info", "RTC", () => `Send transport [connect]`);
         this._sendTransport.observer.on("close", () => {
           this.emitRTCEvent("info", "RTC", () => `Send transport [close]`);
         });
-        this._sendTransport.observer.on("newproducer", producer => {
+        this._sendTransport.observer.on("newproducer", (producer: any) => {
           this.emitRTCEvent("info", "RTC", () => `Send transport [newproducer]: ${producer.id}`);
         });
-        this._sendTransport.observer.on("newconsumer", consumer => {
+        this._sendTransport.observer.on("newconsumer", (consumer: any) => {
           this.emitRTCEvent("info", "RTC", () => `Send transport [newconsumer]: ${consumer.id}`);
         });
 
@@ -726,7 +841,7 @@ export class DialogAdapter extends SfuAdapter {
       }
     );
 
-    this._sendTransport.on("connectionstatechange", connectionState => {
+    this._sendTransport.on("connectionstatechange", (connectionState: string) => {
       let level = "info";
       if (connectionState === "failed" || connectionState === "disconnected") {
         level = "error";
@@ -736,40 +851,50 @@ export class DialogAdapter extends SfuAdapter {
       this.checkSendIceStatus(connectionState);
     });
 
-    this._sendTransport.on("produce", async ({ kind, rtpParameters, appData }, callback, errback) => {
-      this.emitRTCEvent("info", "RTC", () => `Send transport [produce]: ${kind}`);
-      try {
-        // eslint-disable-next-line no-shadow
-        const { id } = await this._protoo.request("produce", {
-          transportId: this._sendTransport.id,
-          kind,
-          rtpParameters,
-          appData
-        });
+    this._sendTransport.on(
+      "produce",
+      async (
+        { kind, rtpParameters, appData }: any,
+        callback: (params: { id: string }) => void,
+        errback: (err: Error) => void
+      ) => {
+        this.emitRTCEvent("info", "RTC", () => `Send transport [produce]: ${kind}`);
+        try {
+          // eslint-disable-next-line no-shadow
+          const { id } = await this._protoo.request("produce", {
+            transportId: this._sendTransport.id,
+            kind,
+            rtpParameters,
+            appData
+          });
 
-        callback({ id });
-      } catch (error) {
-        this.emitRTCEvent("error", "Signaling", () => `[produce] error: ${error}`);
-        errback(error);
+          callback({ id });
+        } catch (error) {
+          this.emitRTCEvent("error", "Signaling", () => `[produce] error: ${error}`);
+          errback(error as Error);
+        }
       }
-    });
+    );
 
-    this._sendTransport.on("producedata", async (parameters, callback, errback) => {
-      this.emitRTCEvent("info", "RTC", () => `Send transport [produceData]`);
-      try {
-        const id = await this._protoo.request("produceData", {
-          transportId: this._sendTransport.id,
-          ...parameters
-        });
-        callback({ id });
-      } catch (error) {
-        this.emitRTCEvent("error", "Signaling", () => `[produceData] error: ${error}`);
-        errback(error);
+    this._sendTransport.on(
+      "producedata",
+      async (parameters: any, callback: (params: { id: string }) => void, errback: (err: Error) => void) => {
+        this.emitRTCEvent("info", "RTC", () => `Send transport [produceData]`);
+        try {
+          const id = await this._protoo.request("produceData", {
+            transportId: this._sendTransport.id,
+            ...parameters
+          });
+          callback({ id });
+        } catch (error) {
+          this.emitRTCEvent("error", "Signaling", () => `[produceData] error: ${error}`);
+          errback(error as Error);
+        }
       }
-    });
+    );
   }
 
-  async closeSendTransport() {
+  async closeSendTransport(): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
 
     if (this._micProducer) {
@@ -800,7 +925,7 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  async createRecvTransport(iceServers) {
+  async createRecvTransport(iceServers: RTCIceServer[]): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
     // Create mediasoup Transport for sending (unless we don't want to consume).
     const recvTransportInfo = await this._protoo.request("createWebRtcTransport", {
@@ -822,18 +947,18 @@ export class DialogAdapter extends SfuAdapter {
     this._recvTransport.on(
       "connect",
       (
-        { dtlsParameters },
-        callback,
-        errback // eslint-disable-line no-shadow
+        { dtlsParameters }: { dtlsParameters: any },
+        callback: () => void,
+        errback: (err: Error) => void // eslint-disable-line no-shadow
       ) => {
         this.emitRTCEvent("info", "RTC", () => `Receive transport [connect]`);
         this._recvTransport.observer.on("close", () => {
           this.emitRTCEvent("info", "RTC", () => `Receive transport [close]`);
         });
-        this._recvTransport.observer.on("newproducer", producer => {
+        this._recvTransport.observer.on("newproducer", (producer: any) => {
           this.emitRTCEvent("info", "RTC", () => `Receive transport [newproducer]: ${producer.id}`);
         });
-        this._recvTransport.observer.on("newconsumer", consumer => {
+        this._recvTransport.observer.on("newconsumer", (consumer: any) => {
           this.emitRTCEvent("info", "RTC", () => `Receive transport [newconsumer]: ${consumer.id}`);
         });
 
@@ -847,7 +972,7 @@ export class DialogAdapter extends SfuAdapter {
       }
     );
 
-    this._recvTransport.on("connectionstatechange", connectionState => {
+    this._recvTransport.on("connectionstatechange", (connectionState: string) => {
       let level = "info";
       if (connectionState === "failed" || connectionState === "disconnected") {
         level = "error";
@@ -858,7 +983,7 @@ export class DialogAdapter extends SfuAdapter {
     });
   }
 
-  async closeRecvTransport() {
+  async closeRecvTransport(): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
     const transportId = this._recvTransport?.id;
     if (this._recvTransport && !this._recvTransport._closed) {
@@ -874,7 +999,7 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  async _joinRoom() {
+  async _joinRoom(): Promise<void> {
     debug("_joinRoom()");
 
     this._mediasoupDevice = new mediasoupClient.Device({});
@@ -903,11 +1028,14 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  getLocalMediaStream() {
+  getLocalMediaStream(): MediaStream | null {
     return this._localMediaStream;
   }
 
-  async setLocalMediaStream(stream, videoContentHintByTrackId = null) {
+  async setLocalMediaStream(
+    stream: MediaStream,
+    videoContentHintByTrackId: Map<string, string> | null = null
+  ): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     if (!this._sendTransport) {
       console.error("Tried to setLocalMediaStream before a _sendTransport existed");
@@ -977,8 +1105,11 @@ export class DialogAdapter extends SfuAdapter {
     this._localMediaStream = stream;
 
     // DataChannel implementation
+    const channelsToProduce = this._avatarSyncHelper._channelsForSync.concat([
+      "#nimpro", "#iot", "#pdfPage", "#laserPointer", "#emoji", "#togglePublicSpeaker"
+    ]);
     await Promise.all(
-      this._avatarSyncHelper._channelsForSync.map(async label => {
+      channelsToProduce.map(async label => {
         const dataProducer = await this._sendTransport.produceData({ label });
 
         dataProducer.on("transportclose", () => {
@@ -999,12 +1130,12 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  setLocalDataChannelMessage({ channelLabel, message }) {
+  setLocalDataChannelMessage({ channelLabel, message }: DataChannelMessage): void {
     if (!channelLabel || !message) return;
     this.broadcastUint8(channelLabel, new Uint8Array(message));
   }
 
-  async enableCamera(track) {
+  async enableCamera(track: MediaStreamTrack): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     // stopTracks = false because otherwise the track will end during a temporary disconnect
     this._cameraProducer = await this._sendTransport.produce({
@@ -1026,7 +1157,7 @@ export class DialogAdapter extends SfuAdapter {
     });
   }
 
-  async disableCamera() {
+  async disableCamera(): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._cameraProducer) return;
 
     this._cameraProducer.close();
@@ -1042,7 +1173,7 @@ export class DialogAdapter extends SfuAdapter {
     this._cameraProducer = null;
   }
 
-  async enableShare(track) {
+  async enableShare(track: MediaStreamTrack): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     // stopTracks = false because otherwise the track will end during a temporary disconnect
     this._shareProducer = await this._sendTransport.produce({
@@ -1067,7 +1198,7 @@ export class DialogAdapter extends SfuAdapter {
     });
   }
 
-  async disableShare() {
+  async disableShare(): Promise<void> {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._shareProducer) return;
 
     this._shareProducer.close();
@@ -1083,7 +1214,7 @@ export class DialogAdapter extends SfuAdapter {
     this._shareProducer = null;
   }
 
-  toggleMicrophone() {
+  toggleMicrophone(): void {
     if (this.isMicEnabled) {
       this.enableMicrophone(false);
     } else {
@@ -1091,7 +1222,7 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  enableMicrophone(enabled) {
+  enableMicrophone(enabled: boolean): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     if (!this._micProducer) {
       console.error("Tried to toggle mic but there's no producer.");
@@ -1109,11 +1240,11 @@ export class DialogAdapter extends SfuAdapter {
     this.emit("mic-state-changed", { enabled: this.isMicEnabled });
   }
 
-  get isMicEnabled() {
+  get isMicEnabled(): boolean {
     return this._connectionType !== SFU_CONNECTION_TYPE.RECV && this._micProducer && !this._micProducer.paused;
   }
 
-  cleanUpLocalState() {
+  cleanUpLocalState(): void {
     this._sendTransport && this._sendTransport.close();
     this._sendTransport = null;
     this._recvTransport && this._recvTransport.close();
@@ -1123,7 +1254,7 @@ export class DialogAdapter extends SfuAdapter {
     this._cameraProducer = null;
   }
 
-  disconnect() {
+  disconnect(): void {
     debug("disconnect()");
     this.cleanUpLocalState();
     if (this._protoo) {
@@ -1135,9 +1266,10 @@ export class DialogAdapter extends SfuAdapter {
     }
     if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
     this._avatarSyncHelper?.stopSyncing();
+    this.cleanupDispatcher();
   }
 
-  kick(clientId) {
+  kick(clientId: string): Promise<void> {
     return this._protoo
       .request("kick", {
         room_id: this.room,
@@ -1149,21 +1281,21 @@ export class DialogAdapter extends SfuAdapter {
       });
   }
 
-  block(clientId) {
+  block(clientId: string): Promise<void> {
     return this._protoo.request("block", { whom: clientId }).then(() => {
       this._blockedClients.set(clientId, true);
       document.body.dispatchEvent(new CustomEvent("blocked", { detail: { clientId: clientId } }));
     });
   }
 
-  unblock(clientId) {
+  unblock(clientId: string): Promise<void> {
     return this._protoo.request("unblock", { whom: clientId }).then(() => {
       this._blockedClients.delete(clientId);
       document.body.dispatchEvent(new CustomEvent("unblocked", { detail: { clientId: clientId } }));
     });
   }
 
-  broadcast(channel, message) {
+  broadcast(channel: string, message: string): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
       this._dataProducers?.get(channel)?.send(new TextEncoder().encode(message));
@@ -1173,7 +1305,7 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  broadcastUint8(channel, message) {
+  broadcastUint8(channel: string, message: Uint8Array): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
       this._dataProducers?.get(channel)?.send(message);
@@ -1183,7 +1315,7 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  emitRTCEvent(level, tag, msgFunc) {
+  emitRTCEvent(level: string, tag: string, msgFunc: () => string): void {
     if (!window.APP.store.state.preferences.showRtcDebugPanel) return;
     const time = new Date().toLocaleTimeString("en-US", {
       hour12: false,

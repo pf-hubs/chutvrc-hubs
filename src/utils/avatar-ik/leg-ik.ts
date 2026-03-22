@@ -24,7 +24,10 @@ export class LegIk extends LimbIk {
 
   protected override updateCurrentInput(input: Transform | null, cameraTransform: Transform) {
     if (input) {
-      // TODO: use tracker position if it exists
+      this.currentInputPosition
+        .set(input.pos.x, input.pos.y, input.pos.z)
+        .applyAxisAngle(VECTOR_UP, this.avatarRoot.rotation.y - Math.PI + cameraTransform.rot.y)
+        .add(this.avatarRootWorldPos);
     } else {
       this.currentInputPosition
         .set(this.isLeft ? 0.15 : -0.15, 0, -0.1)
