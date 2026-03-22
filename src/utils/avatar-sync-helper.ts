@@ -1,10 +1,11 @@
 import { AElement } from "aframe";
-import { SfuAdapter } from "../sfu-adapter";
+import { SfuAdapter } from "../sfu-adapters/sfu-adapter";
 import { AvatarPart, AvatarTransformBuffer } from "./avatar-transform-buffer";
 import { decodePosition, decodeRotation, getAvatarSrc } from "./avatar-utils";
 import { createAvatarBoneEntities, removeAvatarEntityAndModel } from "../bit-systems/avatar-bones-system";
 import { loadModel } from "../components/gltf-model-plus";
 import { Object3D } from "three";
+import { AvatarAnimState, isValidAvatarAnimState } from "../types/avatar-types";
 
 type Vector3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number };
@@ -12,29 +13,34 @@ type Transform = { pos: Vector3; rot: Quaternion };
 
 /* Sync BitECS-managed avatars through WebRTC DataChannel */
 export class AvatarSyncHelper {
-  private _selfAvatarTransformBuffer: AvatarTransformBuffer;
+  private _selfAvatarTransformBuffer: AvatarTransformBuffer | undefined;
   private _client2AvatarAssetId: Map<string, string>;
+  private _loadingAvatars: Set<string>; // Track clients with in-progress avatar loads
   _sfu: SfuAdapter;
   _client2AvatarEid: Map<string, number>;
   _client2VrMode: Map<string, boolean>;
+  _client2AnimState: Map<string, AvatarAnimState>;
   _client2Transform: Map<AvatarPart, Map<string, Transform>>;
   _avatarEid2ClientId: Map<number, string>;
   _avatarPartsToSync: AvatarPart[];
   _channelsForSync: string[];
   _isStartSendingSelfAvatarTransform: boolean;
-  _sendSelfAvatarTransformIntervalId: NodeJS.Timer;
-  _setSelfIsVrFlagIntervalId: NodeJS.Timer;
-  _sendSelfIsVrFlagIntervalId: NodeJS.Timer;
+  _sendSelfAvatarTransformIntervalId: NodeJS.Timer | undefined;
+  _setSelfIsVrFlagIntervalId: NodeJS.Timer | undefined;
+  _sendSelfIsVrFlagIntervalId: NodeJS.Timer | undefined;
+  _sendSelfAnimStateIntervalId: NodeJS.Timer | undefined;
 
   constructor(sfu: SfuAdapter) {
     this._sfu = sfu;
     this._client2AvatarAssetId = new Map<string, string>();
+    this._loadingAvatars = new Set<string>();
     this._avatarEid2ClientId = new Map<number, string>();
     this._client2AvatarEid = new Map<string, number>();
     this._client2VrMode = new Map<string, boolean>();
+    this._client2AnimState = new Map<string, AvatarAnimState>();
     this._client2Transform = new Map<AvatarPart, Map<string, Transform>>();
     this._avatarPartsToSync = [AvatarPart.RIG, AvatarPart.HEAD, AvatarPart.LEFT, AvatarPart.RIGHT];
-    this._channelsForSync = ["#avatarId", "#isVR"].concat(
+    this._channelsForSync = ["#avatarId", "#isVR", "#avatarAnimState"].concat(
       this._avatarPartsToSync.map(part => "#avatar-" + AvatarPart[part])
     );
     this._avatarPartsToSync.forEach(part => {
@@ -48,12 +54,17 @@ export class AvatarSyncHelper {
       this.handleTransformSyncInit();
     } else if (channel === "#isVR") {
       this.handleVrModeSyncInit();
+    } else if (channel === "#avatarAnimState") {
+      this.handleAnimStateSyncInit();
     }
   }
 
   handleRecvMessage(channel: string, data: Uint8Array) {
     if (channel === "#avatarId") {
       let [clientId, avatarId] = new TextDecoder().decode(data).split("|");
+
+      // Skip if this client's avatar is already being loaded (prevents race condition)
+      if (this._loadingAvatars.has(clientId)) return;
 
       if (this._client2AvatarAssetId.has(clientId)) {
         // if avatar id of this client is already recorded
@@ -78,9 +89,20 @@ export class AvatarSyncHelper {
       this._client2VrMode.set(clientId, isVR === "1");
     }
 
+    if (channel === "#avatarAnimState") {
+      let [clientId, animStateStr] = new TextDecoder().decode(data).split("|");
+      const animState = parseInt(animStateStr);
+      if (isValidAvatarAnimState(animState)) {
+        this.switchAnimState(clientId, animState);
+      } else {
+        console.warn(`Invalid avatar animation state received: ${animState}`);
+      }
+    }
+
     if (channel.includes("#avatar-")) {
       // receive other clients' avatar transform when updated
-      const clientId = new TextDecoder().decode(data.subarray(9)).replace(/\u0000/g, "");
+      // Client ID starts at byte 24 (after 24 bytes of Float32 position/rotation data)
+      const clientId = new TextDecoder().decode(data.subarray(24)).replace(/\u0000/g, "");
       const avatarPart = channel.substring(8) as unknown as AvatarPart;
       this._client2Transform.get(avatarPart)?.set(clientId, {
         pos: decodePosition(data),
@@ -102,6 +124,13 @@ export class AvatarSyncHelper {
     removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
     this._client2AvatarAssetId.delete(clientId);
     this._client2AvatarEid.delete(clientId);
+    this._loadingAvatars.delete(clientId);
+    // Fix memory leaks: also cleanup VR mode, animation state, and transform maps
+    this._client2VrMode.delete(clientId);
+    this._client2AnimState.delete(clientId);
+    this._avatarPartsToSync.forEach(part => {
+      this._client2Transform.get(part)?.delete(clientId);
+    });
   }
 
   initSelfAvatarTransform() {
@@ -121,35 +150,65 @@ export class AvatarSyncHelper {
   }
 
   updateSelfAvatarTransform() {
+    const buffer = this._selfAvatarTransformBuffer;
+    if (!buffer) return;
     this._avatarPartsToSync.forEach(part => {
-      this._selfAvatarTransformBuffer?.updateAvatarTransform(part);
+      buffer.updateAvatarTransform(part);
       this._client2Transform
         .get(part)
-        ?.set(this._sfu._clientId, this._selfAvatarTransformBuffer.getAvatarTransform(part));
+        ?.set(this._sfu._clientId, buffer.getAvatarTransform(part));
     });
   }
 
-  replaceAvatarModel = async (avatarId: string, clientId: string) => {
+  private async loadAvatarModel(avatarId: string, clientId: string): Promise<boolean> {
+    const avatarSrc = await getAvatarSrc(avatarId);
+    const gltf = await loadModel(avatarSrc);
+    gltf.scene.traverse(function (object: Object3D) {
+      object.frustumCulled = false;
+    });
+    if (createAvatarBoneEntities(gltf.scene, clientId, this._avatarEid2ClientId, this._client2AvatarEid)) {
+      APP.world.scene.add(gltf.scene);
+      return true;
+    }
+    return false;
+  }
+
+  private async loadFallbackAvatar(clientId: string): Promise<void> {
+    const fallbackAvatarId = "default-avatar";
+    console.warn(`Loading fallback avatar for client ${clientId}`);
+    try {
+      await this.loadAvatarModel(fallbackAvatarId, clientId);
+      this._client2AvatarAssetId.set(clientId, fallbackAvatarId);
+    } catch (fallbackError) {
+      console.error(`Failed to load fallback avatar for ${clientId}:`, fallbackError);
+    }
+  }
+
+  replaceAvatarModel = async (avatarId: string, clientId: string): Promise<void> => {
     if (avatarId === this._client2AvatarAssetId.get(clientId)) return;
+
+    // Prevent duplicate loads - check if already loading
+    if (this._loadingAvatars.has(clientId)) return;
+
+    // Mark as loading immediately to prevent race conditions
+    this._loadingAvatars.add(clientId);
 
     // Remove old avatar if exists
     if (this._client2AvatarEid.has(clientId)) {
       removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
     }
-    // Load self-avatar after entering scene
-    getAvatarSrc(avatarId).then((avatarSrc: string) => {
-      loadModel(avatarSrc).then(gltf => {
-        gltf.scene.traverse(function (object: Object3D) {
-          object.frustumCulled = false;
-        });
-        if (createAvatarBoneEntities(gltf.scene, clientId, this._avatarEid2ClientId, this._client2AvatarEid)) {
-          APP.world.scene.add(gltf.scene);
-        }
-      });
-    });
 
-    // Always record/update the client's avatar ID
-    this._client2AvatarAssetId.set(clientId, avatarId);
+    try {
+      await this.loadAvatarModel(avatarId, clientId);
+      // Record the client's avatar ID on success
+      this._client2AvatarAssetId.set(clientId, avatarId);
+    } catch (error) {
+      console.error(`Failed to load avatar ${avatarId} for client ${clientId}:`, error);
+      await this.loadFallbackAvatar(clientId);
+    } finally {
+      // Always clear loading state
+      this._loadingAvatars.delete(clientId);
+    }
   };
 
   sendSelfAvatarSrc(avatarId?: string) {
@@ -158,17 +217,13 @@ export class AvatarSyncHelper {
   }
 
   sendSelfAvatarTransform(checkUpdatedRequired: boolean) {
-    if (!this._selfAvatarTransformBuffer) return;
+    const buffer = this._selfAvatarTransformBuffer;
+    if (!buffer) return;
     this._avatarPartsToSync.forEach(part => {
       // RIG: always sync because rotation by pressing Q or E is only executed once, and sync can fail if there is loss in dataChannel:
-      if (
-        checkUpdatedRequired &&
-        part !== AvatarPart.RIG &&
-        !this._selfAvatarTransformBuffer?.isUpdateAvatarTransformUpdated(part)
-      )
-        return;
+      if (checkUpdatedRequired && part !== AvatarPart.RIG && !buffer.isUpdateAvatarTransformUpdated(part)) return;
 
-      const arrToSend = this._selfAvatarTransformBuffer.getEncodedAvatarTransform(part);
+      const arrToSend = buffer.getEncodedAvatarTransform(part);
       this._sfu.broadcastUint8("#avatar-" + AvatarPart[part], arrToSend);
 
       if (this._sfu._isRecording) {
@@ -219,6 +274,10 @@ export class AvatarSyncHelper {
     this._sendSelfIsVrFlagIntervalId = setInterval(() => this.sendSelfIsVrFlag(), 1000);
   }
 
+  private handleAnimStateSyncInit() {
+    this._sendSelfAnimStateIntervalId = setInterval(() => this.sendSelfAnimState(), 500);
+  }
+
   private setSelfIsVrFlag() {
     this._client2VrMode.set(
       this._sfu._clientId,
@@ -243,9 +302,23 @@ export class AvatarSyncHelper {
     );
   }
 
+  private sendSelfAnimState() {
+    const animState = this._client2AnimState.get(this._sfu._clientId) ?? AvatarAnimState.STAND;
+    this._sfu.broadcast("#avatarAnimState", this._sfu._clientId + "|" + animState);
+  }
+
+  private switchAnimState(clientId: string, state: AvatarAnimState) {
+    this._client2AnimState.set(clientId, state);
+  }
+
+  switchSelfAnimState(state: AvatarAnimState) {
+    this.switchAnimState(this._sfu._clientId, state);
+  }
+
   stopSyncing() {
     if (this._sendSelfAvatarTransformIntervalId) clearInterval(this._sendSelfAvatarTransformIntervalId);
     if (this._setSelfIsVrFlagIntervalId) clearInterval(this._setSelfIsVrFlagIntervalId);
     if (this._sendSelfIsVrFlagIntervalId) clearInterval(this._sendSelfIsVrFlagIntervalId);
+    if (this._sendSelfAnimStateIntervalId) clearInterval(this._sendSelfAnimStateIntervalId);
   }
 }

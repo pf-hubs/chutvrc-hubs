@@ -255,7 +255,8 @@
         "default": 0,
         "choices": [
           { "value": 0, "label": "Dialog (Mediasoup-based)" },
-          { "value": 1, "label": "Sora" }
+          { "value": 1, "label": "Sora" },
+          { "value": 2, "label": "LiveKit" }
         ],
         "category": "webrtc",
         "name": "Default WebRTC SFU",
@@ -281,6 +282,27 @@
         "category": "webrtc",
         "name": "Sora bearer token",
         "description": "To use Sora in your Hubs, please form a contract with the Sora Cloud service and fill in your bearer token here."
+      },
+      "livekit_server_url": {
+        "type": "string",
+        "default": "",
+        "category": "webrtc",
+        "name": "LiveKit Server URL",
+        "description": "The WebSocket URL of your LiveKit server (e.g., wss://your-project.livekit.cloud)"
+      },
+      "livekit_api_key": {
+        "type": "string",
+        "default": "",
+        "category": "webrtc",
+        "name": "LiveKit API Key",
+        "description": "Your LiveKit API key for authentication"
+      },
+      "livekit_api_secret": {
+        "type": "string",
+        "default": "",
+        "category": "webrtc",
+        "name": "LiveKit API Secret",
+        "description": "Your LiveKit API secret for token generation"
       }
     },
     "avatar-settings": {

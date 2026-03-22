@@ -23,7 +23,7 @@ import {
   refreshView
 } from "react-admin";
 
-const sfuList = ["dialog", "sora"];
+const sfuList = ["dialog", "sora", "livekit"];
 
 const styles = {
   hide: { display: "none" },
@@ -215,7 +215,8 @@ export const RoomEdit = withStyles(styles)(props => {
           source="sfu"
           choices={[
             { id: 0, name: "Dialog (Mediasoup-based)" },
-            { id: 1, name: "Sora" }
+            { id: 1, name: "Sora" },
+            { id: 2, name: "LiveKit" }
           ]}
         />
       </SimpleForm>

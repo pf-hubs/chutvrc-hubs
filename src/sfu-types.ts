@@ -1,6 +1,7 @@
 export enum SFU {
   DIALOG,
-  SORA
+  SORA,
+  LIVEKIT
 }
 
 export enum SFU_CONNECTION_TYPE {

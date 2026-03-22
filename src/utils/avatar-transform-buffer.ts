@@ -1,8 +1,6 @@
 import { AElement } from "aframe";
 import { Euler, Object3D, Vector3 } from "three";
-import { floatToUInt8, radToUInt8 } from "./uint8-parser";
 import { encodeAvatarTransform } from "./avatar-utils";
-import { InputTransform } from "../bit-systems/avatar-bones-system";
 
 export enum AvatarPart {
   RIG = "RIG",
@@ -28,13 +26,6 @@ type AvatarTransforms = {
 
 type AvatarEncodedTransforms = {
   [part in AvatarPart]: Uint8Array;
-};
-
-const avatarTypeToStr = {
-  [AvatarPart.RIG]: "rig",
-  [AvatarPart.HEAD]: "hmd",
-  [AvatarPart.LEFT]: "leftController",
-  [AvatarPart.RIGHT]: "rightController"
 };
 
 export class AvatarTransformBuffer {
@@ -75,11 +66,12 @@ export class AvatarTransformBuffer {
     //   [AvatarPart.LEFT]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
     //   [AvatarPart.RIGHT]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } }
     // };
+    const bufferSize = 24 + this._encodedClientId.length;
     this._encodedAvatarTransform = {
-      [AvatarPart.RIG]: new Uint8Array(48),
-      [AvatarPart.HEAD]: new Uint8Array(48),
-      [AvatarPart.LEFT]: new Uint8Array(48),
-      [AvatarPart.RIGHT]: new Uint8Array(48)
+      [AvatarPart.RIG]: new Uint8Array(bufferSize),
+      [AvatarPart.HEAD]: new Uint8Array(bufferSize),
+      [AvatarPart.LEFT]: new Uint8Array(bufferSize),
+      [AvatarPart.RIGHT]: new Uint8Array(bufferSize)
     };
   }
 

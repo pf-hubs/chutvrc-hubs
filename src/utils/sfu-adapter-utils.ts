@@ -1,7 +1,5 @@
-import { DialogAdapter } from "../naf-dialog-adapter";
-import { SfuAdapter } from "../sfu-adapter";
+import { SfuAdapter } from "../sfu-adapters/sfu-adapter";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
-import { SoraAdapter } from "../sora-adapter";
 
 type SfuConnectionParams = {
   sfuId: number;
@@ -10,6 +8,9 @@ type SfuConnectionParams = {
   scene: Element | null;
   serverUrl?: string;
   serverParams?: { host: string; port: number; turn: any };
+  sfuAccessToken?: string;
+  sfuServerUrl?: string | string[];
+  sfuRoomId?: string;
   signalingUrl?: string | string[];
   accessToken?: string;
   forceTcp?: boolean;
@@ -18,33 +19,25 @@ type SfuConnectionParams = {
   debug?: boolean;
 };
 
-export const createSfuAdapter = ({
-  sfuId,
-  connectionType = SFU_CONNECTION_TYPE.SENDRECV
-}: {
-  sfuId: number;
-  connectionType: SFU_CONNECTION_TYPE;
-}) => {
-  switch (sfuId) {
-    case SFU.SORA:
-      return new SoraAdapter(connectionType);
-    case SFU.DIALOG:
-    default:
-      return new DialogAdapter(connectionType);
-  }
-};
-
 export const connectSfu = async (sfu: SfuAdapter, params: SfuConnectionParams) => {
   switch (params.sfuId as SFU) {
+    case SFU.LIVEKIT:
+      sfu.connect({
+        clientId: params.clientId,
+        roomName: params.sfuRoomId || params.channelId,
+        serverUrl: (params.sfuServerUrl as string) || params.serverUrl,
+        accessToken: params.sfuAccessToken,
+        scene: params.scene
+      });
+      break;
     case SFU.SORA:
       sfu.connect({
         clientId: params.clientId,
-        channelId: params.channelId.includes("@")
-          ? params.channelId
-          : params.channelId + "@" + APP.sfu._roomId.split("@")[1],
+        channelId: params.sfuRoomId ||
+          (params.channelId.includes("@") ? params.channelId : params.channelId + "@" + APP.sfu._roomId.split("@")[1]),
         scene: params.scene,
-        signalingUrl: params.signalingUrl,
-        accessToken: params.accessToken,
+        signalingUrl: params.sfuServerUrl || params.signalingUrl,
+        accessToken: params.sfuAccessToken || params.accessToken,
         debug: params.debug
       });
       break;

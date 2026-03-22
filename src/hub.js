@@ -269,9 +269,10 @@ import { swapActiveScene } from "./bit-systems/scene-loading";
 import { localClientID, setLocalClientID } from "./bit-systems/networking";
 import { listenForNetworkMessages } from "./utils/listen-for-network-messages";
 import { exposeBitECSDebugHelpers } from "./bitecs-debug-helpers";
-import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL } from "./sfu-adapter";
+import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL } from "./sfu-adapters/sfu-adapter";
 import { connectSfu } from "./utils/sfu-adapter-utils";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
+import { LibpeerDeviceManager, BridgeManager } from "./libpeer";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
 import { shouldUseNewLoader } from "./utils/bit-utils";
 
@@ -316,7 +317,14 @@ if (qsTruthy("ecsDebug")) {
 function setupLobbyCamera() {
   console.log("Setting up lobby camera");
   const camera = document.getElementById("scene-preview-node");
-  const previewCamera = document.getElementById("environment-scene").object3D.getObjectByName("scene-preview-camera");
+  const environmentScene = document.getElementById("environment-scene");
+
+  if (!environmentScene) {
+    console.warn("Environment scene not found, skipping lobby camera setup");
+    return;
+  }
+
+  const previewCamera = environmentScene.object3D.getObjectByName("scene-preview-camera");
 
   if (previewCamera) {
     camera.object3D.position.copy(previewCamera.position);
@@ -465,7 +473,10 @@ export async function updateEnvironmentForHub(hub, entryManager) {
         console.log(`Scene file initial load took ${Math.round(performance.now() - loadStart)}ms`);
 
         // Show the canvas once the model has loaded
-        document.querySelector(".a-canvas").classList.remove("a-hidden");
+        const canvas = document.querySelector(".a-canvas");
+        if (canvas) {
+          canvas.classList.remove("a-hidden");
+        }
 
         sceneEl.addState("visible");
 
@@ -676,8 +687,8 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
       // Disconnect in case this is a re-entry
 
       APP.sfu?.disconnect();
-      // APP.sfu = createSfuAdapter({ sfuId: data.sfu });
       APP.sfu = APP.sfuCandidates.find((sfu, sfuId) => sfuId === data.sfu);
+      APP.sfu.hubChannel = hubChannel;
       listenSfuConnection(scene);
       registerNetworkSchemas();
       connectSfu(APP.sfu, {
@@ -685,6 +696,9 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
         clientId: data.session_id,
         channelId: data.sora_channel_id || hub.hub_id,
         scene,
+        sfuAccessToken: data.sfu_access_token,
+        sfuServerUrl: data.sfu_server_url,
+        sfuRoomId: data.sfu_room_id,
         serverUrl: `wss://${hub.host}:4443`,
         serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
         signalingUrl: data.sora_signaling_url,
@@ -694,12 +708,30 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
         debug: data.sora_is_debug
       });
 
+      if (data.sfu_access_token) {
+        hubChannel.setSfuToken(data.sfu_access_token);
+      }
+
+      // Initialize libpeer device manager for IoT device connections
+      if (!APP.libpeerDeviceManager) {
+        APP.libpeerDeviceManager = new LibpeerDeviceManager();
+      }
+      APP.libpeerDeviceManager.init(hubChannel);
+      console.log("LibpeerDeviceManager initialized for IoT device connections");
+
       scene.addEventListener(
         "adapter-ready",
         ({ detail: adapter }) => {
           adapter.hubChannel = hubChannel;
           adapter.events = events;
           adapter.session_id = data.session_id;
+
+          // Initialize IoT bridge manager after SFU adapter is ready
+          if (APP.libpeerDeviceManager?.initialized && !APP.bridgeManager) {
+            APP.bridgeManager = new BridgeManager({ debug: true, receiveAllMessages: true });
+            APP.bridgeManager.init(APP.libpeerDeviceManager, APP.sfu);
+            console.log("BridgeManager initialized for IoT device <-> room communication");
+          }
         },
         { once: true }
       );
@@ -1011,6 +1043,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   scene.addEventListener("hub_closed", () => {
     APP.sfu.disconnect();
+    APP.bridgeManager?.destroy();
+    APP.libpeerDeviceManager?.destroy();
     scene.exitVR();
     entryManager.exitScene();
     remountUI({ roomUnavailableReason: ExitReason.closed });
@@ -1018,6 +1052,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   scene.addEventListener("hub_updated_require_refresh", () => {
     APP.sfu.disconnect();
+    APP.bridgeManager?.destroy();
+    APP.libpeerDeviceManager?.destroy();
     scene.exitVR();
     entryManager.exitScene();
     remountUI({ roomUnavailableReason: ExitReason.updated });

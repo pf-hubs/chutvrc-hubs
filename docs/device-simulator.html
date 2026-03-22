@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Libpeer Device Simulator</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 0 20px;
+    }
+
+    .section {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .connected {
+      background: #d4edda;
+    }
+
+    .disconnected {
+      background: #f8d7da;
+    }
+
+    #log {
+      height: 300px;
+      overflow-y: auto;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+
+    .log-info {
+      color: #4fc3f7;
+    }
+
+    .log-error {
+      color: #ef5350;
+    }
+
+    .log-success {
+      color: #81c784;
+    }
+
+    .log-data {
+      color: #fff59d;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Libpeer Device Simulator</h1>
+
+  <div class="section" id="connection-section">
+    <h3>Connection Settings</h3>
+    <label>WebSocket URL:</label>
+    <input type="text" id="wsUrl" value="wss://localhost:4000/socket" placeholder="wss://localhost:4000/socket">
+
+    <label>Hub ID:</label>
+    <input type="text" id="hubId" placeholder="Enter the hub ID from your room URL">
+
+    <label>Device ID:</label>
+    <input type="text" id="deviceId" value="simulator-001" placeholder="simulator-001">
+
+    <button id="connectBtn">Connect</button>
+    <button id="disconnectBtn" disabled>Disconnect</button>
+  </div>
+
+  <div class="section">
+    <h3>Send Message</h3>
+    <label>Label (for routing):</label>
+    <input type="text" id="msgLabel" value="test-sensor" placeholder="test-sensor">
+
+    <label>Payload (JSON):</label>
+    <textarea id="msgPayload" rows="3">{"temperature": 25.5, "humidity": 60}</textarea>
+
+    <button id="sendBtn">Send Message</button>
+  </div>
+
+  <div class="section">
+    <h3>Log</h3>
+    <button id="clearLogBtn">Clear Log</button>
+    <div id="log"></div>
+  </div>
+
+  <!-- Phoenix JS Client (use same version as your Hubs/Reticulum) -->
+  <script src="https://cdn.jsdelivr.net/npm/phoenix@1.6.16/priv/static/phoenix.min.js"></script>
+  <script>
+
+    let socket = null;
+    let channel = null;
+    let peerConnection = null;
+    let dataChannel = null;
+    const deviceId = () => document.getElementById('deviceId').value;
+
+    function log(msg, type = 'info') {
+      const logEl = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      logEl.innerHTML += `<span class="log-${type}">[${time}] ${msg}</span>\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+
+    function updateUI(connected) {
+      document.getElementById('connectBtn').disabled = connected;
+      document.getElementById('disconnectBtn').disabled = !connected;
+      document.getElementById('sendBtn').disabled = !connected;
+      document.getElementById('connection-section').className =
+        'section ' + (connected ? 'connected' : 'disconnected');
+    }
+
+    async function connect() {
+      const wsUrl = document.getElementById('wsUrl').value;
+      const hubId = document.getElementById('hubId').value;
+
+      if (!hubId) {
+        log('Error: Hub ID is required', 'error');
+        return;
+      }
+
+      log(`Connecting to ${wsUrl}...`);
+
+      // Connect to Phoenix socket
+      socket = new window.Phoenix.Socket(wsUrl, {
+        params: {},
+        logger: (kind, msg, data) => log(`[Phoenix ${kind}] ${msg}`, 'info')
+      });
+
+      socket.connect();
+      socket.onOpen(() => log('Socket connected', 'success'));
+      socket.onError((err) => log(`Socket error: ${JSON.stringify(err)}`, 'error'));
+      socket.onClose(() => {
+        log('Socket closed', 'error');
+        updateUI(false);
+      });
+
+      // Join hub channel
+      channel = socket.channel(`hub:${hubId}`, {
+        profile: { displayName: `Device: ${deviceId()}` },
+        context: { mobile: false, embed: false, hmd: false }
+      });
+
+      // Handle signaling events
+      channel.on('device:answer', handleAnswer);
+      channel.on('device:ice_candidate', handleRemoteIceCandidate);
+
+      channel.join()
+        .receive('ok', (resp) => {
+          log(`Joined hub channel: ${hubId}`, 'success');
+          log(`Session ID: ${resp.session_id}`, 'info');
+          initWebRTC();
+        })
+        .receive('error', (resp) => {
+          log(`Failed to join channel: ${JSON.stringify(resp)}`, 'error');
+        });
+    }
+
+    function initWebRTC() {
+      log('Initializing WebRTC...');
+
+      const config = {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+      };
+
+      peerConnection = new RTCPeerConnection(config);
+
+      // Create data channel (device is offerer)
+      dataChannel = peerConnection.createDataChannel('iot', { ordered: true });
+      setupDataChannel(dataChannel);
+
+      // Handle ICE candidates
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          log(`Sending ICE candidate`, 'info');
+          channel.push('device:ice_candidate', {
+            device_id: deviceId(),
+            candidate: event.candidate.toJSON()
+          });
+        }
+      };
+
+      peerConnection.oniceconnectionstatechange = () => {
+        log(`ICE state: ${peerConnection.iceConnectionState}`, 'info');
+      };
+
+      peerConnection.onconnectionstatechange = () => {
+        log(`Connection state: ${peerConnection.connectionState}`, 'info');
+        if (peerConnection.connectionState === 'connected') {
+          updateUI(true);
+        }
+      };
+
+      // Create and send offer
+      createOffer();
+    }
+
+    async function createOffer() {
+      try {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        log('Sending WebRTC offer...', 'info');
+        channel.push('device:offer', {
+          device_id: deviceId(),
+          offer: offer
+        }).receive('ok', () => log('Offer sent', 'success'))
+          .receive('error', (err) => log(`Offer error: ${JSON.stringify(err)}`, 'error'));
+      } catch (e) {
+        log(`Failed to create offer: ${e.message}`, 'error');
+      }
+    }
+
+    async function handleAnswer(payload) {
+      log(`Received answer from: ${payload.from_session_id || 'unknown'}`, 'info');
+
+      if (payload.device_id !== deviceId()) return;
+
+      try {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+        log('Remote description set', 'success');
+      } catch (e) {
+        log(`Failed to set remote description: ${e.message}`, 'error');
+      }
+    }
+
+    async function handleRemoteIceCandidate(payload) {
+      if (payload.device_id !== deviceId()) return;
+
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+        log('Added remote ICE candidate', 'info');
+      } catch (e) {
+        log(`Failed to add ICE candidate: ${e.message}`, 'error');
+      }
+    }
+
+    function setupDataChannel(dc) {
+      dc.onopen = () => {
+        log('DataChannel opened!', 'success');
+        updateUI(true);
+      };
+
+      dc.onclose = () => {
+        log('DataChannel closed', 'error');
+        updateUI(false);
+      };
+
+      dc.onerror = (err) => {
+        log(`DataChannel error: ${err.message || err}`, 'error');
+      };
+
+      dc.onmessage = (event) => {
+        log(`Received: ${event.data}`, 'data');
+      };
+    }
+
+    function sendMessage() {
+      if (!dataChannel || dataChannel.readyState !== 'open') {
+        log('DataChannel not open', 'error');
+        return;
+      }
+
+      const label = document.getElementById('msgLabel').value;
+      const payloadStr = document.getElementById('msgPayload').value;
+
+      try {
+        const payload = JSON.parse(payloadStr);
+        const message = {
+          type: 'request',
+          label: label,
+          payload: payload
+        };
+
+        dataChannel.send(JSON.stringify(message));
+        log(`Sent: ${JSON.stringify(message)}`, 'success');
+      } catch (e) {
+        log(`Invalid JSON payload: ${e.message}`, 'error');
+      }
+    }
+
+    function disconnect() {
+      if (dataChannel) {
+        dataChannel.close();
+        dataChannel = null;
+      }
+      if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+      }
+      if (channel) {
+        channel.leave();
+        channel = null;
+      }
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+      }
+
+      log('Disconnected', 'info');
+      updateUI(false);
+    }
+
+    // Attach event listeners when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('connectBtn').addEventListener('click', connect);
+      document.getElementById('disconnectBtn').addEventListener('click', disconnect);
+      document.getElementById('sendBtn').addEventListener('click', sendMessage);
+      document.getElementById('clearLogBtn').addEventListener('click', clearLog);
+    });
+  </script>
+</body>
+
+</html>

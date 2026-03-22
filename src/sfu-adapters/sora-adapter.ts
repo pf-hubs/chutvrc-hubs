@@ -1,11 +1,20 @@
 import Sora, * as SoraType from "sora-js-sdk";
 import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
-import { MediaDevices } from "./utils/media-devices-utils";
-import { AvatarSyncHelper } from "./utils/avatar-sync-helper";
-import { CrossRoomStreamerAudioSource } from "./components/cross-room-streamer-audio-source";
-import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
-import { Object3D } from "three";
+import { MediaDevices } from "../utils/media-devices-utils";
+import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
+import { CrossRoomStreamerAudioSource } from "../components/cross-room-streamer-audio-source";
+import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
+import {
+  ChannelHandlerRegistry,
+  createAvatarSyncHandlers,
+  NimproHandler,
+  IotBridgeHandler,
+  PdfPageHandler,
+  TogglePublicSpeakerHandler,
+  LaserPointerHandler,
+  EmojiHandler
+} from "../utils/data-channel-handlers";
 
 const debug = newDebug("naf-dialog-adapter:debug");
 
@@ -32,14 +41,11 @@ export class SoraAdapter extends SfuAdapter {
   _signalingUrl?: string | string[];
   _accessToken?: string;
   crossRoomStreamerAudioSource: { [clientId: string]: CrossRoomStreamerAudioSource };
-  private _laserPointer: Object3D;
-  private _textEncoder: TextEncoder;
-  private _textDecoder: TextDecoder;
+  // Laser pointer handler instance for cleanup on client leave
+  private _laserPointerHandler: LaserPointerHandler | null = null;
 
   constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
     super();
-    this._textEncoder = new TextEncoder();
-    this._textDecoder = new TextDecoder();
     this._sfuId = SFU.SORA;
     this._connectionType = sfuType;
     this._clientId = "";
@@ -55,15 +61,57 @@ export class SoraAdapter extends SfuAdapter {
     this._recordedDataChannelMessages = [];
     this.crossRoomStreamerAudioSource = {};
     this._publicSpeakerClientIdsInRoom = [];
+
+    // Initialize message dispatcher with handlers for SoraAdapter
+    this.initializeSoraHandlers();
+  }
+
+  /**
+   * Initialize channel handlers for SoraAdapter.
+   * SoraAdapter supports all channels including presentation features.
+   */
+  private initializeSoraHandlers(): void {
+    const registry = new ChannelHandlerRegistry();
+
+    // Register avatar sync handlers (mandatory)
+    createAvatarSyncHandlers().forEach(handler => registry.register(handler));
+
+    // Register optional handlers for SoraAdapter
+    registry.register(new NimproHandler());
+    registry.register(new IotBridgeHandler());
+    registry.register(new PdfPageHandler());
+    registry.register(new TogglePublicSpeakerHandler());
+
+    // Create and keep reference to laser pointer handler for cleanup
+    this._laserPointerHandler = new LaserPointerHandler();
+    registry.register(this._laserPointerHandler);
+
+    registry.register(new EmojiHandler());
+
+    this.initializeMessageDispatcher(registry);
+  }
+
+  protected _handleSfuTokenUpdated(event: CustomEvent): void {
+    this._accessToken = event.detail.token;
   }
 
   async connect({ clientId, channelId, signalingUrl, accessToken, scene, debug }: ConnectProps) {
     this._scene = scene;
     this._roomId = channelId;
+    this._clientId = clientId;
     this._signalingUrl = signalingUrl;
-    this._accessToken = accessToken;
+
+    let tokenToUse = accessToken;
+    if (!tokenToUse || tokenToUse === "") {
+      const freshToken = await this._ensureFreshToken();
+      if (freshToken) tokenToUse = freshToken;
+    }
+    this._accessToken = tokenToUse;
+
+    this.updateDispatcherContext();
+
     const sora = Sora.connection(signalingUrl, debug);
-    const metadata = { access_token: accessToken };
+    const metadata = { access_token: tokenToUse };
     const options = {
       clientId: clientId,
       multistream: true,
@@ -92,6 +140,18 @@ export class SoraAdapter extends SfuAdapter {
           {
             label: "#laserPointer",
             direction: "sendrecv"
+          },
+          {
+            label: "#emoji",
+            direction: "sendrecv"
+          },
+          {
+            label: "#nimpro",
+            direction: "sendrecv"
+          },
+          {
+            label: "#iot",
+            direction: "sendrecv"
           }
         ])
         .concat(
@@ -107,7 +167,6 @@ export class SoraAdapter extends SfuAdapter {
       // .concat(other channels if necessary)
     };
 
-    this._clientId = clientId;
     this._connector =
       this._connectionType === SFU_CONNECTION_TYPE.RECV
         ? sora.recvonly(channelId, metadata, options)
@@ -181,57 +240,38 @@ export class SoraAdapter extends SfuAdapter {
           // @ts-ignore
           if (streamId === event.target?.id) {
             this._clientStreamIdPair.delete(clientId);
-            if (clientId.includes("PS") && this._laserPointer) this._laserPointer.visible = false;
+            // Hide laser pointer when public speaker disconnects
+            if (clientId.includes("PS") && this._laserPointerHandler) {
+              this._laserPointerHandler.hideLaserPointer();
+            }
           }
         }
       });
       this._connector.on("message", event => {
-        this._dataChannelMessages.push({ channelLabel: event.label, message: event.data });
-        if (this._isRecording && !event.label.includes("#avatar-"))
+        // Dispatch message through handler system
+        this.handleDataChannelMessage(event.label, event.data);
+
+        // Queue messages for relay when acting as public speaking mirror
+        // This enables mirrorDataChannelMessageFromSpeaker() to relay avatar data to receiving rooms
+        if (this._roomId.includes("public_speaking") && this._connectionType === SFU_CONNECTION_TYPE.RECV) {
+          this._dataChannelMessages.push({
+            channelLabel: event.label,
+            message: event.data
+          });
+          // Prevent memory leaks - cap queue size
+          while (this._dataChannelMessages.length > 100) {
+            this._dataChannelMessages.shift();
+          }
+        }
+
+        // Recording support (exclude avatar transform channels for size)
+        if (this._isRecording && !event.label.includes("#avatar-")) {
           this._recordedDataChannelMessages.push({
             l: event.label,
             m: this._textDecoder.decode(event.data),
             t: Date.now(),
             s: 0
           });
-        while (this._dataChannelMessages.length > 100) this._dataChannelMessages.shift();
-        if (!this._roomId.includes("public_speaking") || event.label !== "#avatarId") {
-          // avoid initPublicSpeakingMirroring client loading unnecessary avatar model
-          this._avatarSyncHelper.handleRecvMessage(event.label, new Uint8Array(event.data));
-        }
-
-        if (event.label === "#pdfPage") {
-          this.emit("pdf-page-changed-in-public-speaker-room", { message: this._textDecoder.decode(event.data) });
-        }
-
-        if (event.label === "#togglePublicSpeaker") {
-          this.emit("toggle-public-speaker", { message: this._textDecoder.decode(event.data) });
-        }
-
-        if (event.label === "#laserPointer" && this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
-          if (this._laserPointer) {
-            const message = this._textDecoder.decode(event.data);
-            const position = message.split("|");
-            if (position) {
-              this._laserPointer.visible = position[0] === "1"; // 1: visible; 0: visible
-              if (position[1] !== "0" && position[2] !== "0" && position[3] !== "0") {
-                this._laserPointer.position.set(
-                  parseFloat(position[1]), // x
-                  parseFloat(position[2]), // y
-                  parseFloat(position[3]) // z
-                );
-                this._laserPointer.updateMatrix();
-              }
-            }
-          } else {
-            const sphere = new THREE.SphereGeometry(0.2);
-            const object = new THREE.Mesh(
-              sphere,
-              new THREE.MeshBasicMaterial({ color: "#ff0000", transparent: true, opacity: 0.7 })
-            );
-            this._laserPointer = object;
-            APP.world.scene.add(this._laserPointer);
-          }
         }
       });
     }
@@ -288,6 +328,8 @@ export class SoraAdapter extends SfuAdapter {
     }
     if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
     this._avatarSyncHelper?.stopSyncing();
+    this.cleanupDispatcher();
+    this._cleanupTokenHandler();
     debug("disconnect()");
     this.emitRTCEvent("info", "Signaling", () => `[close]`);
   }
@@ -352,6 +394,11 @@ export class SoraAdapter extends SfuAdapter {
     return this._dataChannelMessages && this._dataChannelMessages.length > 0
       ? this._dataChannelMessages.shift()
       : { channelLabel: "", message: null };
+  }
+
+  // BridgeCapable implementation
+  get isBridgeChannelReady(): boolean {
+    return this._connector !== null && this._connectionType !== SFU_CONNECTION_TYPE.RECV;
   }
 
   async setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null = null) {
