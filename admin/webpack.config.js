@@ -86,8 +86,8 @@ module.exports = (env, argv) => {
       CORS_PROXY_SERVER: "hubs-proxy.local:4000",
       NON_CORS_PROXY_DOMAINS: `${localDevHost},localhost,dev.reticulum.io`, // "hubs.local,dev.reticulum.io"
       BASE_ASSETS_PATH: `https://${localDevHost}:8989/`, // "https://hubs.local:8989/",
-      RETICULUM_SERVER: `${localDevHost}:4000`, // "hubs.local:4000"
-      POSTGREST_SERVER: process.env.POSTGREST_SERVER, // "",
+      RETICULUM_SERVER: process.env.RETICULUM_SERVER || "hubs.local:4000",
+      POSTGREST_SERVER: process.env.POSTGREST_SERVER || "",
       ITA_SERVER: process.env.ITA_SERVER, // "turkey",
       TIER: "p1"
     });
