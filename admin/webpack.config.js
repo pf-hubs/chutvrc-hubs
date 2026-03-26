@@ -83,7 +83,7 @@ module.exports = (env, argv) => {
     Object.assign(process.env, {
       HOST: localDevHost,
       RETICULUM_SOCKET_SERVER: localDevHost,
-      CORS_PROXY_SERVER: "hubs-proxy.local:4000",
+      CORS_PROXY_SERVER: process.env.CORS_PROXY_SERVER || "hubs-proxy.local:4000",
       NON_CORS_PROXY_DOMAINS: `${localDevHost},localhost,dev.reticulum.io`, // "hubs.local,dev.reticulum.io"
       BASE_ASSETS_PATH: `https://${localDevHost}:8989/`, // "https://hubs.local:8989/",
       RETICULUM_SERVER: process.env.RETICULUM_SERVER || "hubs.local:4000",
