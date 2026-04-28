@@ -255,18 +255,23 @@ module.exports = async (env, argv) => {
     }
 
     if (env.localDev) {
-      const localDevHost = process.env.INTERNAL_HOSTNAME || "localhost"; // "hubs.local"
+      // [When using docker-compose]
+      // INTERNAL_HOSTNAME: how other Docker containers reach this service (e.g. "hubs-client")
+      // RETICULUM_HOST: how the browser reaches reticulum (e.g. "hubs.local")
+      // [When not using docker-compose] Both default to "localhost", so the distinction only matters in Docker.
+      const localDevHost = process.env.INTERNAL_HOSTNAME || "localhost";
+      const reticulumHost = process.env.RETICULUM_HOST || localDevHost;
       // Local Dev Environment (npm run local)
       Object.assign(process.env, {
         HOST: localDevHost,
-        RETICULUM_SOCKET_SERVER: localDevHost,
-        CORS_PROXY_SERVER: "hubs-proxy.local:4000",
-        NON_CORS_PROXY_DOMAINS: `${localDevHost},dev.reticulum.io`,
+        RETICULUM_SOCKET_SERVER: reticulumHost,
+        CORS_PROXY_SERVER: process.env.CORS_PROXY_SERVER || "hubs-proxy.local:4000",
+        NON_CORS_PROXY_DOMAINS: `${localDevHost},${reticulumHost},dev.reticulum.io`,
         BASE_ASSETS_PATH: `https://${localDevHost}:8080/`,
-        RETICULUM_SERVER: `${localDevHost}:4000`,
+        RETICULUM_SERVER: `${reticulumHost}:4000`,
         POSTGREST_SERVER: "",
         ITA_SERVER: "",
-        UPLOADS_HOST: `https://${localDevHost}:4000`
+        UPLOADS_HOST: `https://${reticulumHost}:4000`
       });
     }
   }

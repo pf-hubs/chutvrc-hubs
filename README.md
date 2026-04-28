@@ -5,6 +5,10 @@
 <!-- [![Build Status](https://travis-ci.org/mozilla/hubs.svg?branch=master)](https://travis-ci.org/mozilla/hubs)
 [![Discord](https://img.shields.io/discord/498741086295031808)](https://discord.gg/CzAbuGu) -->
 
+> **Recommended: use [chutvrc-hubs-compose](https://github.com/pf-hubs/chutvrc-hubs-compose) to run chutvrc.**
+>
+> `chutvrc-hubs-compose` orchestrates this client together with Reticulum, Dialog, and Spoke through Docker Compose. It clones each service (including this repo) onto your machine, builds the images, generates local SSL certificates, and starts everything with one double-click on macOS / Windows. Setting these services up individually — as described later in this README — is significantly more involved.
+
 The client-side code for chutvrc, forked from [Hubs](https://github.com/Hubs-Foundation), an online 3D collaboration platform that works for desktop, mobile, and VR platforms.
 
 <div align="center">
