@@ -1,9 +1,21 @@
 # Chutvrc Setup Procedure on Ubuntu 22.04
 
+> **Recommended: use [chutvrc-hubs-compose](https://github.com/pf-hubs/chutvrc-hubs-compose) instead.**
+>
+> The Docker-Compose-based setup is far simpler than the bare-metal procedure
+> below. The instructions here are kept for users who specifically need to run
+> each service directly on Ubuntu 22.04 without Docker.
+
 ## Initialize environment
 
 1. git clone each repo
 2. `sudo apt update`
+3. Add an entry for `hubs.local` to `/etc/hosts` so the browser-facing URLs in this guide resolve:
+    ```bash
+    sudo sh -c 'echo "127.0.0.1   hubs.local" >> /etc/hosts'
+    sudo sh -c 'echo "127.0.0.1   hubs-proxy.local" >> /etc/hosts'
+    ```
+   The chutvrc client expects to be reached at `hubs.local` (not `localhost`), and the configuration values below assume this.
 
 ### NodeJS, npm
 
@@ -181,9 +193,9 @@ Then exit
     link_host = "hubs-link.local"
     dev_janus_host = "**your.domain**"
     cors_proxy_host = "**your.domain**"
-    # To run reticulum on localhost, , uncomment and change the line below to "localhost"
+    # To run reticulum on the local machine, uncomment and change the line below to "hubs.local"
     # To run reticulum across a LAN for local testing, uncomment and change the line below to the LAN IP
-    # host = cors_proxy_host = dev_janus_host = "localhost"
+    # host = cors_proxy_host = dev_janus_host = "hubs.local"
     
     import_config "dev.secret.exs"
     
@@ -205,12 +217,12 @@ Then exit
     HUBS_SERVER="**your.domain**"
     RETICULUM_SERVER="**your.domain**"
     THUMBNAIL_SERVER="nearspark-dev.reticulum.io"
-    NON_CORS_PROXY_DOMAINS="localhost,**your.domain**,**your.domain:4000**"
+    NON_CORS_PROXY_DOMAINS="hubs.local,**your.domain**,**your.domain:4000**"
     CORS_PROXY_SERVER=""
     GITHUB_REPO="spoke"
     IS_MOZ="false"
     # If running on local
-    HOST_IP="**localhost**"
+    HOST_IP="**hubs.local**"
     # If running on dev/prod
     HOST_IP="**your.PRIVATE.ip.address**"
     ```
@@ -259,14 +271,14 @@ Then exit
     ASSET_BUNDLE_SERVER="https://asset-bundles-prod.reticulum.io"
     
     # Comma-separated list of domains which are known to not need CORS proxying
-    NON_CORS_PROXY_DOMAINS="**localhost**,**your.PUBLIC.ip.address**,**your.domain**,dev.reticulum.io,hubs-upload-cdn.com,hubs-proxy.com"
+    NON_CORS_PROXY_DOMAINS="**hubs.local**,**your.PUBLIC.ip.address**,**your.domain**,dev.reticulum.io,hubs-upload-cdn.com,hubs-proxy.com"
     
     # The root URL under which Hubs expects static assets to be served.
     BASE_ASSETS_PATH="https://**your.domain**:8080/" # or "/" if running at local
     
     # If running on local
-    INTERNAL_HOSTNAME="**localhost**"
-    HOST_IP="**localhost**"
+    INTERNAL_HOSTNAME="**hubs.local**"
+    HOST_IP="**hubs.local**"
     
     # If running on dev/prod
     INTERNAL_HOSTNAME="**your.domain**"
@@ -289,22 +301,22 @@ Then exit
     # The Ita service, for configuration schemas and updates. (In the future this
     # will probably be proxied through Reticulum.)
     
-    ITA_SERVER="https://your.domain:3333" # or "https://localhost:3333"
+    ITA_SERVER="https://your.domain:3333" # or "https://hubs.local:3333"
     
     # The Reticulum backend to connect to. Used for storing information about active hubs.
     # See here for the server code: https://github.com/mozilla/reticulum
-    RETICULUM_SERVER="your.domain:4000" # or "https://localhost:4000"
+    RETICULUM_SERVER="your.domain:4000" # or "https://hubs.local:4000"
     
     # PostgREST server configured to allow administrative access to the db.
-    # POSTGREST_SERVER="https://localhost:4000/api/postgrest"
+    # POSTGREST_SERVER="https://hubs.local:4000/api/postgrest"
     POSTGREST_SERVER="https://your.domain/api/postgrest" # not your.domain:4000
     
-    # BASE_ASSETS_PATH="https://localhost:8989/"
+    # BASE_ASSETS_PATH="https://hubs.local:8989/"
     BASE_ASSETS_PATH="https://your.domain:8989/"
     
     # If running on local
-    INTERNAL_HOSTNAME="localhost"
-    HOST_IP="localhost"
+    INTERNAL_HOSTNAME="hubs.local"
+    HOST_IP="hubs.local"
     
     # If running on dev/prod
     INTERNAL_HOSTNAME="your.PRIVATE.ip.address" # "your.domain" also works?
@@ -452,7 +464,7 @@ server {
 - Spoke: `nvm use v16 && ./scripts/run-local-reticulum.sh`
 - postgREST: `./postgrest reticulum.conf` inside Reticulum folder
 
-Then open browser and access `https://localhost:4000`
+Then open browser and access `https://hubs.local:4000` (make sure `hubs.local` is mapped to `127.0.0.1` in `/etc/hosts` — see the [Initialize environment](#initialize-environment) step at the top of this document).
 
 ### dev/prod
 
