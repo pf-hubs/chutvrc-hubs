@@ -198,6 +198,15 @@ import { loadWaypointPreviewModel, WaypointPreview } from "./prefabs/waypoint-pr
 import { preload } from "./utils/preload";
 
 window.APP = new App();
+
+// Eval probe — lazy-loaded only when `?eval=1` is present in the URL.
+// Adds zero bytes to the main chunk when disabled.
+if (qsTruthy("eval")) {
+  import(/* webpackChunkName: "eval-probe" */ "./eval/eval-probe")
+    .then(m => m.installProbe(window.APP))
+    .catch(err => console.error("[eval] probe load failed:", err));
+}
+
 function addToScene(entityDef, visible) {
   return getScene().then(scene => {
     const eid = renderAsEntity(APP.world, entityDef);

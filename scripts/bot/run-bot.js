@@ -24,9 +24,22 @@ function log(...objs) {
 }
 
 (async () => {
+  const evalMode_ = !!process.env.EVAL_MODE;
   const browser = await puppeteer.launch({
     ignoreHTTPSErrors: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--ignore-gpu-blacklist", "--ignore-certificate-errors"]
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--ignore-gpu-blacklist",
+      "--ignore-certificate-errors",
+      ...(evalMode_
+        ? [
+            "--autoplay-policy=no-user-gesture-required",
+            "--use-fake-ui-for-media-stream",
+            "--use-fake-device-for-media-stream"
+          ]
+        : [])
+    ]
   });
   const page = await browser.newPage();
   await page.setBypassCSP(true);
@@ -47,6 +60,17 @@ function log(...objs) {
   const volumeOption = options["--volume"];
   if (volumeOption !== null && options["--audio"]) {
     params.audio_volume = volumeOption;
+  }
+
+  // Eval mode: opt-in via env vars. When EVAL_MODE is set, append the probe
+  // query params so the hub client loads the eval probe.
+  const evalMode = !!process.env.EVAL_MODE;
+  if (evalMode) {
+    params.eval = 1;
+    params.mode = process.env.EVAL_SPEAKER === "1" ? "speaker" : "passive";
+    if (process.env.EVAL_LABEL) params.label = process.env.EVAL_LABEL;
+    if (process.env.EVAL_REPORT_WS_URL) params.report = process.env.EVAL_REPORT_WS_URL;
+    if (process.env.EVAL_SAMPLE_RATE) params.sample = process.env.EVAL_SAMPLE_RATE;
   }
   const spawnPoint = options["--spawn"] ? `#${options["--spawn"]}` : "";
 
@@ -104,10 +128,14 @@ function log(...objs) {
         // Check for more than two connections to allow for a margin where we have a connection but the a-frame
         // entity has not initialized yet.
         if (avatarCounts && avatarCounts.connectionCount > 2 && avatarCounts.avatarCount === 0) {
-          // It seems the bots have dog-piled on to a restarting server, so we're going to shut things down and
-          // let the hubs-ops bash script restart us.
-          log("Detected avatar dog-pile. Restarting.");
-          process.exit(1);
+          if (evalMode) {
+            log("Dog-pile detected but EVAL_MODE is active — continuing.");
+          } else {
+            // It seems the bots have dog-piled on to a restarting server, so we're going to shut things down and
+            // let the hubs-ops bash script restart us.
+            log("Detected avatar dog-pile. Restarting.");
+            process.exit(1);
+          }
         }
       }, 60 * 1000);
     } catch (e) {

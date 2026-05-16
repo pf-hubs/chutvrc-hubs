@@ -6,6 +6,7 @@ import { createAvatarBoneEntities, removeAvatarEntityAndModel } from "../bit-sys
 import { loadModel } from "../components/gltf-model-plus";
 import { Object3D } from "three";
 import { AvatarAnimState, isValidAvatarAnimState } from "../types/avatar-types";
+import { EvalHooks } from "../eval/eval-hooks";
 
 type Vector3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number };
@@ -103,6 +104,7 @@ export class AvatarSyncHelper {
       // receive other clients' avatar transform when updated
       // Client ID starts at byte 24 (after 24 bytes of Float32 position/rotation data)
       const clientId = new TextDecoder().decode(data.subarray(24)).replace(/\u0000/g, "");
+      EvalHooks.onAvatarRecv?.(channel, data, clientId);
       const avatarPart = channel.substring(8) as unknown as AvatarPart;
       this._client2Transform.get(avatarPart)?.set(clientId, {
         pos: decodePosition(data),
@@ -121,6 +123,7 @@ export class AvatarSyncHelper {
   }
 
   handleOnClientLeave(clientId: string) {
+    EvalHooks.onPeerLeave?.(clientId);
     removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
     this._client2AvatarAssetId.delete(clientId);
     this._client2AvatarEid.delete(clientId);
@@ -224,6 +227,7 @@ export class AvatarSyncHelper {
       if (checkUpdatedRequired && part !== AvatarPart.RIG && !buffer.isUpdateAvatarTransformUpdated(part)) return;
 
       const arrToSend = buffer.getEncodedAvatarTransform(part);
+      EvalHooks.onAvatarSend?.("#avatar-" + AvatarPart[part], arrToSend);
       this._sfu.broadcastUint8("#avatar-" + AvatarPart[part], arrToSend);
 
       if (this._sfu._isRecording) {
