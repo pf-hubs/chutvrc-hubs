@@ -64,16 +64,27 @@ export class SfuPatcher {
     if (detector) {
       const orig = sfu.getMediaStream;
       if (typeof orig === "function") {
-        sfu.getMediaStream = function (this: any, clientId: string, kind: string) {
-          const stream = orig.call(this, clientId, kind);
-          if (kind === "audio" && stream && (stream as MediaStream).getAudioTracks) {
-            try {
-              detector.attach(clientId, stream as MediaStream);
-            } catch (e) {
-              // ignore; audio context not ready, or stream malformed
+        sfu.getMediaStream = function (this: any, clientId: string, kind?: string) {
+          const result = orig.call(this, clientId, kind);
+          // Adapter signatures default `kind` to "audio" — match both explicit and omitted.
+          // Adapters return either MediaStream | null OR Promise<MediaStream | null>; handle both.
+          if (kind === undefined || kind === "audio") {
+            const attachIfAudio = (stream: any) => {
+              if (stream && typeof stream.getAudioTracks === "function") {
+                try {
+                  detector.attach(clientId, stream as MediaStream);
+                } catch (e) {
+                  // ignore; audio context not ready, or stream malformed
+                }
+              }
+            };
+            if (result && typeof (result as Promise<any>).then === "function") {
+              (result as Promise<any>).then(attachIfAudio, () => {});
+            } else {
+              attachIfAudio(result);
             }
           }
-          return stream;
+          return result;
         };
       }
     }

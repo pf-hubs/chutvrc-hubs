@@ -20,8 +20,16 @@ let _audioCtx: AudioContext | null = null;
 function getAudioContext(): AudioContext {
   if (!_audioCtx) {
     _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    // Browsers gate suspended contexts behind a user gesture (autoplay policy).
+    // A passive listener registers once we know the ctx exists; the first gesture
+    // resumes it and removes itself.
+    const gestureEvents = ["pointerdown", "keydown", "touchstart", "click"];
+    const onGesture = () => {
+      _audioCtx?.resume().catch(() => {});
+      for (const ev of gestureEvents) window.removeEventListener(ev, onGesture, true);
+    };
+    for (const ev of gestureEvents) window.addEventListener(ev, onGesture, true);
   }
-  // Resume on demand; user-gesture-resume happens elsewhere in hubs.
   if (_audioCtx.state === "suspended") {
     _audioCtx.resume().catch(() => {});
   }
