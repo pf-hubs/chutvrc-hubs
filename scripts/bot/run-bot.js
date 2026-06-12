@@ -36,7 +36,14 @@ function log(...objs) {
         ? [
             "--autoplay-policy=no-user-gesture-required",
             "--use-fake-ui-for-media-stream",
-            "--use-fake-device-for-media-stream"
+            "--use-fake-device-for-media-stream",
+            // Prevent background-tab throttling so the chirp detector's tick
+            // loop (setInterval) and any RAF-based code keep firing at full
+            // rate. Without these, headless tabs that lose focus get throttled
+            // to ~1 Hz, which destroys 50 ms chirp burst detection.
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding"
           ]
         : [])
     ]

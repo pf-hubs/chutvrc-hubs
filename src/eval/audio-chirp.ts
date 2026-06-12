@@ -129,12 +129,17 @@ export class ChirpDetector {
     const buf = new Float32Array(GOERTZEL_BLOCK);
     let background = 0.001;
     let lastDetectMs = -Infinity;
-    let raf = 0;
+    let timerId: ReturnType<typeof setInterval> | null = null;
     let stopped = false;
+
+    // setInterval (not requestAnimationFrame) so the detector ticks at a fixed
+    // rate even in headless / backgrounded tabs (Puppeteer bot listeners).
+    // ~20 ms tick rate is faster than the chirp burst duration (50 ms) and the
+    // refractory window (100 ms), so every chirp is sampled at least twice.
+    const TICK_MS = 20;
 
     const tick = () => {
       if (stopped) return;
-      raf = requestAnimationFrame(tick);
       analyser.getFloatTimeDomainData(buf);
       let s1 = 0;
       let s2 = 0;
@@ -162,11 +167,14 @@ export class ChirpDetector {
       }
     };
 
-    raf = requestAnimationFrame(tick);
+    timerId = setInterval(tick, TICK_MS);
 
     const stop = () => {
       stopped = true;
-      if (raf) cancelAnimationFrame(raf);
+      if (timerId !== null) {
+        clearInterval(timerId);
+        timerId = null;
+      }
       try {
         src.disconnect();
       } catch (e) {
