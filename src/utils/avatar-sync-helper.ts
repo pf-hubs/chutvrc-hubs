@@ -285,7 +285,7 @@ export class AvatarSyncHelper {
   private setSelfIsVrFlag() {
     this._client2VrMode.set(
       this._sfu._clientId,
-      AFRAME.scenes[0]?.renderer
+      AFRAME.scenes[0]?.renderer?.xr
         ? AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting
         : false
     );
@@ -297,7 +297,7 @@ export class AvatarSyncHelper {
       this._sfu._clientId +
         "|" +
         ((
-          AFRAME.scenes[0]?.renderer
+          AFRAME.scenes[0]?.renderer?.xr
             ? AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting
             : false
         )

@@ -44,8 +44,8 @@ function log(...objs) {
   const page = await browser.newPage();
   await page.setBypassCSP(true);
   page.on("console", msg => log("PAGE: ", msg.text()));
-  page.on("error", err => log("ERROR: ", err.toString().split("\n")[0]));
-  page.on("pageerror", err => log("PAGE ERROR: ", err.toString().split("\n")[0]));
+  page.on("error", err => log("ERROR: ", err.stack || err.toString()));
+  page.on("pageerror", err => log("PAGE ERROR: ", err.stack || err.toString()));
 
   const baseUrl = options["--url"] || `https://${options["--host"]}/hub.html`;
 
