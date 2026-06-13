@@ -8,7 +8,10 @@ import { ProbeEvent } from "./types";
 
 const CHIRP_HZ = 1000;
 const CHIRP_DURATION_MS = 50;
-const CHIRP_INTERVAL_MS = 1500;
+// Inter-chirp interval. Aggregator's PAIRING_WINDOW_MS must stay strictly
+// less than this (currently 4000 ms) to prevent cross-pairing emit[N] with
+// detect[N+1].
+const CHIRP_INTERVAL_MS = 5000;
 const CHIRP_GAIN = 0.3; // mixed in well below clipping
 const GOERTZEL_BLOCK = 1024; // ~21 ms at 48 kHz
 const DETECT_THRESHOLD_FACTOR = 4; // peak vs rolling background
