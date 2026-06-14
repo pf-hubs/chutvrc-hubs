@@ -84,6 +84,19 @@ export class LivekitAdapter extends SfuAdapter {
   // Data channel ready state
   private _dataChannelReadyChannels: Set<string> = new Set();
 
+  // Flips to true on the first successful publishData. While false, transient
+  // "PC manager is closed" / "UnexpectedConnectionState" errors from livekit's
+  // RTCEngine are suppressed — they happen on high-RTT links (LiveKit Cloud)
+  // when the 15ms avatar pump fires before the data transport SDP renegotiation
+  // completes. Once any publish lands, subsequent failures log loudly so we
+  // can detect a real mid-run transport failure (which was masked when the
+  // suppression was made unconditional).
+  private _dataReady: boolean = false;
+  // Visibility counters for diagnosing transport failures. Logged every
+  // PUBLISH_REPORT_INTERVAL successes/failures.
+  private _publishSuccessCount: number = 0;
+  private _publishFailCount: number = 0;
+
   // Cross-room audio sources for public speakers
   crossRoomStreamerAudioSource: Record<string, CrossRoomStreamerAudioSource> = {};
 
@@ -161,9 +174,18 @@ export class LivekitAdapter extends SfuAdapter {
       }
     }
 
+    // Eval bots are audio-only — they never publish video and no peer in an
+    // eval room publishes video either. adaptiveStream (visibility-based
+    // video rate adaptation) and dynacast (simulcast layer coordination) are
+    // pure video-track optimizations; for audio-only they add per-frame
+    // state-machine work for zero benefit. Disable them for eval bots to
+    // narrow the LiveKit code path closer to Dialog's (mediasoup-client has
+    // no equivalent of these). Real users keep both enabled.
+    const isEvalBotEnv =
+      typeof location !== "undefined" && /[?&]eval=1\b/.test(location.search);
     const roomOptions: RoomOptions = {
-      adaptiveStream: true,
-      dynacast: true,
+      adaptiveStream: !isEvalBotEnv,
+      dynacast: !isEvalBotEnv,
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution
       },
@@ -777,38 +799,117 @@ export class LivekitAdapter extends SfuAdapter {
   broadcast(channel: string, message: string): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._room) return;
 
-    try {
-      const data = this._textEncoder.encode(message);
-      this._room.localParticipant.publishData(data, {
-        reliable: true,
-        topic: channel
-      });
+    const attempt = (allowRetry: boolean) => {
+      // publishData() is async (Promise<void>); the "PC manager is closed"
+      // failure surfaces as a promise rejection, not a sync throw, so we
+      // handle both code paths. Pre-_dataReady startup-race rejections are
+      // suppressed (with a one-shot retry for reliable channels because a
+      // missed #avatarId would permanently break avatar load); post-ready
+      // failures log loudly so a real mid-run transport break is visible.
+      const onError = (error: unknown) => {
+        const matches = /PC manager is closed|UnexpectedConnectionState/.test(String(error));
+        if (matches && !this._dataReady) {
+          if (allowRetry) {
+            debug("broadcast pre-ready, retrying:", channel);
+            setTimeout(() => attempt(false), 250);
+          } else {
+            debug("broadcast pre-ready, dropping:", channel);
+          }
+          this._publishFailCount++;
+          return;
+        }
+        this._publishFailCount++;
+        if (this._publishFailCount % 100 === 1) {
+          console.error(
+            "Broadcast error:", error,
+            "(success=" + this._publishSuccessCount + " fail=" + this._publishFailCount + ")"
+          );
+          this.emitRTCEvent("error", "DataChannel", () => `Broadcast failed: ${error}`);
+        }
+      };
 
-      if (this._isRecording && !channel.includes("#avatar-")) {
-        this._recordedDataChannelMessages.push({
-          l: channel,
-          m: message,
-          t: Date.now(),
-          s: 1
+      try {
+        const data = this._textEncoder.encode(message);
+        const result = this._room!.localParticipant.publishData(data, {
+          reliable: true,
+          topic: channel
         });
+
+        if (result && typeof (result as Promise<void>).then === "function") {
+          (result as Promise<void>)
+            .then(() => {
+              this._dataReady = true;
+              this._publishSuccessCount++;
+            })
+            .catch(onError);
+        } else {
+          this._dataReady = true;
+          this._publishSuccessCount++;
+        }
+
+        if (this._isRecording && !channel.includes("#avatar-")) {
+          this._recordedDataChannelMessages.push({
+            l: channel,
+            m: message,
+            t: Date.now(),
+            s: 1
+          });
+        }
+      } catch (error) {
+        onError(error);
       }
-    } catch (error) {
-      console.error("Broadcast error:", error);
-      this.emitRTCEvent("error", "DataChannel", () => `Broadcast failed: ${error}`);
-    }
+    };
+
+    attempt(true);
   }
 
   broadcastUint8(channel: string, message: Uint8Array): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._room) return;
 
+    // Avatar pose is sent every 15ms; on high-RTT links the data transport
+    // SDP renegotiation hasn't finished by the time the first tick fires and
+    // publishData rejects with "PC manager is closed". publishData() returns a
+    // Promise<void>, so the failure is an async rejection rather than a sync
+    // throw — we handle both. Pre-_dataReady rejections are suppressed; once
+    // _dataReady flips, post-ready failures are logged loudly (rate-limited
+    // since the avatar pump fires every 15 ms) so a real mid-run transport
+    // break — which would silently zero out avatar-recv on peers — is visible.
+    const onError = (error: unknown) => {
+      const matches = /PC manager is closed|UnexpectedConnectionState/.test(String(error));
+      if (matches && !this._dataReady) {
+        debug("publishData pre-ready, dropping:", channel);
+        this._publishFailCount++;
+        return;
+      }
+      this._publishFailCount++;
+      if (this._publishFailCount % 100 === 1) {
+        console.error(
+          "BroadcastUint8 error:", error,
+          "(success=" + this._publishSuccessCount + " fail=" + this._publishFailCount + ")"
+        );
+      }
+    };
+
     try {
       // Avatar transform data is time-sensitive, use unreliable
       const reliable = !channel.includes("#avatar-");
 
-      this._room.localParticipant.publishData(message, {
+      const result = this._room.localParticipant.publishData(message, {
         reliable,
         topic: channel
       });
+
+      if (result && typeof (result as Promise<void>).then === "function") {
+        (result as Promise<void>)
+          .then(() => {
+            this._dataReady = true;
+            this._publishSuccessCount++;
+          })
+          .catch(onError);
+      } else {
+        this._dataReady = true;
+        this._publishSuccessCount++;
+      }
 
       if (this._isRecording && !channel.includes("#avatar-")) {
         this._recordedDataChannelMessages.push({
@@ -819,7 +920,7 @@ export class LivekitAdapter extends SfuAdapter {
         });
       }
     } catch (error) {
-      console.error("BroadcastUint8 error:", error);
+      onError(error);
     }
   }
 

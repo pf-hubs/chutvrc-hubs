@@ -49,7 +49,20 @@ function log(...objs) {
             // the SFU side does not resolve .local addresses. Without this,
             // PeerConnections exist but never get a working candidate pair,
             // producing bytesReceived=0 on inbound-rtp.
-            "--disable-features=WebRtcHideLocalIpsWithMdns"
+            "--disable-features=WebRtcHideLocalIpsWithMdns,Translate,OptimizationHints",
+            // Skip Chrome startup/maintenance overhead that has no role in a
+            // measurement bot. Each one shaves a small amount of CPU + memory
+            // per bot; at N=20 that adds up to a noticeable difference in
+            // bot-host load (which affects clock_ci_ms and pose throttling).
+            "--disable-extensions",
+            "--disable-default-apps",
+            "--disable-component-update",
+            "--disable-sync",
+            "--disable-client-side-phishing-detection",
+            "--disable-domain-reliability",
+            "--no-default-browser-check",
+            "--no-first-run",
+            "--metrics-recording-only"
           ]
         : [])
     ]

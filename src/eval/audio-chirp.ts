@@ -6,6 +6,15 @@
 
 import { ProbeEvent } from "./types";
 
+// 1 kHz is comfortably inside Chrome WebRTC's voice-band Opus encoding
+// (which biases toward sub-1.5 kHz). Earlier attempt to move to 2.5 kHz
+// to dodge a suspected chirp-loop.wav false-positive made the detector
+// see zero energy post-Opus-encode (HF rolloff) — chirp-detect dropped
+// to 0. chirp-loop.wav is now generated as silence (see
+// eval/assets/generate-chirp.js), so the dominant residual bimodality
+// in chirp-pairs.csv comes from Chrome headless audio jitter-buffer
+// behaviour rather than from file content, and is handled by the
+// DETECT_REFRACTORY_MS=500 bump below + post-filter on long-tail rows.
 const CHIRP_HZ = 1000;
 const CHIRP_DURATION_MS = 50;
 // Inter-chirp interval. Aggregator's PAIRING_WINDOW_MS must stay strictly
@@ -16,13 +25,32 @@ const CHIRP_GAIN = 0.3; // mixed in well below clipping
 const GOERTZEL_BLOCK = 1024; // ~21 ms at 48 kHz
 const DETECT_THRESHOLD_FACTOR = 4; // peak vs rolling background
 const DETECT_MIN_MAGNITUDE = 0.01; // absolute floor to avoid silence-floor amplification
-const DETECT_REFRACTORY_MS = CHIRP_DURATION_MS * 2;
+// Was CHIRP_DURATION_MS * 2 = 100 ms. Bumped to 500 ms because some adapters
+// (notably LiveKit Cloud with the MediaRecorder decoder-primer hack) cause
+// the analyser to see a secondary peak ~1 s after the real chirp, leaving
+// chirp-pairs.csv with bimodal latency distributions (~150 ms real,
+// ~1.1 s echo). 500 ms is well above the echo window and still well below
+// the 5 s inter-chirp interval, so we never accidentally suppress a real
+// next-emit detection.
+const DETECT_REFRACTORY_MS = 500;
 
 let _audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext {
   if (!_audioCtx) {
-    _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    // Prefer Hubs' shared THREE.AudioContext. It's the same context the
+    // positional-audio system uses for remote peers (when bot mode reaches
+    // that path); routing our analyser into it means the same WebRTC
+    // decoders that wake for the audio-system also feed the detector.
+    // Creating our own private AudioContext leaves the inbound RTP audio
+    // tracks without a consumer that Chrome counts — the decoder stays
+    // idle, the analyser reads zeros.
+    const shared = (window as any).THREE?.AudioContext?.getContext?.();
+    if (shared) {
+      _audioCtx = shared as AudioContext;
+    } else {
+      _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
     // Browsers gate suspended contexts behind a user gesture (autoplay policy).
     // A passive listener registers once we know the ctx exists; the first gesture
     // resumes it and removes itself.
@@ -114,14 +142,48 @@ export class ChirpDetector {
   // Attach a Goertzel analyzer to a single remote audio stream.
   // sourceClientId is used to tag detection events.
   attach(sourceClientId: string, stream: MediaStream): void {
-    if (this._activeDetectors.has(sourceClientId)) return;
-    if (stream.getAudioTracks().length === 0) return;
+    const tag = sourceClientId.slice(0, 8);
+    if (this._activeDetectors.has(sourceClientId)) {
+      console.log("[eval-debug] chirp-detect attach SKIP (already attached) cid=" + tag);
+      return;
+    }
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length === 0) {
+      console.log("[eval-debug] chirp-detect attach SKIP (no audio tracks) cid=" + tag);
+      return;
+    }
 
     const ctx = this._ctx;
     const src = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
     analyser.fftSize = GOERTZEL_BLOCK * 2;
     src.connect(analyser);
+    // Chrome only runs the inbound WebRTC decoder when the track has a
+    // *real* downstream consumer. An AnalyserNode alone doesn't count in
+    // some Chrome builds (it's treated as a passive tap). Route the source
+    // through a silent destination so the decoder pipeline is forced live.
+    const silentGain = ctx.createGain();
+    silentGain.gain.value = 0;
+    src.connect(silentGain);
+    const sinkDest = ctx.createMediaStreamDestination();
+    silentGain.connect(sinkDest);
+
+    console.log(
+      "[eval-debug] chirp-detect attach OK cid=" +
+        tag +
+        " ctxState=" +
+        ctx.state +
+        " sampleRate=" +
+        ctx.sampleRate +
+        " trackId=" +
+        audioTracks[0].id.slice(0, 8) +
+        " muted=" +
+        audioTracks[0].muted +
+        " enabled=" +
+        audioTracks[0].enabled +
+        " readyState=" +
+        audioTracks[0].readyState
+    );
 
     // Goertzel for CHIRP_HZ at sampleRate.
     const sampleRate = ctx.sampleRate;
