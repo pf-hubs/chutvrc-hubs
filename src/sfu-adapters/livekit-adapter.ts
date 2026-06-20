@@ -783,16 +783,35 @@ export class LivekitAdapter extends SfuAdapter {
 
   enableMicrophone(enabled: boolean): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    if (!this._room?.localParticipant) return;
 
-    if (this._room?.localParticipant) {
+    // The mic track is published manually via publishTrack() (so we can wrap the
+    // stream for eval chirp injection and control getUserMedia ourselves), which
+    // gives it Source.Unknown. localParticipant.setMicrophoneEnabled() only acts
+    // on a Source.Microphone track, so it silently no-ops here and the mic never
+    // actually mutes — a LiveKit-only bug (Dialog pauses its producer directly).
+    // Mute/unmute the real published track instead.
+    const track = this._micPublication?.track;
+    if (track) {
+      if (enabled) {
+        track.unmute();
+      } else {
+        track.mute();
+      }
+    } else {
+      // No manual publication yet — fall back to LiveKit's managed mic.
       this._room.localParticipant.setMicrophoneEnabled(enabled);
-      this._micShouldBeEnabled = enabled;
-      this.emit("mic-state-changed", { enabled: this._micShouldBeEnabled });
     }
+    this._micShouldBeEnabled = enabled;
+    this.emit("mic-state-changed", { enabled: this._micShouldBeEnabled });
   }
 
   get isMicEnabled(): boolean | null {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return false;
+    // Reflect the real published-track mute state — setMicrophoneEnabled() does
+    // not own our manually-published track (see enableMicrophone).
+    const track = this._micPublication?.track;
+    if (track) return !track.isMuted;
     return this._room?.localParticipant.isMicrophoneEnabled ?? false;
   }
 
