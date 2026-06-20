@@ -28,11 +28,16 @@ export class SfuPatcher {
   private _decoderSinks = new Map<string, HTMLAudioElement>();
   private _decoderRecorders = new Map<string, MediaRecorder>();
 
-  constructor(app: any, mode: ProbeMode, emit: (event: ProbeEvent) => void) {
+  constructor(
+    app: any,
+    mode: ProbeMode,
+    emit: (event: ProbeEvent) => void,
+    onChirpEmit?: (seq: number, tEmitMs: number) => void
+  ) {
     this._app = app;
     this._mode = mode;
     this._emit = emit;
-    if (mode === "speaker") this._injector = new ChirpInjector(emit);
+    if (mode === "speaker") this._injector = new ChirpInjector(emit, onChirpEmit);
     this._detector = new ChirpDetector(emit);
   }
 

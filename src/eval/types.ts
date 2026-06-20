@@ -49,11 +49,19 @@ export type PeerLeaveEvent = {
   peer_client_id: string;
 };
 
+export type HeadSlateEmitEvent = {
+  kind: "head-slate-emit";
+  t_client_ms: number;
+  chirp_seq: number;
+  head_send_seq: number;
+};
+
 export type ProbeEvent =
   | AvatarSendEvent
   | AvatarRecvEvent
   | ChirpEmitEvent
   | ChirpDetectEvent
+  | HeadSlateEmitEvent
   | RtcStatsEvent
   | PeerJoinEvent
   | PeerLeaveEvent;

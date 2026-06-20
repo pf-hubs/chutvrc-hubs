@@ -7,7 +7,9 @@
 //   - ClockSync → runner-as-time-reference RTT loop
 //   - ReportSink → batched WS to runner
 
+import { Object3D } from "three";
 import qsTruthy, { qsGet } from "../utils/qs_truthy";
+import { encodeAvatarTransform } from "../utils/avatar-utils";
 import { EvalHooks } from "./eval-hooks";
 import { ReportSink } from "./report-sink";
 import { ClockSync } from "./clock-sync";
@@ -165,7 +167,46 @@ export function installProbe(app: any) {
     }
   });
 
-  const patcher = new SfuPatcher(app, mode, emit);
+  // Speaker-only: at each audio chirp, broadcast ONE discrete #avatar-HEAD "slate"
+  // packet coincident with the chirp. The runner pairs it with the chirp detection at
+  // each listener to measure audio↔avatar arrival skew against a shared sender instant
+  // (replaces the old free-running #avatar-RIG staleness offset). The bot's head is
+  // otherwise static, so every #avatar-HEAD packet is unambiguously one slate.
+  // Fixed head-height local position (matches #avatar-pov-node's rig-local pose); only the
+  // rotation changes per slate. The pos/rot values are cosmetic: the packet is broadcast
+  // unconditionally (we bypass the native "transform changed?" gate), and the listener logs
+  // an avatar-recv for every received HEAD packet regardless of contents — so position never
+  // needs to change. Exactly one HEAD packet per chirp because the real pump never sends HEAD
+  // (the bot's actual head object3D stays static).
+  const headSlateObj = new Object3D();
+  headSlateObj.position.set(0, 1.6, 0);
+  let headSlateYawSign = 1;
+  const sendHeadSlate = (chirpSeq: number) => {
+    const sfu = app?.sfu;
+    if (!sfu || typeof sfu.broadcastUint8 !== "function" || !sfu._clientId) return;
+    // Small alternating yaw so the rendered head visibly nods (set absolutely, so it never
+    // drifts). Reuse the real wire encoder so the bytes are byte-identical to a genuine pose
+    // packet. Encode the clientId at send time — it isn't assigned until the SFU is ready.
+    headSlateYawSign = -headSlateYawSign;
+    headSlateObj.rotation.set(0, 0.2 * headSlateYawSign, 0);
+    const bytes = encodeAvatarTransform(headSlateObj, new TextEncoder().encode(sfu._clientId));
+    try {
+      sfu.broadcastUint8("#avatar-HEAD", bytes);
+    } catch (e) {
+      console.warn("[eval] head-slate broadcast failed:", e);
+      return;
+    }
+    // Allocate the send seq only after a successful broadcast, so a thrown send never
+    // desyncs the sender HEAD send-seq from listeners' recv-seq (the aggregator's
+    // exact-seq HEAD join depends on 1:1 alignment).
+    const seq = sendSeq.next("#avatar-HEAD");
+    const now = performance.now();
+    emit({ kind: "avatar-send", t_client_ms: now, channel: "#avatar-HEAD", seq });
+    emit({ kind: "head-slate-emit", t_client_ms: now, chirp_seq: chirpSeq, head_send_seq: seq });
+    console.log("[eval] head-slate chirp_seq=" + chirpSeq + " head_seq=" + seq);
+  };
+
+  const patcher = new SfuPatcher(app, mode, emit, mode === "speaker" ? sendHeadSlate : undefined);
   const rtcStats = new RtcStatsCollector(() => app?.sfu, emit);
 
   // Lifecycle: wait for APP.sfu to materialize before sending hello.

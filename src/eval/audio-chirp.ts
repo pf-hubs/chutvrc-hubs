@@ -74,10 +74,18 @@ export class ChirpInjector {
   private _seq = 0;
   private _destNode: MediaStreamAudioDestinationNode | null = null;
   private _origSource: MediaStreamAudioSourceNode | null = null;
+  // Optional coincident-emit callback. Fired right after each chirp-emit with the
+  // chirp's seq and emit timestamp, so the probe can drive a synchronized avatar
+  // HEAD "slate" (see eval-probe sendHeadSlate). No-op when undefined.
+  private _onChirpEmit?: (seq: number, tEmitMs: number) => void;
 
-  constructor(emit: (event: ProbeEvent) => void) {
+  constructor(
+    emit: (event: ProbeEvent) => void,
+    onChirpEmit?: (seq: number, tEmitMs: number) => void
+  ) {
     this._ctx = getAudioContext();
     this._emit = emit;
+    this._onChirpEmit = onChirpEmit;
   }
 
   // Returns a new MediaStream that contains the original mic mixed with chirps.
@@ -126,6 +134,8 @@ export class ChirpInjector {
     // Convert from AudioContext time to performance.now() reference.
     const t_event = performance.now() + (t_start - ctx.currentTime) * 1000;
     this._emit({ kind: "chirp-emit", t_client_ms: t_event, seq });
+    // Drive the coincident avatar HEAD slate (speaker mode only; no-op otherwise).
+    this._onChirpEmit?.(seq, t_event);
   }
 }
 
