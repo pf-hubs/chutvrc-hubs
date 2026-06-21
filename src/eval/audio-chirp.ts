@@ -74,6 +74,7 @@ export class ChirpInjector {
   private _seq = 0;
   private _destNode: MediaStreamAudioDestinationNode | null = null;
   private _origSource: MediaStreamAudioSourceNode | null = null;
+  private _wrapped = false;
   // Optional coincident-emit callback. Fired right after each chirp-emit with the
   // chirp's seq and emit timestamp, so the probe can drive a synchronized avatar
   // HEAD "slate" (see eval-probe sendHeadSlate). No-op when undefined.
@@ -86,6 +87,12 @@ export class ChirpInjector {
     this._ctx = getAudioContext();
     this._emit = emit;
     this._onChirpEmit = onChirpEmit;
+  }
+
+  // True once a chirp-injected stream exists; the patcher polls this to re-inject
+  // after a late setLocalMediaStream patch (see SfuPatcher._tryPatch).
+  get wrapped(): boolean {
+    return this._wrapped;
   }
 
   // Returns a new MediaStream that contains the original mic mixed with chirps.
@@ -107,6 +114,7 @@ export class ChirpInjector {
     const out = new MediaStream();
     this._destNode.stream.getAudioTracks().forEach(t => out.addTrack(t));
     stream.getVideoTracks().forEach(t => out.addTrack(t));
+    this._wrapped = true;
     return out;
   }
 
@@ -120,6 +128,8 @@ export class ChirpInjector {
   private _emitChirp() {
     const ctx = this._ctx;
     if (!this._destNode) return;
+    // Autoplay policy can leave the context suspended (silent chirp); resume it.
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
     const t_start = ctx.currentTime + 0.01;
     const osc = ctx.createOscillator();
     osc.type = "sine";

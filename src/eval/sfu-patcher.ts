@@ -12,6 +12,8 @@ export class SfuPatcher {
   private _injector: ChirpInjector | null = null;
   private _detector: ChirpDetector | null = null;
   private _patchedSfus = new WeakSet<object>();
+  // Set once sfu.setLocalMediaStream is wrapped; gates chirp re-injection.
+  private _slmsPatched = false;
   private _pollTimer: ReturnType<typeof setInterval> | null = null;
   // Chrome won't actually decode an inbound RTCRtpReceiver audio track into
   // PCM samples for WebAudio unless something consumes the track. Hubs does
@@ -125,6 +127,25 @@ export class SfuPatcher {
       }
     }
 
+    // Re-inject if the speaker's mic was published before our setLocalMediaStream
+    // patch landed (a real-browser entry race: the live track then has no chirp).
+    // Re-publish the current local stream through the now-patched method so the
+    // chirp goes on the wire. Runs each poll until it takes; no-op once wrapped.
+    if (
+      this._mode === "speaker" &&
+      this._injector &&
+      this._slmsPatched &&
+      !this._injector.wrapped &&
+      typeof sfu.getLocalMediaStream === "function" &&
+      typeof sfu.setLocalMediaStream === "function"
+    ) {
+      const local = sfu.getLocalMediaStream();
+      if (local && local.getAudioTracks && local.getAudioTracks().length > 0) {
+        console.log("[eval-debug] sfu-patcher re-injecting chirp (mic published before patch landed)");
+        sfu.setLocalMediaStream(local);
+      }
+    }
+
     if (this._patchedSfus.has(sfu)) return;
     this._patchedSfus.add(sfu);
 
@@ -156,6 +177,7 @@ export class SfuPatcher {
             : stream;
           return orig.call(this, wrapped, hints);
         };
+        this._slmsPatched = true;
       }
     }
 
