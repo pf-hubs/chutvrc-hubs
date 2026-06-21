@@ -30,6 +30,16 @@ export type ChirpDetectEvent = {
   magnitude: number;
 };
 
+// ~1 Hz detector heartbeat: peak 1 kHz magnitude + noise floor (`channel`="bg=<n>"),
+// so a failed run still shows the chirp's SNR.
+export type ChirpTickEvent = {
+  kind: "chirp-tick";
+  t_client_ms: number;
+  source_client_id: string | null;
+  magnitude: number;
+  channel: string;
+};
+
 export type RtcStatsEvent = {
   kind: "rtc-stats";
   t_client_ms: number;
@@ -61,6 +71,7 @@ export type ProbeEvent =
   | AvatarRecvEvent
   | ChirpEmitEvent
   | ChirpDetectEvent
+  | ChirpTickEvent
   | HeadSlateEmitEvent
   | RtcStatsEvent
   | PeerJoinEvent

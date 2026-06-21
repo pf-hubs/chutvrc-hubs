@@ -504,15 +504,9 @@ export class LivekitAdapter extends SfuAdapter {
       });
     };
 
-    // Eval bots enter the room far faster than a human and start the 15ms avatar
-    // pump the instant publishTrack() resolves — before LiveKit's data transport
-    // (publisher SCTP) has negotiated. On high-RTT links (LiveKit Cloud) every
-    // publishData() then rejects "PC manager is closed", and because the pump
-    // floods the half-open transport every 15ms the renegotiation never settles,
-    // so avatar-recv stays 0 for the whole run. (Real users are paced slowly
-    // enough that the transport is already up — that's why only bots hit this.)
-    // Fix: serialize a retrying reliable warmup publish until one lands, THEN
-    // start the pumps. Gated to eval bots so the real-user path is unchanged.
+    // Eval bots start the 15ms avatar pump before LiveKit's data transport has
+    // negotiated, so on high-RTT links every publishData() fails and avatar-recv
+    // stays 0. Warm the transport up first, then start the pumps. Bots only.
     const isEvalBotEnv =
       typeof location !== "undefined" && /[?&]eval=1\b/.test(location.search);
     if (isEvalBotEnv && this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
@@ -523,11 +517,8 @@ export class LivekitAdapter extends SfuAdapter {
     }
   }
 
-  // Repeatedly await a single reliable publish on a throwaway topic until one
-  // succeeds (proving the SCTP data transport is open), backing off between tries
-  // so we don't thrash the renegotiation the way the 15ms pump does. Resolves true
-  // on success, false if it never came up within the budget (pumps start anyway as
-  // a best effort). Eval-bot only — see _initializeDataChannels.
+  // Retry a reliable publish until one lands (data transport open), backing off
+  // so we don't thrash the negotiation. Returns false if it never comes up.
   private async _warmUpDataTransport(): Promise<boolean> {
     const WARMUP_TOPIC = "#dc-warmup";
     const MAX_ATTEMPTS = 60; // ~30s at 500ms
@@ -784,6 +775,9 @@ export class LivekitAdapter extends SfuAdapter {
   enableMicrophone(enabled: boolean): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
 
+    // Stock path only. Don't reintroduce the "mute the published track" variant
+    // (for the listener mute button): it muted the SPEAKER's track on LiveKit and
+    // the injected chirp stopped transmitting.
     if (this._room?.localParticipant) {
       this._room.localParticipant.setMicrophoneEnabled(enabled);
       this._micShouldBeEnabled = enabled;

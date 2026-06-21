@@ -93,6 +93,9 @@ export class ChirpInjector {
     const ctx = this._ctx;
     this._origSource = ctx.createMediaStreamSource(stream);
     this._destNode = ctx.createMediaStreamDestination();
+    // Mix chirps into the speaker's live mic so the listener both hears the speaker
+    // and can detect the tone. Loud speaker audio can dilute the chirp below the
+    // detector floor (watch chirp-tick SNR; raise CHIRP_GAIN if needed).
     this._origSource.connect(this._destNode);
 
     if (!this._timer) {
@@ -204,6 +207,8 @@ export class ChirpDetector {
     const buf = new Float32Array(GOERTZEL_BLOCK);
     let background = 0.001;
     let lastDetectMs = -Infinity;
+    let maxMagWindow = 0;
+    let lastDiagMs = -Infinity;
     let timerId: ReturnType<typeof setInterval> | null = null;
     let stopped = false;
 
@@ -226,7 +231,20 @@ export class ChirpDetector {
       const mag = Math.sqrt(s1 * s1 + s2 * s2 - coeff * s1 * s2) / GOERTZEL_BLOCK;
       // Rolling background tracker, slow update.
       background = 0.99 * background + 0.01 * mag;
+      if (mag > maxMagWindow) maxMagWindow = mag;
       const now = performance.now();
+      // ~1 Hz heartbeat: peak magnitude + noise floor, so a failed run shows SNR.
+      if (now - lastDiagMs >= 1000) {
+        this._emit({
+          kind: "chirp-tick",
+          t_client_ms: now,
+          source_client_id: sourceClientId,
+          magnitude: maxMagWindow,
+          channel: "bg=" + background.toFixed(6)
+        });
+        maxMagWindow = 0;
+        lastDiagMs = now;
+      }
       if (
         mag > DETECT_MIN_MAGNITUDE &&
         mag > DETECT_THRESHOLD_FACTOR * background &&
