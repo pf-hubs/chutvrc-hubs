@@ -729,15 +729,22 @@ export class LivekitAdapter extends SfuAdapter {
           sawAudio = true;
 
           if (this._micPublication) {
-            // Publish new track (will replace old one)
-            await this._room!.localParticipant.publishTrack(track, {
-              name: "microphone"
-            });
-          } else {
-            this._micPublication = await this._room!.localParticipant.publishTrack(track, {
-              name: "microphone"
-            });
+            // Unpublish the previous mic track BEFORE publishing the new one. The
+            // original code published a new "microphone" track without unpublishing
+            // the old one or updating _micPublication, so every setLocalMediaStream
+            // call (incl. the eval chirp re-inject) leaked another audio publication
+            // — the speaker advertised several mic tracks and remote subscribers
+            // couldn't tell which carried the live audio / chirp.
+            try {
+              const oldTrack = this._micPublication.track;
+              if (oldTrack) await this._room!.localParticipant.unpublishTrack(oldTrack);
+            } catch (e) {
+              // old track already gone; ignore
+            }
           }
+          this._micPublication = await this._room!.localParticipant.publishTrack(track, {
+            name: "microphone"
+          });
 
           this.emit("mic-state-changed", { enabled: this.isMicEnabled });
         } else {

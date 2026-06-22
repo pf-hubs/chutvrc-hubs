@@ -102,6 +102,9 @@ export function installProbe(app: any) {
   };
 
   EvalHooks.onAvatarRecv = (channel, _buf, sourceClientId) => {
+    // Make sure this peer's audio has a chirp detector attached (catches the
+    // getMediaStream patch race on real-browser listeners). Idempotent.
+    patcher.ensureAudioDetector(sourceClientId);
     // Receive-side sampling: keep every Kth event when sampleRate < 1.
     if (sampleRate < 1 && Math.random() > sampleRate) return;
     const seq = recvSeq.next(sourceClientId, channel);

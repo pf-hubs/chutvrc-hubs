@@ -14,6 +14,8 @@ export class SfuPatcher {
   private _patchedSfus = new WeakSet<object>();
   // Set once sfu.setLocalMediaStream is wrapped; gates chirp re-injection.
   private _slmsPatched = false;
+  // Per-peer throttle for ensureAudioDetector retries (clientId -> last attempt ms).
+  private _ensureRetry = new Map<string, number>();
   private _pollTimer: ReturnType<typeof setInterval> | null = null;
   // Chrome won't actually decode an inbound RTCRtpReceiver audio track into
   // PCM samples for WebAudio unless something consumes the track. Hubs does
@@ -98,6 +100,26 @@ export class SfuPatcher {
         // ignore
       }
       this._decoderRecorders.delete(clientId);
+    }
+  }
+
+  // Ensure a chirp detector + decoder-primer is attached for a remote peer's
+  // audio. Called from the avatar-recv hook: if the detector missed the
+  // getMediaStream patch (a real-browser timing race when the speaker was already
+  // in the room), re-trigger the now-patched getMediaStream so it attaches.
+  // Idempotent + throttled to ~1/s per peer until it takes.
+  ensureAudioDetector(sourceClientId: string): void {
+    const sfu = this._app?.sfu;
+    if (!sfu || !this._detector || this._detector.hasPeer(sourceClientId)) return;
+    const now = Date.now();
+    if (now - (this._ensureRetry.get(sourceClientId) || 0) < 1000) return;
+    this._ensureRetry.set(sourceClientId, now);
+    if (typeof sfu.getMediaStream === "function") {
+      try {
+        sfu.getMediaStream(sourceClientId, "audio");
+      } catch (e) {
+        // ignore — adapter not ready; retry on the next avatar-recv
+      }
     }
   }
 
@@ -213,7 +235,18 @@ export class SfuPatcher {
                   " audioTracks=" +
                   audioCount
               );
-              if (stream && typeof stream.getAudioTracks === "function") {
+              // Only attach the primer + detector once the stream actually carries
+              // an audio track. The first getMediaStream often resolves with an
+              // EMPTY stream (track not subscribed yet); binding the <audio>/
+              // MediaRecorder primer to that empty stream leaves it stuck (keyed by
+              // clientId, never rebuilt), so the decoder is never forced and the
+              // analyser reads silence. ensureAudioDetector re-runs this with the
+              // live stream once the track arrives.
+              if (
+                stream &&
+                typeof stream.getAudioTracks === "function" &&
+                stream.getAudioTracks().length > 0
+              ) {
                 // Force Chrome's inbound audio decoder to actually produce
                 // PCM samples for WebAudio: a hidden, muted <audio> element
                 // with .play() is the standard workaround. Kept alive in

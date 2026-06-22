@@ -152,61 +152,103 @@ export class ChirpInjector {
   }
 }
 
+type DetectorEntry = {
+  analyser: AnalyserNode;
+  silentGain: GainNode;
+  tracks: Set<string>;
+  sources: MediaStreamAudioSourceNode[];
+  primers: HTMLAudioElement[];
+  stop: () => void;
+};
+
 export class ChirpDetector {
   private _ctx: AudioContext;
   private _emit: (event: ProbeEvent) => void;
-  private _activeDetectors = new Map<string, { stop: () => void }>();
+  private _activeDetectors = new Map<string, DetectorEntry>();
 
   constructor(emit: (event: ProbeEvent) => void) {
     this._ctx = getAudioContext();
     this._emit = emit;
   }
 
-  // Attach a Goertzel analyzer to a single remote audio stream.
-  // sourceClientId is used to tag detection events.
+  hasPeer(sourceClientId: string): boolean {
+    return this._activeDetectors.has(sourceClientId);
+  }
+
+  // Attach a Goertzel analyzer to a remote peer's audio. The speaker may publish
+  // SEVERAL audio tracks (its raw mic, the injected-chirp track, and LiveKit's own
+  // mic publication), and the chirp is often NOT the first one — so mix ALL of the
+  // peer's audio tracks into one analyser and force-decode each. Re-callable: tracks
+  // that show up on later getMediaStream resolves are sourced in addition.
   attach(sourceClientId: string, stream: MediaStream): void {
     const tag = sourceClientId.slice(0, 8);
-    if (this._activeDetectors.has(sourceClientId)) {
-      console.log("[eval-debug] chirp-detect attach SKIP (already attached) cid=" + tag);
-      return;
-    }
     const audioTracks = stream.getAudioTracks();
     if (audioTracks.length === 0) {
       console.log("[eval-debug] chirp-detect attach SKIP (no audio tracks) cid=" + tag);
       return;
     }
-
     const ctx = this._ctx;
-    const src = ctx.createMediaStreamSource(stream);
+    let entry = this._activeDetectors.get(sourceClientId);
+    if (!entry) {
+      entry = this._createDetector(sourceClientId, tag);
+      this._activeDetectors.set(sourceClientId, entry);
+    }
+    for (const track of audioTracks) {
+      if (entry.tracks.has(track.id)) continue;
+      entry.tracks.add(track.id);
+      const single = new MediaStream([track]);
+      // Decode primer, one per track: an <audio> element only renders its first
+      // audio track, so a single element on a multi-track stream wouldn't force the
+      // chirp track to decode. A hidden, muted element playing each track makes
+      // Chrome produce PCM for it.
+      try {
+        const el = document.createElement("audio");
+        el.srcObject = single;
+        el.volume = 0;
+        el.autoplay = true;
+        el.setAttribute("playsinline", "true");
+        el.style.cssText = "position:absolute;width:0;height:0;opacity:0;pointer-events:none;";
+        document.body.appendChild(el);
+        const playRes = el.play();
+        if (playRes && typeof playRes.then === "function") playRes.catch(() => {});
+        entry.primers.push(el);
+      } catch (e) {
+        // primer is best-effort
+      }
+      // Mix this track into the shared analyser (and the silent decode sink).
+      const node = ctx.createMediaStreamSource(single);
+      node.connect(entry.analyser);
+      node.connect(entry.silentGain);
+      entry.sources.push(node);
+      console.log(
+        "[eval-debug] chirp-detect sourced track cid=" +
+          tag +
+          " trackId=" +
+          track.id.slice(0, 8) +
+          " muted=" +
+          track.muted +
+          " enabled=" +
+          track.enabled +
+          " (tracks=" +
+          entry.tracks.size +
+          " ctxState=" +
+          ctx.state +
+          ")"
+      );
+    }
+  }
+
+  private _createDetector(sourceClientId: string, tag: string): DetectorEntry {
+    const ctx = this._ctx;
     const analyser = ctx.createAnalyser();
     analyser.fftSize = GOERTZEL_BLOCK * 2;
-    src.connect(analyser);
-    // Chrome only runs the inbound WebRTC decoder when the track has a
-    // *real* downstream consumer. An AnalyserNode alone doesn't count in
-    // some Chrome builds (it's treated as a passive tap). Route the source
-    // through a silent destination so the decoder pipeline is forced live.
+    // Chrome only runs the inbound WebRTC decoder when the track has a *real*
+    // downstream consumer (an AnalyserNode alone is a passive tap); route every
+    // source through a silent destination too.
     const silentGain = ctx.createGain();
     silentGain.gain.value = 0;
-    src.connect(silentGain);
     const sinkDest = ctx.createMediaStreamDestination();
     silentGain.connect(sinkDest);
-
-    console.log(
-      "[eval-debug] chirp-detect attach OK cid=" +
-        tag +
-        " ctxState=" +
-        ctx.state +
-        " sampleRate=" +
-        ctx.sampleRate +
-        " trackId=" +
-        audioTracks[0].id.slice(0, 8) +
-        " muted=" +
-        audioTracks[0].muted +
-        " enabled=" +
-        audioTracks[0].enabled +
-        " readyState=" +
-        audioTracks[0].readyState
-    );
 
     // Goertzel for CHIRP_HZ at sampleRate.
     const sampleRate = ctx.sampleRate;
@@ -219,17 +261,26 @@ export class ChirpDetector {
     let lastDetectMs = -Infinity;
     let maxMagWindow = 0;
     let lastDiagMs = -Infinity;
-    let timerId: ReturnType<typeof setInterval> | null = null;
     let stopped = false;
 
-    // setInterval (not requestAnimationFrame) so the detector ticks at a fixed
-    // rate even in headless / backgrounded tabs (Puppeteer bot listeners).
-    // ~20 ms tick rate is faster than the chirp burst duration (50 ms) and the
-    // refractory window (100 ms), so every chirp is sampled at least twice.
-    const TICK_MS = 20;
+    const entry: DetectorEntry = {
+      analyser,
+      silentGain,
+      tracks: new Set<string>(),
+      sources: [],
+      primers: [],
+      stop: () => {}
+    };
 
+    // setInterval (not requestAnimationFrame) so the detector ticks at a fixed
+    // rate even in headless / backgrounded tabs. ~20 ms is faster than the chirp
+    // burst (50 ms) and the refractory window, so every chirp is sampled twice.
+    const TICK_MS = 20;
     const tick = () => {
       if (stopped) return;
+      // Autoplay/background-tab policy can suspend the context (analyser reads
+      // silence); keep it resumed.
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
       analyser.getFloatTimeDomainData(buf);
       let s1 = 0;
       let s2 = 0;
@@ -239,18 +290,18 @@ export class ChirpDetector {
         s1 = s;
       }
       const mag = Math.sqrt(s1 * s1 + s2 * s2 - coeff * s1 * s2) / GOERTZEL_BLOCK;
-      // Rolling background tracker, slow update.
       background = 0.99 * background + 0.01 * mag;
       if (mag > maxMagWindow) maxMagWindow = mag;
       const now = performance.now();
-      // ~1 Hz heartbeat: peak magnitude + noise floor, so a failed run shows SNR.
       if (now - lastDiagMs >= 1000) {
         this._emit({
           kind: "chirp-tick",
           t_client_ms: now,
           source_client_id: sourceClientId,
           magnitude: maxMagWindow,
-          channel: "bg=" + background.toFixed(6)
+          // bg = noise floor; ctx = context state; trk = how many of the peer's
+          // audio tracks we're mixing (a silent run then shows if we sourced them).
+          channel: "bg=" + background.toFixed(6) + ";ctx=" + ctx.state + ";trk=" + entry.tracks.size
         });
         maxMagWindow = 0;
         lastDiagMs = now;
@@ -269,23 +320,38 @@ export class ChirpDetector {
         });
       }
     };
+    const timerId = setInterval(tick, TICK_MS);
 
-    timerId = setInterval(tick, TICK_MS);
-
-    const stop = () => {
+    entry.stop = () => {
       stopped = true;
-      if (timerId !== null) {
-        clearInterval(timerId);
-        timerId = null;
+      clearInterval(timerId);
+      for (const node of entry.sources) {
+        try {
+          node.disconnect();
+        } catch (e) {
+          // ignore
+        }
       }
-      try {
-        src.disconnect();
-      } catch (e) {
-        // ignore
+      for (const el of entry.primers) {
+        try {
+          el.pause();
+          el.srcObject = null;
+          el.remove();
+        } catch (e) {
+          // ignore
+        }
       }
     };
 
-    this._activeDetectors.set(sourceClientId, { stop });
+    console.log(
+      "[eval-debug] chirp-detect detector created cid=" +
+        tag +
+        " ctxState=" +
+        ctx.state +
+        " sampleRate=" +
+        sampleRate
+    );
+    return entry;
   }
 
   detach(sourceClientId: string) {
