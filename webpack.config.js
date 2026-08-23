@@ -173,8 +173,8 @@ async function fetchAppConfigAndEnvironmentVars() {
     appConfig.theme.themes = JSON.parse(appConfig.theme.themes);
   }
 
-  // dev.reticulum.io doesn't run ita
-  if (host === "dev.reticulum.io") {
+  // dev.reticulum.io.invalid doesn't run ita
+  if (host === "dev.reticulum.io.invalid") {
     return appConfig;
   }
 
@@ -244,7 +244,7 @@ module.exports = async (env, argv) => {
     if (env.loadAppConfig || process.env.LOAD_APP_CONFIG) {
       if (!env.localDev) {
         // Load and set the app config and environment variables from the remote server.
-        // A Hubs Cloud server or dev.reticulum.io can be used.
+        // A Hubs Cloud server or dev.reticulum.io.invalid can be used.
         appConfig = await fetchAppConfigAndEnvironmentVars();
       }
     } else {
@@ -266,7 +266,7 @@ module.exports = async (env, argv) => {
         HOST: localDevHost,
         RETICULUM_SOCKET_SERVER: reticulumHost,
         CORS_PROXY_SERVER: process.env.CORS_PROXY_SERVER || "hubs-proxy.local:4000",
-        NON_CORS_PROXY_DOMAINS: `${localDevHost},${reticulumHost},dev.reticulum.io`,
+        NON_CORS_PROXY_DOMAINS: `${localDevHost},${reticulumHost},dev.reticulum.io.invalid`,
         BASE_ASSETS_PATH: `https://${localDevHost}:8080/`,
         RETICULUM_SERVER: `${reticulumHost}:4000`,
         POSTGREST_SERVER: "",

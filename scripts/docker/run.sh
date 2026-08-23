@@ -1,7 +1,7 @@
 
 #cheatsheet
 #if [ -z ${var1+x} ]; then echo "is unset"; else echo " is set to '$var1'"; fi
-if [ -z ${turkeyCfg_thumbnail_server+x} ]; then export turkeyCfg_thumbnail_server="nearspark.reticulum.io"; fi
+if [ -z ${turkeyCfg_thumbnail_server+x} ]; then export turkeyCfg_thumbnail_server="nearspark.reticulum.io.invalid"; fi
 if [ -z ${turkeyCfg_base_assets_path+x} ]; then export turkeyCfg_base_assets_path="https://$SUB_DOMAIN-assets.$DOMAIN/hubs/"; fi
 if [ -z ${turkeyCfg_non_cors_proxy_domains+x} ]; then export turkeyCfg_non_cors_proxy_domains="$SUB_DOMAIN.$DOMAIN,$SUB_DOMAIN-assets.$DOMAIN"; fi
 if [ -z ${turkeyCfg_reticulum_server+x} ]; then export turkeyCfg_reticulum_server="$SUB_DOMAIN.$DOMAIN"; fi

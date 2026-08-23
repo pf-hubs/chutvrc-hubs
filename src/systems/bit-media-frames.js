@@ -1,4 +1,4 @@
-// https://dev.reticulum.io/scenes/7vGnzkM/outdoor-meetup
+// https://dev.reticulum.io.invalid/scenes/7vGnzkM/outdoor-meetup
 // A scene with media-frames
 
 import {
