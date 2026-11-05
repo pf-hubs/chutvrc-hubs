@@ -70,10 +70,3 @@ export class AvatarAnimStateHandler implements IChannelHandler {
 export function createAvatarSyncHandlers(): IChannelHandler[] {
   return [new AvatarIdHandler(), new IsVRHandler(), new AvatarAnimStateHandler()];
 }
-
-/**
- * Get the list of all avatar transform channel labels.
- */
-export function getAvatarTransformChannelLabels(): string[] {
-  return ["#avatar-RIG", "#avatar-HEAD", "#avatar-LEFT", "#avatar-RIGHT"];
-}

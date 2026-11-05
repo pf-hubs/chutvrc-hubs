@@ -13,14 +13,14 @@ const recordingDescription = defineMessage({
 });
 
 const RecordingButton = () => {
-  const [selectedState, setSelectedState] = useState(APP.sfu._isRecording);
+  const [selectedState, setSelectedState] = useState(APP.sfu.bus.isRecording);
   const intl = useIntl();
   const description = intl.formatMessage(recordingDescription);
 
   const SwitchRecordingState = () => {
-    if (APP.sfu._isRecording) {
+    if (APP.sfu.bus.isRecording) {
       // Download recording
-      const blob = new Blob([JSON.stringify(APP.sfu._recordedDataChannelMessages)], {
+      const blob = new Blob([JSON.stringify(APP.sfu.bus.takeRecording())], {
         type: "text/json"
       });
       const link = document.createElement("a");
@@ -38,11 +38,12 @@ const RecordingButton = () => {
       link.dispatchEvent(evt);
       link.remove();
 
-      APP.sfu._recordedDataChannelMessages = [];
+      APP.sfu.bus.stopRecording();
+    } else {
+      APP.sfu.bus.startRecording();
     }
 
-    APP.sfu._isRecording = !APP.sfu._isRecording;
-    setSelectedState(APP.sfu._isRecording);
+    setSelectedState(APP.sfu.bus.isRecording);
   };
 
   return (

@@ -59,10 +59,8 @@ export interface ISfuMicrophoneControl {
  * Data channel communication for avatar sync and other real-time data
  */
 export interface ISfuDataChannels {
-  getDataChannelMessage(): DataChannelMessage | undefined;
   broadcast(channel: string, message: string): void;
   broadcastUint8(channel: string, message: Uint8Array): void;
-  setLocalDataChannelMessage(message: DataChannelMessage): void;
 }
 
 /**

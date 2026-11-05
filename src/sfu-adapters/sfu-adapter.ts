@@ -24,19 +24,11 @@ import {
   IChannelHandler
 } from "../utils/data-channel-handlers";
 import { SfuConfig } from "./sfu-config";
+import { ChannelSpec, DataChannelBus } from "./data-channel-bus";
 
 // Re-export for backwards compatibility
 export type { DataChannelMessage };
 export { SfuConnectionState };
-
-type Vector3 = { x: number; y: number; z: number };
-type RecordedDataChannelAvatarTransform = { c: string; p: Vector3; r: Vector3 };
-type RecordedDataChannelMessage = {
-  l: string;
-  m: string | RecordedDataChannelAvatarTransform | null;
-  t: number;
-  s: 0 | 1;
-}; // l: label/chanel, m: message, t: timestamp, s: isSend (0: false (is recv), 1: true)
 
 export const SFU_CONNECTION_CONNECTED = "sfu-connection-connected";
 export const SFU_CONNECTION_ERROR_FATAL = "sfu-connection-error-fatal";
@@ -47,11 +39,14 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
   _roomId: string;
   _avatarSyncHelper: AvatarSyncHelper;
   _connectionType: SFU_CONNECTION_TYPE;
-  _dataChannelMessages: DataChannelMessage[];
-  _recordedDataChannelMessages: RecordedDataChannelMessage[];
-  _isRecording: boolean;
   _sendSelfAvatarSrcIntervalId: NodeJS.Timer;
   _publicSpeakerClientIdsInRoom: string[];
+
+  // Data channel sending, recording and relaying, shared by every adapter
+  readonly bus: DataChannelBus = new DataChannelBus(this, {
+    send: (label, data, spec) => this.sendData(label, data, spec),
+    dispatch: (label, data) => this.handleDataChannelMessage(label, data)
+  });
 
   // The config of the current (or last) connection, set by connect()
   protected _config: TConfig | null = null;
@@ -62,7 +57,6 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
 
   // BridgeCapable implementation
   protected _bridgeMessageCallbacks: Set<BridgeMessageCallback> = new Set();
-  protected _textEncoder: TextEncoder = new TextEncoder();
   protected _textDecoder: TextDecoder = new TextDecoder();
 
   // Token management
@@ -117,15 +111,11 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
   async connect(config: SfuConfig): Promise<void> {}
   disconnect() {}
   getMediaStream(clientId: string, kind: string) {}
-  getDataChannelMessage(): DataChannelMessage | undefined {
-    return { channelLabel: "", message: null };
-  }
   getLocalMicTrack(): MediaStreamTrack | undefined {
     return undefined;
   }
   getLocalMediaStream() {}
   setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId?: Map<string, string> | null) {}
-  setLocalDataChannelMessage(m: DataChannelMessage) {} // TODO: specify type
   toggleMicrophone() {}
   enableMicrophone(enabled: boolean) {}
   get isMicEnabled(): boolean | null {
@@ -138,9 +128,21 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
   kick(clientId: string) {}
   block(clientId: string) {}
   unblock(clientId: string) {}
-  broadcast(channel: string, message: string) {}
-  broadcastUint8(channel: string, message: Uint8Array) {}
+  broadcast(channel: string, message: string): void {
+    this.bus.send(channel, message);
+  }
+  broadcastUint8(channel: string, message: Uint8Array): void {
+    this.bus.send(channel, message);
+  }
   emitRTCEvent(level: string, tag: string, msgFunc: () => void) {}
+
+  // ========== Data Channel Driver ==========
+
+  /**
+   * Hands the bytes for one channel to the SFU SDK. The bus calls this after it has
+   * dropped sends on a receive-only adapter, encoded strings and recorded the message.
+   */
+  protected abstract sendData(label: string, data: Uint8Array, spec: ChannelSpec): void;
 
   // ========== Message Dispatcher ==========
 
@@ -155,7 +157,7 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
 
   /**
    * Handle an incoming data channel message through the dispatcher.
-   * Subclasses should call this instead of handling messages inline.
+   * The bus calls this after it has recorded and queued the message.
    */
   protected handleDataChannelMessage(channelLabel: string, data: ArrayBuffer): void {
     if (this._messageDispatcher) {

@@ -6,6 +6,7 @@ import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "../components/cross-room-streamer-audio-source";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { SfuConfig, SoraConfig } from "./sfu-config";
+import { soraDataChannels } from "./data-channel-bus";
 import {
   ChannelHandlerRegistry,
   createAvatarSyncHandlers,
@@ -47,8 +48,6 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
     this._blockedClients = new Map<string, boolean>();
     this._micShouldBeEnabled = false;
     this._avatarSyncHelper = new AvatarSyncHelper(this);
-    this._dataChannelMessages = [];
-    this._recordedDataChannelMessages = [];
     this.crossRoomStreamerAudioSource = {};
     this._publicSpeakerClientIdsInRoom = [];
 
@@ -116,49 +115,7 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
       audioCodecType: "OPUS" as SoraType.AudioCodecType,
       videoCodecType: "H264" as SoraType.VideoCodecType,
       dataChannelSignaling: true,
-      dataChannels: this._avatarSyncHelper._channelsForSync
-        .map(channel => ({
-          label: channel,
-          direction:
-            this._connectionType === SFU_CONNECTION_TYPE.RECV
-              ? ("recvonly" as SoraType.DataChannelDirection)
-              : ((this._connectionType === SFU_CONNECTION_TYPE.SEND
-                  ? "sendonly"
-                  : "sendrecv") as SoraType.DataChannelDirection)
-        }))
-        .concat([
-          {
-            label: "#pdfPage",
-            direction: this._connectionType === SFU_CONNECTION_TYPE.SEND ? "sendonly" : "recvonly"
-          },
-          {
-            label: "#laserPointer",
-            direction: "sendrecv"
-          },
-          {
-            label: "#emoji",
-            direction: "sendrecv"
-          },
-          {
-            label: "#nimpro",
-            direction: "sendrecv"
-          },
-          {
-            label: "#iot",
-            direction: "sendrecv"
-          }
-        ])
-        .concat(
-          this._connectionType === SFU_CONNECTION_TYPE.SENDRECV
-            ? [
-                {
-                  label: "#togglePublicSpeaker",
-                  direction: "sendrecv"
-                }
-              ]
-            : []
-        )
-      // .concat(other channels if necessary)
+      dataChannels: soraDataChannels(this._connectionType)
     };
 
     this._connector =
@@ -242,31 +199,7 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
         }
       });
       this._connector.on("message", event => {
-        // Dispatch message through handler system
-        this.handleDataChannelMessage(event.label, event.data);
-
-        // Queue messages for relay when acting as public speaking mirror
-        // This enables mirrorDataChannelMessageFromSpeaker() to relay avatar data to receiving rooms
-        if (this._roomId.includes("public_speaking") && this._connectionType === SFU_CONNECTION_TYPE.RECV) {
-          this._dataChannelMessages.push({
-            channelLabel: event.label,
-            message: event.data
-          });
-          // Prevent memory leaks - cap queue size
-          while (this._dataChannelMessages.length > 100) {
-            this._dataChannelMessages.shift();
-          }
-        }
-
-        // Recording support (exclude avatar transform channels for size)
-        if (this._isRecording && !event.label.includes("#avatar-")) {
-          this._recordedDataChannelMessages.push({
-            l: event.label,
-            m: this._textDecoder.decode(event.data),
-            t: Date.now(),
-            s: 0
-          });
-        }
+        this.bus.receive(event.label, new Uint8Array(event.data));
       });
     }
 
@@ -384,12 +317,6 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
     return this._connector?.stream;
   }
 
-  getDataChannelMessage() {
-    return this._dataChannelMessages && this._dataChannelMessages.length > 0
-      ? this._dataChannelMessages.shift()
-      : { channelLabel: "", message: null };
-  }
-
   // BridgeCapable implementation
   get isBridgeChannelReady(): boolean {
     return this._connector !== null && this._connectionType !== SFU_CONNECTION_TYPE.RECV;
@@ -440,11 +367,6 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
     if (this && this._clientId.includes("PS-") && this._roomId.includes("public_speaking")) {
       this._sendSelfAvatarSrcIntervalId = setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
     }
-  }
-
-  setLocalDataChannelMessage({ channelLabel, message }: { channelLabel: string; message: ArrayBuffer }) {
-    if (!channelLabel || !message) return;
-    this.broadcastUint8(channelLabel, new Uint8Array(message));
   }
 
   toggleMicrophone() {
@@ -544,33 +466,10 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
     document.body.dispatchEvent(new CustomEvent("unblocked", { detail: { clientId: clientId } }));
   }
 
-  broadcast(channel: string, message: string) {
-    if (!this._connector || this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
-    try {
-      this._connector.sendMessage(channel, this._textEncoder.encode(message));
-      if (this._isRecording && !channel.includes("#avatar-"))
-        this._recordedDataChannelMessages.push({ l: channel, m: message, t: Date.now(), s: 1 });
-    } catch (error) {
-      // Error: Could not find DataChannel for channel laser-pointer for about 1 second
-      console.error(error);
-    }
-  }
-
-  broadcastUint8(channel: string, message: Uint8Array) {
-    if (!this._connector || this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
-    try {
-      this._connector.sendMessage(channel, message);
-      if (this._isRecording && !channel.includes("#avatar-"))
-        this._recordedDataChannelMessages.push({
-          l: channel,
-          m: this._textDecoder.decode(message),
-          t: Date.now(),
-          s: 1
-        });
-    } catch (error) {
-      // Error: Could not find DataChannel for channel laser-pointer for about 1 second
-      console.error(error);
-    }
+  protected sendData(label: string, data: Uint8Array) {
+    if (!this._connector) return;
+    // Throws "Could not find DataChannel for channel ..." for about 1 second after connecting; the bus logs it
+    this._connector.sendMessage(label, data);
   }
 
   emitRTCEvent(level: string, tag: string, msgFunc: () => void) {

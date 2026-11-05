@@ -115,9 +115,10 @@ export class PublicSpeakingSystem {
     if (!APP.publicSpeakersMirrorSfu) return;
     this.clientIds.forEach(clientId => {
       if (APP.publicSpeakerAgentSfus[clientId]) {
-        APP.publicSpeakerAgentSfus[clientId].setLocalDataChannelMessage(
-          APP.publicSpeakersMirrorSfu.getDataChannelMessage()
-        );
+        const relayed = APP.publicSpeakersMirrorSfu.bus.dequeueRelay();
+        if (relayed) {
+          APP.publicSpeakerAgentSfus[clientId].broadcastUint8(relayed.channelLabel, new Uint8Array(relayed.message));
+        }
       }
     });
   }

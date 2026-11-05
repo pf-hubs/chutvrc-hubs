@@ -10,8 +10,8 @@ import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from
 import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "../components/cross-room-streamer-audio-source";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
-import { DataChannelMessage } from "../types/sfu-adapter-interface";
 import { DialogConfig, SfuConfig, TurnConfig, withDialogHost } from "./sfu-config";
+import { dataChannelLabels } from "./data-channel-bus";
 import {
   ChannelHandlerRegistry,
   createAvatarSyncHandlers,
@@ -100,8 +100,6 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     this.scene = null;
     this._consumerStats = {};
     this._avatarSyncHelper = new AvatarSyncHelper(this);
-    this._dataChannelMessages = [];
-    this._recordedDataChannelMessages = [];
     this._publicSpeakerClientIdsInRoom = [];
 
     // Initialize message dispatcher with handlers for DialogAdapter
@@ -454,31 +452,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
             });
 
             dataConsumer.on("message", (data: ArrayBuffer) => {
-              // Dispatch message through handler system
-              this.handleDataChannelMessage(label, data);
-
-              // Queue messages for relay when acting as public speaking mirror
-              // This enables mirrorDataChannelMessageFromSpeaker() to relay avatar data to receiving rooms
-              if (this._roomId.includes("public_speaking") && this._connectionType === SFU_CONNECTION_TYPE.RECV) {
-                this._dataChannelMessages.push({
-                  channelLabel: label,
-                  message: data
-                });
-                // Prevent memory leaks - cap queue size
-                while (this._dataChannelMessages.length > 100) {
-                  this._dataChannelMessages.shift();
-                }
-              }
-
-              // Recording support (avatar transform channels are recorded decoded by the avatar sync helper)
-              if (this._isRecording && !label.includes("#avatar-")) {
-                this._recordedDataChannelMessages.push({
-                  l: label,
-                  m: this._textDecoder.decode(data),
-                  t: Date.now(),
-                  s: 0
-                });
-              }
+              this.bus.receive(label, new Uint8Array(data));
             });
 
             dataConsumer.on("transportclose", () => {
@@ -743,12 +717,6 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
       });
       return promise;
     }
-  }
-
-  getDataChannelMessage(): DataChannelMessage {
-    return this._dataChannelMessages && this._dataChannelMessages.length > 0
-      ? this._dataChannelMessages.shift()!
-      : { channelLabel: "", message: null };
   }
 
   getLocalMicTrack(): MediaStreamTrack | undefined {
@@ -1074,12 +1042,11 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     }
     this._localMediaStream = stream;
 
-    // DataChannel implementation
-    const channelsToProduce = this._avatarSyncHelper._channelsForSync.concat([
-      "#nimpro", "#iot", "#pdfPage", "#laserPointer", "#emoji", "#togglePublicSpeaker"
-    ]);
+    // DataChannel implementation. The DataProducers are created with the label only, so every
+    // channel is ordered and reliable for now; the ordered / maxRetransmits values from the
+    // channel table will be passed in a later stage together with sequence numbers.
     await Promise.all(
-      channelsToProduce.map(async label => {
+      dataChannelLabels().map(async label => {
         const dataProducer = await this._sendTransport.produceData({ label });
 
         dataProducer.on("transportclose", () => {
@@ -1098,11 +1065,6 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     if (this && this._clientId.includes("PS-") && this._roomId === "public_speaking") {
       this._sendSelfAvatarSrcIntervalId = setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
     }
-  }
-
-  setLocalDataChannelMessage({ channelLabel, message }: DataChannelMessage): void {
-    if (!channelLabel || !message) return;
-    this.broadcastUint8(channelLabel, new Uint8Array(message));
   }
 
   async enableCamera(track: MediaStreamTrack): Promise<void> {
@@ -1265,33 +1227,8 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     });
   }
 
-  broadcast(channel: string, message: string): void {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
-    try {
-      this._dataProducers?.get(channel)?.send(new TextEncoder().encode(message));
-      if (this._isRecording && !channel.includes("#avatar-")) {
-        this._recordedDataChannelMessages.push({ l: channel, m: message, t: Date.now(), s: 1 });
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  broadcastUint8(channel: string, message: Uint8Array): void {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
-    try {
-      this._dataProducers?.get(channel)?.send(message);
-      if (this._isRecording && !channel.includes("#avatar-")) {
-        this._recordedDataChannelMessages.push({
-          l: channel,
-          m: this._textDecoder.decode(message),
-          t: Date.now(),
-          s: 1
-        });
-      }
-    } catch (error) {
-      console.error(error);
-    }
+  protected sendData(label: string, data: Uint8Array): void {
+    this._dataProducers?.get(label)?.send(data);
   }
 
   emitRTCEvent(level: string, tag: string, msgFunc: () => string): void {

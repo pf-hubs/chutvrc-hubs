@@ -24,6 +24,7 @@ import { CrossRoomStreamerAudioSource } from "../components/cross-room-streamer-
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { SfuConnectionState } from "../types/sfu-adapter-interface";
 import { LivekitConfig, SfuConfig } from "./sfu-config";
+import { ChannelSpec, dataChannelLabels } from "./data-channel-bus";
 import {
   ChannelHandlerRegistry,
   createAvatarSyncHandlers,
@@ -89,8 +90,6 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     this._connectionType = connectionType;
     this._clientId = "";
     this._avatarSyncHelper = new AvatarSyncHelper(this);
-    this._dataChannelMessages = [];
-    this._recordedDataChannelMessages = [];
     this._publicSpeakerClientIdsInRoom = [];
 
     // Initialize message dispatcher with handlers for LivekitAdapter
@@ -357,30 +356,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
         if (!topic) return;
         if (participant && this._blockedClients.has(participant.identity)) return;
 
-        const label = topic;
-        const data = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
-
-        // Queue messages for relay when acting as public speaking mirror
-        // This enables mirrorDataChannelMessageFromSpeaker() to relay avatar data to receiving rooms
-        if (this._roomId.includes("public_speaking") && this._connectionType === SFU_CONNECTION_TYPE.RECV) {
-          this._dataChannelMessages.push({ channelLabel: label, message: data as ArrayBuffer });
-          // Prevent memory leaks - cap queue size
-          while (this._dataChannelMessages.length > 100) {
-            this._dataChannelMessages.shift();
-          }
-        }
-
-        if (this._isRecording && !label.includes("#avatar-")) {
-          this._recordedDataChannelMessages.push({
-            l: label,
-            m: this._textDecoder.decode(data),
-            t: Date.now(),
-            s: 0
-          });
-        }
-
-        // Dispatch through handler system (base class method)
-        this.handleDataChannelMessage(label, data as ArrayBuffer);
+        this.bus.receive(topic, payload);
       }
     );
   }
@@ -474,16 +450,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
   }
 
   private _initializeDataChannels(): void {
-    const channelsToProduce = this._avatarSyncHelper._channelsForSync.concat([
-      "#nimpro",
-      "#iot",
-      "#pdfPage",
-      "#laserPointer",
-      "#emoji",
-      "#togglePublicSpeaker"
-    ]);
-
-    channelsToProduce.forEach(label => {
+    dataChannelLabels().forEach(label => {
       this._dataChannelReadyChannels.add(label);
       if (!this._clientId.includes("PS-") || this._roomId.includes("public_speaking")) {
         this._avatarSyncHelper.handleSyncInit(label);
@@ -629,12 +596,6 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     return this._localMediaStream ?? undefined;
   }
 
-  getDataChannelMessage(): { channelLabel: string; message: ArrayBuffer | null } {
-    return this._dataChannelMessages.length > 0
-      ? this._dataChannelMessages.shift()!
-      : { channelLabel: "", message: null };
-  }
-
   async setLocalMediaStream(
     stream: MediaStream,
     videoContentHintByTrackId: Map<string, string> | null = null
@@ -684,11 +645,6 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     }
 
     this._localMediaStream = stream;
-  }
-
-  setLocalDataChannelMessage({ channelLabel, message }: { channelLabel: string; message: ArrayBuffer }): void {
-    if (!channelLabel || !message) return;
-    this.broadcastUint8(channelLabel, new Uint8Array(message));
   }
 
   toggleMicrophone(): void {
@@ -811,53 +767,12 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     document.body.dispatchEvent(new CustomEvent("unblocked", { detail: { clientId } }));
   }
 
-  broadcast(channel: string, message: string): void {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._room) return;
-
-    try {
-      const data = this._textEncoder.encode(message);
-      this._room.localParticipant.publishData(data, {
-        reliable: true,
-        topic: channel
-      });
-
-      if (this._isRecording && !channel.includes("#avatar-")) {
-        this._recordedDataChannelMessages.push({
-          l: channel,
-          m: message,
-          t: Date.now(),
-          s: 1
-        });
-      }
-    } catch (error) {
-      console.error("Broadcast error:", error);
-      this.emitRTCEvent("error", "DataChannel", () => `Broadcast failed: ${error}`);
-    }
-  }
-
-  broadcastUint8(channel: string, message: Uint8Array): void {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._room) return;
-
-    try {
-      // Avatar transform data is time-sensitive, use unreliable
-      const reliable = !channel.includes("#avatar-");
-
-      this._room.localParticipant.publishData(message, {
-        reliable,
-        topic: channel
-      });
-
-      if (this._isRecording && !channel.includes("#avatar-")) {
-        this._recordedDataChannelMessages.push({
-          l: channel,
-          m: this._textDecoder.decode(message),
-          t: Date.now(),
-          s: 1
-        });
-      }
-    } catch (error) {
-      console.error("BroadcastUint8 error:", error);
-    }
+  protected sendData(label: string, data: Uint8Array, spec: ChannelSpec): void {
+    if (!this._room) return;
+    this._room.localParticipant.publishData(data, {
+      reliable: spec.reliable,
+      topic: label
+    });
   }
 
   emitRTCEvent(level: string, tag: string, msgFunc: () => void): void {

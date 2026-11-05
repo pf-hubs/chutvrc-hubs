@@ -23,7 +23,6 @@ export class AvatarSyncHelper {
   _client2Transform: Map<AvatarPart, Map<string, Transform>>;
   _avatarEid2ClientId: Map<number, string>;
   _avatarPartsToSync: AvatarPart[];
-  _channelsForSync: string[];
   _isStartSendingSelfAvatarTransform: boolean;
   _sendSelfAvatarTransformIntervalId: NodeJS.Timer | undefined;
   _setSelfIsVrFlagIntervalId: NodeJS.Timer | undefined;
@@ -40,9 +39,6 @@ export class AvatarSyncHelper {
     this._client2AnimState = new Map<string, AvatarAnimState>();
     this._client2Transform = new Map<AvatarPart, Map<string, Transform>>();
     this._avatarPartsToSync = [AvatarPart.RIG, AvatarPart.HEAD, AvatarPart.LEFT, AvatarPart.RIGHT];
-    this._channelsForSync = ["#avatarId", "#isVR", "#avatarAnimState"].concat(
-      this._avatarPartsToSync.map(part => "#avatar-" + AvatarPart[part])
-    );
     this._avatarPartsToSync.forEach(part => {
       this._client2Transform.set(part, new Map<string, Transform>());
     });
@@ -109,8 +105,8 @@ export class AvatarSyncHelper {
         rot: decodeRotation(data)
       });
 
-      if (this._sfu._isRecording) {
-        this._sfu._recordedDataChannelMessages.push({
+      if (this._sfu.bus.isRecording) {
+        this._sfu.bus.record({
           l: channel,
           m: { c: clientId, p: decodePosition(data), r: decodeRotation(data) },
           t: Date.now(),
@@ -226,10 +222,10 @@ export class AvatarSyncHelper {
       const arrToSend = buffer.getEncodedAvatarTransform(part);
       this._sfu.broadcastUint8("#avatar-" + AvatarPart[part], arrToSend);
 
-      if (this._sfu._isRecording) {
+      if (this._sfu.bus.isRecording) {
         const transform = this._client2Transform.get(part)?.get(this._sfu._clientId);
         if (!transform) return;
-        this._sfu._recordedDataChannelMessages.push({
+        this._sfu.bus.record({
           l: "#avatar-" + AvatarPart[part],
           m: {
             c: this._sfu._clientId,
