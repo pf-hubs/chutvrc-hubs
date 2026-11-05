@@ -37,11 +37,11 @@ import { AutoEndSessionDialog } from "./react-components/auto-end-session-dialog
 import registerTelemetry from "hubs/src/telemetry";
 import { createMuiTheme, withStyles } from "@material-ui/core/styles";
 import { UnauthorizedPage } from "./react-components/unauthorized";
-import { store } from "hubs/src/utils/store-instance";
+import { getStore } from "hubs/src/utils/store-instance";
 
 const qs = new URLSearchParams(location.hash.split("?")[1]);
 
-window.APP = { store };
+window.APP = { store: getStore() };
 
 registerTelemetry("/admin", "Hubs Admin");
 
@@ -187,6 +187,7 @@ const mountUI = async (retPhxChannel, customRoutes, layout) => {
 
   let permsTokenRefreshInterval;
 
+  const store = APP.store;
   if (configs.POSTGREST_SERVER) {
     dataProvider = postgrestClient(configs.POSTGREST_SERVER);
     authProvider = postgrestAuthenticatior.createAuthProvider(retPhxChannel);
@@ -236,6 +237,7 @@ const HiddenAppBar = withStyles({
 document.addEventListener("DOMContentLoaded", async () => {
   const socket = await connectToReticulum();
 
+  const store = APP.store;
   if (store.state && store.state.credentials && store.state.credentials.token) {
     setItaAuthToken(store.state.credentials.token);
     try {

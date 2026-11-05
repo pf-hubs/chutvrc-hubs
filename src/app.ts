@@ -2,7 +2,6 @@ import { addEntity, createWorld, IWorld } from "bitecs";
 import "./aframe-to-bit-components";
 import { AEntity, Networked, Object3DTag, Owned } from "./bit-components";
 import MediaSearchStore from "./storage/media-search-store";
-import Store from "./storage/store";
 import qsTruthy from "./utils/qs_truthy";
 
 import type { AComponent, AScene } from "aframe";
@@ -20,6 +19,7 @@ import {
   PositionalAudio,
   Scene,
   sRGBEncoding,
+  Texture,
   WebGLRenderer
 } from "three";
 import { AudioSettings, SourceType } from "./components/audio-params";
@@ -27,13 +27,15 @@ import { createEffectsComposer } from "./effects";
 import { mainTick } from "./systems/hubs-systems";
 import { waitForPreloads } from "./utils/preload";
 import SceneEntryManager from "./scene-entry-manager";
-import { store } from "./utils/store-instance";
+import { getStore } from "./utils/store-instance";
 import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
 import { SfuAdapter } from "./sfu-adapters/sfu-adapter";
 import { SfuAdapterFactory } from "./sfu-adapters/adapter-factory";
 import { addObject3DComponent } from "./utils/jsx-entity";
 import { ElOrEid } from "./utils/bit-utils";
 import { AvatarIkManager } from "./utils/avatar-ik-manager";
+import { onAddonsInit } from "./addons";
+import { CoreSystemKeyT, HubsSystemKeyT, SystemConfigT, SystemKeyT, SystemT } from "./types";
 
 declare global {
   interface Window {
@@ -57,6 +59,7 @@ export interface HubsWorld extends IWorld {
   eid2obj: Map<number, Object3D>;
   eid2mat: Map<number, Material>;
   eid2Ik: Map<number, AvatarIkManager>;
+  eid2tex: Map<number, Texture>;
   time: { delta: number; elapsed: number; tick: number };
 }
 
@@ -68,7 +71,7 @@ export function getScene() {
   return promiseToScene;
 }
 
-interface HubDescription {
+export interface HubDescription {
   hub_id: string;
   user_data?: any;
 }
@@ -80,7 +83,6 @@ export class App {
   mediaDevicesManager?: MediaDevicesManager;
   entryManager?: SceneEntryManager;
   messageDispatch?: any;
-  store: Store;
   componentRegistry: { [key: string]: AComponent[] };
 
   mediaSearchStore = new MediaSearchStore();
@@ -124,6 +126,15 @@ export class App {
 
   nimproActive = false;
 
+  addon_systems = {
+    setup: new Array<{ order: number; system: SystemT }>(),
+    prePhysics: new Array<{ order: number; system: SystemT }>(),
+    postPhysics: new Array<{ order: number; system: SystemT }>(),
+    beforeMatricesUpdate: new Array<{ order: number; system: SystemT }>(),
+    beforeRender: new Array<{ order: number; system: SystemT }>(),
+    afterRender: new Array<{ order: number; system: SystemT }>()
+  };
+
   RENDER_ORDER = {
     HUD_BACKGROUND: 1,
     HUD_ICONS: 2,
@@ -137,11 +148,11 @@ export class App {
   } = {};
 
   constructor() {
-    this.store = store;
     // TODO: Create accessor / update methods for these maps / set
     this.world.eid2obj = new Map();
     this.world.eid2mat = new Map();
     this.world.eid2Ik = new Map();
+    this.world.eid2tex = new Map();
 
     this.world.nid2eid = new Map();
     this.world.deletedNids = new Set();
@@ -178,6 +189,23 @@ export class App {
 
   getString(sid: number) {
     return this.sid2str.get(sid);
+  }
+
+  notifyOnInit() {
+    onAddonsInit(this);
+  }
+
+  get store() {
+    return getStore();
+  }
+
+  getSystem(id: SystemKeyT) {
+    const systems = this.scene?.systems!;
+    if (id in systems) {
+      return systems[id as CoreSystemKeyT];
+    } else {
+      return systems["hubs-systems"][id as HubsSystemKeyT];
+    }
   }
 
   // This gets called by a-scene to setup the renderer, camera, and audio listener
