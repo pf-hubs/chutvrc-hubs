@@ -277,7 +277,17 @@ export function unregisterPass(app: App, pass: Pass | Pass[]) {
 }
 
 export function getAddonConfig(id: string): AdminAddonConfig {
-  const adminAddonsConfig = configs.feature("addons_config");
+  // Reticulum delivers JSON-typed app config values other than theme.themes as
+  // strings, so parse before using the `in` operator on it.
+  let adminAddonsConfig = configs.feature("addons_config");
+  if (typeof adminAddonsConfig === "string") {
+    try {
+      adminAddonsConfig = JSON.parse(adminAddonsConfig);
+    } catch (e) {
+      console.error("features.addons_config is not valid JSON", e);
+      adminAddonsConfig = undefined;
+    }
+  }
   let adminAddonConfig = {
     enabled: false,
     config: {} as JSON
