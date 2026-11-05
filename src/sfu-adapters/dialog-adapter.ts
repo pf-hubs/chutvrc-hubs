@@ -738,7 +738,7 @@ export class DialogAdapter extends SfuAdapter {
   removeDataConsumer(dataConsumerId: string): void {
     if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
     this.emitRTCEvent("info", "RTC", () => `DataConsumer removed: ${dataConsumerId}`);
-    this._consumers.delete(dataConsumerId);
+    this._dataConsumers.delete(dataConsumerId);
   }
 
   getMediaStream(clientId: string, kind: string = "audio"): Promise<MediaStream | null> {
