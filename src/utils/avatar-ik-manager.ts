@@ -1,7 +1,8 @@
 import { Object3D, Vector3 } from "three";
 import { HubsWorld } from "../app";
 import { AvatarComponent } from "../bit-components";
-import { InputTransform, InputTransformById } from "../bit-systems/avatar-bones-system";
+import { InputTransform } from "../bit-systems/avatar-bones-system";
+import { TrackedPose } from "../avatar/pose/tracked-pose";
 import { Transform } from "../types/transform";
 import { HeadIk } from "./avatar-ik/head-ik";
 import { ArmIk } from "./avatar-ik/arm-ik";
@@ -140,13 +141,15 @@ export class AvatarIkManager {
     }
   }
 
-  updateAvatarBoneIkById(poseInputs: InputTransformById, clientId: string, isVr: boolean, animState: AvatarAnimState) {
-    this.poseInput.rig = poseInputs.rig?.get(clientId) || DummyInputTransform;
-    this.poseInput.hmd = poseInputs.hmd?.get(clientId) || DummyInputTransform;
-    this.poseInput.leftController = poseInputs.leftController?.get(clientId) || DummyInputTransform;
-    this.poseInput.rightController = poseInputs.rightController?.get(clientId) || DummyInputTransform;
+  /** Solves the avatar from the tracked pose of the client it shows; the own avatar is told by its client id */
+  updateAvatarBoneIkById(pose: TrackedPose, clientId: string) {
+    const animState = pose.animState;
+    this.poseInput.rig = pose.rig;
+    this.poseInput.hmd = pose.head;
+    this.poseInput.leftController = pose.leftHand;
+    this.poseInput.rightController = pose.rightHand;
     this.isSelfAvatar = clientId === APP.sfu.clientId;
-    this.isVR = isVr;
+    this.isVR = pose.isVR;
     if (this.animState !== animState) {
       switch (animState) {
         case AvatarAnimState.STAND:

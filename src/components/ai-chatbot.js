@@ -5,6 +5,7 @@ import { BoneType } from "../constants";
 import { getFormattedPrompt, parseAiOutput } from "../utils/ai-chatbot-io-formatter";
 import { Vector3 } from "three";
 import { createAvatarBoneEntities } from "../bit-systems/avatar-bones-system";
+import { writeNpcPose } from "../avatar/pose/npc-pose-source";
 import { WhisperSTT } from "whisper-speech-to-text";
 import { TranscriptCanvas } from "../utils/transcript-canvas";
 
@@ -290,7 +291,7 @@ AFRAME.registerComponent("ai-chatbot", {
   playSpeakingAnimation: function (timeDelta) {
     this.speakingAnimationTimer += timeDelta;
 
-    APP.world.eid2Ik.get(this.eid)?.updateAvatarBoneIk({
+    writeNpcPose(APP.avatarPoses, this.eid, {
       rig: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
       hmd: {
         pos: {
@@ -334,7 +335,7 @@ AFRAME.registerComponent("ai-chatbot", {
   },
 
   restoreOriginalPose: function () {
-    APP.world.eid2Ik.get(this.eid)?.updateAvatarBoneIk({
+    writeNpcPose(APP.avatarPoses, this.eid, {
       rig: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
       hmd: {
         pos: {

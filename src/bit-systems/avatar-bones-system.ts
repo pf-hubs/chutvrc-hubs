@@ -7,16 +7,8 @@ import { HubsWorld } from "../app";
 import { mapAvatarBone } from "../utils/map-avatar-bones";
 import { Transform } from "../types/transform";
 import { AvatarIkManager } from "../utils/avatar-ik-manager";
-import { AvatarAnimState } from "../types/avatar-types";
-
-export type InputTransformById = {
-  rig: Map<string, Transform>;
-  hmd: Map<string, Transform>;
-  leftController: Map<string, Transform>;
-  rightController: Map<string, Transform>;
-  leftFoot?: Map<string, Transform>;
-  rightFoot?: Map<string, Transform>;
-};
+import { PoseStore } from "../avatar/pose/pose-store";
+import { npcClientId } from "../avatar/pose/npc-pose-source";
 
 export type InputTransform = {
   rig: Transform;
@@ -48,16 +40,10 @@ export const createBoneEntity = (
   return eid;
 };
 
-export const createAvatarEntity = (
-  world: HubsWorld,
-  boneType2Eid: Map<number, number>,
-  clientId?: string,
-  avatarEid2ClientId?: Map<number, string>
-): number => {
+export const createAvatarEntity = (world: HubsWorld, boneType2Eid: Map<number, number>): number => {
   const eid = addEntity(world);
 
   addComponent(world, AvatarComponent, eid);
-  if (clientId && avatarEid2ClientId) avatarEid2ClientId.set(eid, clientId);
 
   AvatarComponent.root[eid] = boneType2Eid.get(BoneType.Root) || 0;
   AvatarComponent.hips[eid] = boneType2Eid.get(BoneType.Hips) || 0;
@@ -83,11 +69,16 @@ export const createAvatarEntity = (
   return eid;
 };
 
+/**
+ * Creates the bone and avatar entities of a loaded model and its inverse kinematics manager. With `showsPose`
+ * the avatar entity is bound to the client's pose, or without a client id to a synthetic one that the chatbot
+ * writes, and the solver moves it every frame; a session whose avatars are not shown leaves it unbound.
+ */
 export const createAvatarBoneEntities = (
   avatar: Object3D,
   clientId?: string,
-  avatarEid2ClientId?: Map<number, string>,
-  clientId2AvatarEid?: Map<string, number>
+  clientId2AvatarEid?: Map<string, number>,
+  showsPose = true
 ): number | null => {
   const avatarBoneMap = mapAvatarBone(avatar);
   const boneType2Eid = new Map<BoneType, number>();
@@ -101,17 +92,22 @@ export const createAvatarBoneEntities = (
   }
 
   if (boneType2Eid.size > 0) {
-    const avatarEid = createAvatarEntity(APP.world, boneType2Eid, clientId, avatarEid2ClientId);
+    const avatarEid = createAvatarEntity(APP.world, boneType2Eid);
     if (avatarEid) {
+      const isNPC = !clientId;
       if (clientId) {
-        if (avatarEid2ClientId) avatarEid2ClientId.set(avatarEid, clientId);
         if (clientId2AvatarEid) clientId2AvatarEid.set(clientId, avatarEid);
         addObject3DComponent(APP.world, avatarEid, avatar);
+      }
+      if (showsPose) {
+        const poseClientId = clientId || npcClientId(avatarEid);
+        APP.avatarPoses.getOrCreate(poseClientId, isNPC);
+        APP.avatarPoses.bindEntity(avatarEid, poseClientId);
       }
 
       // const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
       // const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
-      APP.world.eid2Ik.set(avatarEid, new AvatarIkManager(APP.world, avatarEid, !clientId?.length));
+      APP.world.eid2Ik.set(avatarEid, new AvatarIkManager(APP.world, avatarEid, isNPC));
 
       // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
       // let neckPos = avatarBoneMap.get(BoneType.Neck)?.position;
@@ -129,23 +125,20 @@ export const avatarQuery = defineQuery([AvatarComponent]);
 
 // let invHipsToHeadVector = new Vector3();
 
-export const avatarIkSystem = (
-  world: HubsWorld,
-  avatarPoseInputs: InputTransformById,
-  avatarEid2ClientId: Map<number, string>,
-  isVrByClientId: Map<string, boolean>,
-  animStateByClientId: Map<string, AvatarAnimState>
-) => {
+/**
+ * Solves every avatar entity from the pose of the client it is bound to. A pose the chatbot writes is
+ * solved only on the frames it is written in, as the chatbot's direct call to the solver was; a write
+ * since the previous tick counts as this frame's.
+ */
+export const avatarIkSystem = (world: HubsWorld, poses: PoseStore) => {
+  const previousTick = world.time.elapsed - world.time.delta;
   avatarQuery(world).forEach(avatarEid => {
-    const clientId = avatarEid2ClientId.get(avatarEid);
-    if (clientId) {
-      APP.world.eid2Ik.get(avatarEid)?.updateAvatarBoneIkById(
-        avatarPoseInputs,
-        clientId,
-        isVrByClientId.get(clientId) || false,
-        animStateByClientId.get(clientId) || AvatarAnimState.STAND
-      );
-    }
+    const clientId = poses.clientIdOf(avatarEid);
+    if (!clientId) return;
+    const pose = poses.get(clientId);
+    if (!pose) return;
+    if (pose.isNPC && (pose.receivedAt === 0 || pose.receivedAt < previousTick)) return;
+    world.eid2Ik.get(avatarEid)?.updateAvatarBoneIkById(pose, clientId);
   });
 
   return world;
@@ -153,13 +146,9 @@ export const avatarIkSystem = (
 
 /**
  * Removes the avatar's model from the scene, its bone and avatar entities, its inverse kinematics manager
- * and, when the map is given, its client id entry.
+ * and its binding to a pose. The pose itself stays: the client may get a new avatar.
  */
-export const removeAvatarEntityAndModel = (
-  world: HubsWorld,
-  avatarEid: number | undefined,
-  avatarEid2ClientId?: Map<number, string>
-) => {
+export const removeAvatarEntityAndModel = (world: HubsWorld, avatarEid: number | undefined) => {
   if (!avatarEid) return;
   const model = world.eid2obj.get(avatarEid);
   if (model) world.scene.remove(model);
@@ -190,5 +179,5 @@ export const removeAvatarEntityAndModel = (
   removeBoneEntity(AvatarComponent.rightHand[avatarEid]);
   removeEntity(world, avatarEid);
   world.eid2Ik.delete(avatarEid);
-  avatarEid2ClientId?.delete(avatarEid);
+  APP.avatarPoses.unbindEntity(avatarEid);
 };

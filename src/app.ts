@@ -33,6 +33,7 @@ import { SfuSession } from "./sfu-adapters/sfu-session";
 import { addObject3DComponent } from "./utils/jsx-entity";
 import { ElOrEid } from "./utils/bit-utils";
 import { AvatarIkManager } from "./utils/avatar-ik-manager";
+import { PoseStore } from "./avatar/pose/pose-store";
 import { onAddonsInit } from "./addons";
 import { CoreSystemKeyT, HubsSystemKeyT, SystemConfigT, SystemKeyT, SystemT } from "./types";
 
@@ -101,6 +102,8 @@ export class App {
   moderatorAudioSource = new Set<ElOrEid>();
 
   world: HubsWorld = createWorld();
+  /** Every avatar's pose and which entity shows which client's; it outlives the media server session */
+  avatarPoses = new PoseStore();
 
   str2sid: Map<string | null, number>;
   sid2str: Map<number, string | null>;

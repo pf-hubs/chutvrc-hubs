@@ -79,8 +79,7 @@ import { scenePreviewCameraSystem } from "../bit-systems/scene-preview-camera-sy
 import { linearTransformSystem } from "../bit-systems/linear-transform";
 import { mixerAnimatableSystem } from "../bit-systems/mixer-animatable";
 import { loopAnimationSystem } from "../bit-systems/loop-animation";
-import { avatarIkSystem, InputTransformById } from "../bit-systems/avatar-bones-system";
-import { Transform } from "../types/transform";
+import { avatarIkSystem } from "../bit-systems/avatar-bones-system";
 import { linkSystem } from "../bit-systems/link-system";
 import { objectMenuTransformSystem } from "../bit-systems/object-menu-transform-system";
 import { bitPenCompatSystem } from "./bit-pen-system";
@@ -95,7 +94,7 @@ import { linkedPDFSystem } from "../bit-systems/linked-pdf-system";
 import { inspectSystem } from "../bit-systems/inspect-system";
 import { snapMediaSystem } from "../bit-systems/snap-media-system";
 import { scaleWhenGrabbedSystem } from "../bit-systems/scale-when-grabbed-system";
-import { AvatarPart } from "../utils/avatar-transform-buffer";
+import { tickPoseSenders } from "../avatar/net/pose-sender";
 import { PublicSpeakingSystem } from "./public-speaking-system";
 import { NimproSystem } from "./nimpro-system";
 import { interactableSystem } from "../bit-systems/interactable-system";
@@ -116,15 +115,6 @@ const timeSystem = (world: HubsWorld) => {
 };
 
 const enableNetworkDebug = qsTruthy("networkDebug");
-
-// Reused every frame to hand the avatar pose maps to the avatar solvers without allocating
-const noTransforms: Map<string, Transform> = new Map();
-const avatarPoseInputs: InputTransformById = {
-  rig: noTransforms,
-  hmd: noTransforms,
-  leftController: noTransforms,
-  rightController: noTransforms
-};
 
 // NOTE keeping this around since many things index into it to get a reference to a system. This will
 // naturally burn down as we migrate things, so it is not worth going through and changing all of them.
@@ -352,20 +342,9 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   PublicSpeakingSystem.mirrorDataChannelMessageFromSpeaker();
 
   /* Implementation for using bitECS */
-  const avatarSync = APP.sfu.avatarSync;
-  if (avatarSync) {
-    avatarPoseInputs.rig = avatarSync._client2Transform.get(AvatarPart.RIG) || noTransforms;
-    avatarPoseInputs.hmd = avatarSync._client2Transform.get(AvatarPart.HEAD) || noTransforms;
-    avatarPoseInputs.leftController = avatarSync._client2Transform.get(AvatarPart.LEFT) || noTransforms;
-    avatarPoseInputs.rightController = avatarSync._client2Transform.get(AvatarPart.RIGHT) || noTransforms;
-    avatarIkSystem(
-      world,
-      avatarPoseInputs,
-      avatarSync._avatarEid2ClientId,
-      avatarSync._client2VrMode,
-      avatarSync._client2AnimState
-    );
-  }
+  APP.sfu.avatarSync?.localPoseSource?.sample(t);
+  tickPoseSenders(t);
+  avatarIkSystem(world, APP.avatarPoses);
   /* End of implementation for using bitECS */
   APP.addon_systems.beforeMatricesUpdate.forEach((systemConfig: SystemConfigT) => {
     systemConfig.system(APP);

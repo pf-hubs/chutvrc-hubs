@@ -2,23 +2,30 @@ import { AElement } from "aframe";
 import { SfuAdapter } from "../sfu-adapters/sfu-adapter";
 import { AvatarPart, AvatarTransformBuffer } from "./avatar-transform-buffer";
 import { decodePart } from "../avatar/net/pose-codec-v0";
+import { PoseSender } from "../avatar/net/pose-sender";
+import { LocalPoseSource } from "../avatar/pose/local-pose-source";
+import { copyTransform, TrackedPose } from "../avatar/pose/tracked-pose";
 import { getAvatarSrc } from "./avatar-utils";
 import { createAvatarBoneEntities, removeAvatarEntityAndModel } from "../bit-systems/avatar-bones-system";
 import { loadModel } from "../components/gltf-model-plus";
 import { Object3D } from "three";
+import { Transform } from "../types/transform";
 import { AvatarAnimState, isValidAvatarAnimState } from "../types/avatar-types";
 
-type Vector3 = { x: number; y: number; z: number };
-type Quaternion = { x: number; y: number; z: number };
-type Transform = { pos: Vector3; rot: Quaternion };
-
-function copyTransform(from: Transform, to: Transform) {
-  to.pos.x = from.pos.x;
-  to.pos.y = from.pos.y;
-  to.pos.z = from.pos.z;
-  to.rot.x = from.rot.x;
-  to.rot.y = from.rot.y;
-  to.rot.z = from.rot.z;
+/** The part of a tracked pose that a transform channel carries, by the part name in the channel label */
+function partOf(pose: TrackedPose, part: AvatarPart): Transform | undefined {
+  switch (part) {
+    case AvatarPart.RIG:
+      return pose.rig;
+    case AvatarPart.HEAD:
+      return pose.head;
+    case AvatarPart.LEFT:
+      return pose.leftHand;
+    case AvatarPart.RIGHT:
+      return pose.rightHand;
+    default:
+      return undefined;
+  }
 }
 
 /* Sync BitECS-managed avatars through WebRTC DataChannel */
@@ -26,20 +33,18 @@ export class AvatarSyncHelper {
   private _selfAvatarTransformBuffer: AvatarTransformBuffer | undefined;
   private _client2AvatarAssetId: Map<string, string>;
   private _loadingAvatars: Set<string>; // Track clients with in-progress avatar loads
+  /** The clients whose pose or flags this session wrote to the pose store, so they are forgotten when all leave */
+  private readonly _poseClientIds = new Set<string>();
   private readonly _textDecoder = new TextDecoder();
-  /** Where a received transform packet is decoded before it is copied to the sender's entry */
+  /** Where a received transform packet is decoded before it is copied to the sender's pose */
   private readonly _receivedTransform: Transform = { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } };
   _sfu: SfuAdapter;
   _client2AvatarEid: Map<string, number>;
-  _client2VrMode: Map<string, boolean>;
-  _client2AnimState: Map<string, AvatarAnimState>;
-  _client2Transform: Map<AvatarPart, Map<string, Transform>>;
-  _avatarEid2ClientId: Map<number, string>;
-  _avatarPartsToSync: AvatarPart[];
-  _isStartSendingSelfAvatarTransform: boolean;
-  _updateSelfAvatarTransformIntervalId: NodeJS.Timer | undefined;
-  _sendSelfAvatarTransformIntervalId: NodeJS.Timer | undefined;
-  _setSelfIsVrFlagIntervalId: NodeJS.Timer | undefined;
+  /** Reads the own rig, head and hands into the pose store once a frame; exists once the rig is in the scene */
+  localPoseSource: LocalPoseSource | undefined;
+  /** Sends the own pose from the frame loop while the transform channels are open */
+  readonly poseSender: PoseSender;
+  _getSelfAvatarIntervalId: NodeJS.Timer | undefined;
   _sendSelfIsVrFlagIntervalId: NodeJS.Timer | undefined;
   _sendSelfAnimStateIntervalId: NodeJS.Timer | undefined;
   /** Set after the room was left: the next sync init sends the own avatar id, so the others send theirs back. */
@@ -49,16 +54,8 @@ export class AvatarSyncHelper {
     this._sfu = sfu;
     this._client2AvatarAssetId = new Map<string, string>();
     this._loadingAvatars = new Set<string>();
-    this._avatarEid2ClientId = new Map<number, string>();
     this._client2AvatarEid = new Map<string, number>();
-    this._client2VrMode = new Map<string, boolean>();
-    this._client2AnimState = new Map<string, AvatarAnimState>();
-    this._client2Transform = new Map<AvatarPart, Map<string, Transform>>();
-    this._avatarPartsToSync = [AvatarPart.RIG, AvatarPart.HEAD, AvatarPart.LEFT, AvatarPart.RIGHT];
-    this._avatarPartsToSync.forEach(part => {
-      this._client2Transform.set(part, new Map<string, Transform>());
-    });
-    this._isStartSendingSelfAvatarTransform = false;
+    this.poseSender = new PoseSender(sfu);
   }
 
   handleSyncInit(channel: string) {
@@ -102,13 +99,15 @@ export class AvatarSyncHelper {
 
     if (channel === "#isVR") {
       let [clientId, isVR] = this._textDecoder.decode(data).split("|");
-      this._client2VrMode.set(clientId, isVR === "1");
+      this._poseClientIds.add(clientId);
+      APP.avatarPoses.setVrMode(clientId, isVR === "1");
     }
 
     if (channel === "#avatarAnimState") {
       let [clientId, animStateStr] = this._textDecoder.decode(data).split("|");
       const animState = parseInt(animStateStr);
       if (isValidAvatarAnimState(animState)) {
+        this._poseClientIds.add(clientId);
         this.switchAnimState(clientId, animState);
       } else {
         console.warn(`Invalid avatar animation state received: ${animState}`);
@@ -120,15 +119,13 @@ export class AvatarSyncHelper {
       const received = this._receivedTransform;
       const clientId = decodePart(data, received.pos, received.rot);
       const avatarPart = channel.substring(8) as unknown as AvatarPart;
-      const transforms = this._client2Transform.get(avatarPart);
-      if (transforms) {
-        // The inverse kinematics reads the entry every frame; it is updated in place so a packet allocates nothing
-        let transform = transforms.get(clientId);
-        if (!transform) {
-          transform = { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } };
-          transforms.set(clientId, transform);
-        }
+      this._poseClientIds.add(clientId);
+      const pose = APP.avatarPoses.getOrCreate(clientId);
+      const transform = partOf(pose, avatarPart);
+      if (transform) {
+        // The inverse kinematics reads the pose every frame; it is updated in place so a packet allocates nothing
         copyTransform(received, transform);
+        pose.receivedAt = performance.now();
       }
 
       if (this._sfu.bus.isRecording) {
@@ -143,16 +140,12 @@ export class AvatarSyncHelper {
   }
 
   handleOnClientLeave(clientId: string) {
-    removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId), this._avatarEid2ClientId);
+    removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
     this._client2AvatarAssetId.delete(clientId);
     this._client2AvatarEid.delete(clientId);
     this._loadingAvatars.delete(clientId);
-    // Fix memory leaks: also cleanup VR mode, animation state, and transform maps
-    this._client2VrMode.delete(clientId);
-    this._client2AnimState.delete(clientId);
-    this._avatarPartsToSync.forEach(part => {
-      this._client2Transform.get(part)?.delete(clientId);
-    });
+    this._poseClientIds.delete(clientId);
+    APP.avatarPoses.delete(clientId);
   }
 
   /** Forgets every remote client and removes its avatar entity and model. The own avatar stays. */
@@ -160,10 +153,8 @@ export class AvatarSyncHelper {
     const clientIds = new Set<string>([
       ...this._client2AvatarAssetId.keys(),
       ...this._client2AvatarEid.keys(),
-      ...this._client2VrMode.keys(),
-      ...this._client2AnimState.keys()
+      ...this._poseClientIds
     ]);
-    this._client2Transform.forEach(transforms => transforms.forEach((_, clientId) => clientIds.add(clientId)));
     clientIds.delete(this._sfu.clientId);
     clientIds.forEach(clientId => this.handleOnClientLeave(clientId));
   }
@@ -176,24 +167,19 @@ export class AvatarSyncHelper {
     const right = document.querySelector("#player-right-controller") as AElement;
 
     if (rig && head && left && right) {
+      // Every connect() of the adapter ends up here; the sampler and the sender work on the newest buffer
       this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._sfu.clientId, rig, head, left, right);
-      // Every connect() of the adapter ends up here; one sampler is enough, it reads the current buffer
-      if (!this._updateSelfAvatarTransformIntervalId) {
-        this._updateSelfAvatarTransformIntervalId = setInterval(() => this.updateSelfAvatarTransform(), 15);
-      }
+      this.localPoseSource = new LocalPoseSource(
+        APP.avatarPoses,
+        this._sfu.clientId,
+        { rig: rig.object3D, head: head.object3D, leftHand: left.object3D, rightHand: right.object3D },
+        AFRAME.scenes[0].renderer
+      );
+      this.poseSender.setBuffer(this._selfAvatarTransformBuffer);
       return true;
     }
 
     return false;
-  }
-
-  updateSelfAvatarTransform() {
-    const buffer = this._selfAvatarTransformBuffer;
-    if (!buffer) return;
-    this._avatarPartsToSync.forEach(part => {
-      buffer.updateAvatarTransform(part);
-      this._client2Transform.get(part)?.set(this._sfu.clientId, buffer.getAvatarTransform(part));
-    });
   }
 
   private async loadAvatarModel(avatarId: string, clientId: string): Promise<boolean> {
@@ -202,7 +188,10 @@ export class AvatarSyncHelper {
     gltf.scene.traverse(function (object: Object3D) {
       object.frustumCulled = false;
     });
-    if (createAvatarBoneEntities(gltf.scene, clientId, this._avatarEid2ClientId, this._client2AvatarEid)) {
+    // Only the room session's avatars are solved and shown. A public speaking session receives the same
+    // channels and loads the models too, but the frame loop never read its entities: they stay unbound
+    const showsPose = APP.sfu.avatarSync === this;
+    if (createAvatarBoneEntities(gltf.scene, clientId, this._client2AvatarEid, showsPose)) {
       APP.world.scene.add(gltf.scene);
       return true;
     }
@@ -229,9 +218,9 @@ export class AvatarSyncHelper {
     // Mark as loading immediately to prevent race conditions
     this._loadingAvatars.add(clientId);
 
-    // Remove old avatar if exists
+    // Remove old avatar if exists; the client's pose stays and the new entity is bound to it
     if (this._client2AvatarEid.has(clientId)) {
-      removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId), this._avatarEid2ClientId);
+      removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
       this._client2AvatarEid.delete(clientId);
     }
 
@@ -253,76 +242,41 @@ export class AvatarSyncHelper {
     this.sendSelfAvatarTransform(false);
   }
 
+  /** Sends the own pose now: every part, or with the flag only the rig and the parts that moved since their last send */
   sendSelfAvatarTransform(checkUpdatedRequired: boolean) {
-    const buffer = this._selfAvatarTransformBuffer;
-    if (!buffer) return;
-    this._avatarPartsToSync.forEach(part => {
-      // RIG: always sync because rotation by pressing Q or E is only executed once, and sync can fail if there is loss in dataChannel:
-      if (checkUpdatedRequired && part !== AvatarPart.RIG && !buffer.isUpdateAvatarTransformUpdated(part)) return;
-
-      const arrToSend = buffer.getEncodedAvatarTransform(part);
-      this._sfu.broadcastUint8("#avatar-" + AvatarPart[part], arrToSend);
-      buffer.markAvatarTransformSent(part);
-
-      if (this._sfu.bus.isRecording) {
-        const transform = this._client2Transform.get(part)?.get(this._sfu.clientId);
-        if (!transform) return;
-        this._sfu.bus.record({
-          l: "#avatar-" + AvatarPart[part],
-          m: {
-            c: this._sfu.clientId,
-            p: {
-              x: Math.round(transform.pos.x * 1000) / 1000,
-              y: Math.round(transform.pos.y * 1000) / 1000,
-              z: Math.round(transform.pos.z * 1000) / 1000
-            },
-            r: {
-              x: Math.round(transform.rot.x * 1000) / 1000,
-              y: Math.round(transform.rot.y * 1000) / 1000,
-              z: Math.round(transform.rot.z * 1000) / 1000
-            }
-          },
-          t: Date.now(),
-          s: 1
-        });
-      }
-    });
-  }
-
-  private handleTransformSyncInit() {
-    if (!this._selfAvatarTransformBuffer) {
-      let getPlayerAvatarIntervalId: NodeJS.Timer;
-      const getPlayerAvatar = () => {
-        if (this._selfAvatarTransformBuffer) {
-          clearInterval(getPlayerAvatarIntervalId);
-          return;
-        }
-        if (this.initSelfAvatarTransform()) clearInterval(getPlayerAvatarIntervalId);
-      };
-      getPlayerAvatarIntervalId = setInterval(getPlayerAvatar, 1000);
-    } else if (this._selfAvatarTransformBuffer && !this._isStartSendingSelfAvatarTransform) {
-      this._isStartSendingSelfAvatarTransform = true;
-      this._sendSelfAvatarTransformIntervalId = setInterval(() => this.sendSelfAvatarTransform(true), 15);
-      return;
+    if (checkUpdatedRequired) {
+      this.poseSender.sendChanged();
+    } else {
+      this.poseSender.sendAll();
     }
   }
 
+  private handleTransformSyncInit() {
+    // The rig and controllers may not be in the scene yet when the channel opens
+    if (!this._selfAvatarTransformBuffer) this.waitForSelfAvatar();
+    // Sending begins with the next frame in which the buffer exists
+    this.poseSender.start();
+  }
+
+  /** Looks for the own rig once a second until it is found; the sync inits of all four channels share one poll */
+  private waitForSelfAvatar() {
+    if (this._getSelfAvatarIntervalId) return;
+    this._getSelfAvatarIntervalId = setInterval(() => {
+      if (this._selfAvatarTransformBuffer || this.initSelfAvatarTransform()) this.stopWaitingForSelfAvatar();
+    }, 1000);
+  }
+
+  private stopWaitingForSelfAvatar() {
+    if (this._getSelfAvatarIntervalId) clearInterval(this._getSelfAvatarIntervalId);
+    this._getSelfAvatarIntervalId = undefined;
+  }
+
   private handleVrModeSyncInit() {
-    this._setSelfIsVrFlagIntervalId = setInterval(() => this.setSelfIsVrFlag(), 1000);
     this._sendSelfIsVrFlagIntervalId = setInterval(() => this.sendSelfIsVrFlag(), 1000);
   }
 
   private handleAnimStateSyncInit() {
     this._sendSelfAnimStateIntervalId = setInterval(() => this.sendSelfAnimState(), 500);
-  }
-
-  private setSelfIsVrFlag() {
-    this._client2VrMode.set(
-      this._sfu.clientId,
-      AFRAME.scenes[0]?.renderer
-        ? AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting
-        : false
-    );
   }
 
   private sendSelfIsVrFlag() {
@@ -341,12 +295,12 @@ export class AvatarSyncHelper {
   }
 
   private sendSelfAnimState() {
-    const animState = this._client2AnimState.get(this._sfu.clientId) ?? AvatarAnimState.STAND;
+    const animState = APP.avatarPoses.get(this._sfu.clientId)?.animState ?? AvatarAnimState.STAND;
     this._sfu.broadcast("#avatarAnimState", this._sfu.clientId + "|" + animState);
   }
 
   private switchAnimState(clientId: string, state: AvatarAnimState) {
-    this._client2AnimState.set(clientId, state);
+    APP.avatarPoses.setAnimState(clientId, state);
   }
 
   switchSelfAnimState(state: AvatarAnimState) {
@@ -354,12 +308,9 @@ export class AvatarSyncHelper {
   }
 
   stopSyncing() {
-    if (this._updateSelfAvatarTransformIntervalId) clearInterval(this._updateSelfAvatarTransformIntervalId);
-    this._updateSelfAvatarTransformIntervalId = undefined;
-    if (this._sendSelfAvatarTransformIntervalId) clearInterval(this._sendSelfAvatarTransformIntervalId);
-    // So that the next transform sync init starts a sender again
-    this._isStartSendingSelfAvatarTransform = false;
-    if (this._setSelfIsVrFlagIntervalId) clearInterval(this._setSelfIsVrFlagIntervalId);
+    this.stopWaitingForSelfAvatar();
+    // The next transform sync init starts the sender again
+    this.poseSender.stop();
     if (this._sendSelfIsVrFlagIntervalId) clearInterval(this._sendSelfIsVrFlagIntervalId);
     if (this._sendSelfAnimStateIntervalId) clearInterval(this._sendSelfAnimStateIntervalId);
   }

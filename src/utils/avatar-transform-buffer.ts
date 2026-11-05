@@ -28,11 +28,10 @@ type AvatarEncodedTransforms = {
   [part in AvatarPart]: Uint8Array;
 };
 
+/** Encodes the own pose for sending and remembers, per part, the pose as of its last send */
 export class AvatarTransformBuffer {
   _encodedClientId: Uint8Array;
   _avatarObj: AvatarObjects;
-  /** The pose as of the last sample; the own avatar's inverse kinematics reads these objects */
-  _lastAvatarTransform: AvatarTransforms;
   /** The pose as of the last send of each part; the change check compares against this one */
   _lastSentAvatarTransform: AvatarTransforms;
   _encodedAvatarTransform: AvatarEncodedTransforms;
@@ -45,36 +44,12 @@ export class AvatarTransformBuffer {
       [AvatarPart.LEFT]: left.object3D,
       [AvatarPart.RIGHT]: right.object3D
     };
-    this._lastAvatarTransform = {
-      [AvatarPart.RIG]: {
-        pos: rig.object3D.position.clone(),
-        rot: rig.object3D.rotation.clone()
-      },
-      [AvatarPart.HEAD]: {
-        pos: head.object3D.position.clone(),
-        rot: head.object3D.rotation.clone()
-      },
-      [AvatarPart.LEFT]: {
-        pos: left.object3D.position.clone(),
-        rot: left.object3D.rotation.clone()
-      },
-      [AvatarPart.RIGHT]: {
-        pos: right.object3D.position.clone(),
-        rot: right.object3D.rotation.clone()
-      }
-    };
     this._lastSentAvatarTransform = {
       [AvatarPart.RIG]: { pos: rig.object3D.position.clone(), rot: rig.object3D.rotation.clone() },
       [AvatarPart.HEAD]: { pos: head.object3D.position.clone(), rot: head.object3D.rotation.clone() },
       [AvatarPart.LEFT]: { pos: left.object3D.position.clone(), rot: left.object3D.rotation.clone() },
       [AvatarPart.RIGHT]: { pos: right.object3D.position.clone(), rot: right.object3D.rotation.clone() }
     };
-    // this._avatarInputTransform = {
-    //   [AvatarPart.RIG]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
-    //   [AvatarPart.HEAD]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
-    //   [AvatarPart.LEFT]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
-    //   [AvatarPart.RIGHT]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } }
-    // };
     const bufferSize = POSE_BYTES + this._encodedClientId.length;
     this._encodedAvatarTransform = {
       [AvatarPart.RIG]: new Uint8Array(bufferSize),
@@ -92,18 +67,14 @@ export class AvatarTransformBuffer {
     );
   }
 
-  updateAvatarTransform(part: AvatarPart) {
-    this._lastAvatarTransform[part].pos.copy(this._avatarObj[part].position);
-    this._lastAvatarTransform[part].rot.copy(this._avatarObj[part].rotation);
-  }
-
   markAvatarTransformSent(part: AvatarPart) {
     this._lastSentAvatarTransform[part].pos.copy(this._avatarObj[part].position);
     this._lastSentAvatarTransform[part].rot.copy(this._avatarObj[part].rotation);
   }
 
-  getAvatarTransform(part: AvatarPart) {
-    return this._lastAvatarTransform[part];
+  /** The scene object whose live pose the part is encoded from */
+  getAvatarObject(part: AvatarPart) {
+    return this._avatarObj[part];
   }
 
   /** Encodes the live pose of the part into its own buffer, which is sent as is, and returns that buffer */
