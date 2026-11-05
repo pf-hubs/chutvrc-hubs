@@ -242,6 +242,7 @@ export class AvatarSyncHelper {
 
       const arrToSend = buffer.getEncodedAvatarTransform(part);
       this._sfu.broadcastUint8("#avatar-" + AvatarPart[part], arrToSend);
+      buffer.markAvatarTransformSent(part);
 
       if (this._sfu.bus.isRecording) {
         const transform = this._client2Transform.get(part)?.get(this._sfu.clientId);

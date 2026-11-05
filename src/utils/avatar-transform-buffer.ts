@@ -31,7 +31,10 @@ type AvatarEncodedTransforms = {
 export class AvatarTransformBuffer {
   _encodedClientId: Uint8Array;
   _avatarObj: AvatarObjects;
+  /** The pose as of the last sample; the own avatar's inverse kinematics reads these objects */
   _lastAvatarTransform: AvatarTransforms;
+  /** The pose as of the last send of each part; the change check compares against this one */
+  _lastSentAvatarTransform: AvatarTransforms;
   _encodedAvatarTransform: AvatarEncodedTransforms;
 
   constructor(clientId: string, rig: AElement, head: AElement, left: AElement, right: AElement) {
@@ -60,6 +63,12 @@ export class AvatarTransformBuffer {
         rot: right.object3D.rotation.clone()
       }
     };
+    this._lastSentAvatarTransform = {
+      [AvatarPart.RIG]: { pos: rig.object3D.position.clone(), rot: rig.object3D.rotation.clone() },
+      [AvatarPart.HEAD]: { pos: head.object3D.position.clone(), rot: head.object3D.rotation.clone() },
+      [AvatarPart.LEFT]: { pos: left.object3D.position.clone(), rot: left.object3D.rotation.clone() },
+      [AvatarPart.RIGHT]: { pos: right.object3D.position.clone(), rot: right.object3D.rotation.clone() }
+    };
     // this._avatarInputTransform = {
     //   [AvatarPart.RIG]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
     //   [AvatarPart.HEAD]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
@@ -75,16 +84,22 @@ export class AvatarTransformBuffer {
     };
   }
 
+  /** Whether the part moved past the thresholds since it was last sent, however slowly */
   isUpdateAvatarTransformUpdated(part: AvatarPart) {
     return (
-      this.isPositionUpdated(this._avatarObj[part].position, this._lastAvatarTransform[part].pos) ||
-      this.isRotationUpdated(this._avatarObj[part].rotation, this._lastAvatarTransform[part].rot)
+      this.isPositionUpdated(this._avatarObj[part].position, this._lastSentAvatarTransform[part].pos) ||
+      this.isRotationUpdated(this._avatarObj[part].rotation, this._lastSentAvatarTransform[part].rot)
     );
   }
 
   updateAvatarTransform(part: AvatarPart) {
     this._lastAvatarTransform[part].pos.copy(this._avatarObj[part].position);
     this._lastAvatarTransform[part].rot.copy(this._avatarObj[part].rotation);
+  }
+
+  markAvatarTransformSent(part: AvatarPart) {
+    this._lastSentAvatarTransform[part].pos.copy(this._avatarObj[part].position);
+    this._lastSentAvatarTransform[part].rot.copy(this._avatarObj[part].rotation);
   }
 
   getAvatarTransform(part: AvatarPart) {
