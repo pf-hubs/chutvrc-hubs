@@ -25,6 +25,7 @@ import {
 } from "../utils/data-channel-handlers";
 import { SfuConfig } from "./sfu-config";
 import { ChannelSpec, DataChannelBus } from "./data-channel-bus";
+import { LocalTrackKind, MediaSession, MediaSessionOptions } from "./media-session";
 
 // Re-export for backwards compatibility
 export type { DataChannelMessage };
@@ -48,6 +49,9 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
     dispatch: (label, data) => this.handleDataChannelMessage(label, data)
   });
 
+  // Remote streams, local tracks, microphone state and public speaker audio, shared by every adapter
+  readonly media: MediaSession;
+
   // The config of the current (or last) connection, set by connect()
   protected _config: TConfig | null = null;
 
@@ -62,6 +66,24 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
   // Token management
   protected _hubChannel: any = null;
   private _boundTokenHandler: ((event: CustomEvent) => void) | null = null;
+
+  constructor(mediaOptions: MediaSessionOptions = {}) {
+    super();
+    this.media = new MediaSession(
+      this,
+      {
+        publishTrack: (kind, track) => this.publishTrack(kind, track),
+        replaceTrack: (kind, track) => this.replaceTrack(kind, track),
+        unpublishTrack: kind => this.unpublishTrack(kind),
+        setMicEnabled: enabled => this.setMicEnabled(enabled),
+        micEnabled: () => this.micEnabled(),
+        localTracks: kind => this.localTracks(kind),
+        beforeLocalStreamApplied: stream => this.beforeLocalStreamApplied(stream),
+        afterLocalStreamApplied: stream => this.afterLocalStreamApplied(stream)
+      },
+      mediaOptions
+    );
+  }
 
   set hubChannel(channel: any) {
     if (this._hubChannel && this._boundTokenHandler) {
@@ -110,21 +132,32 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
 
   async connect(config: SfuConfig): Promise<void> {}
   disconnect() {}
-  getMediaStream(clientId: string, kind: string) {}
+  // Typed loosely for the callers, which are JavaScript and handle a null stream themselves
+  getMediaStream(clientId: string, kind: string = "audio"): Promise<any> {
+    return this.media.getMediaStream(clientId, kind);
+  }
   getLocalMicTrack(): MediaStreamTrack | undefined {
-    return undefined;
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return undefined;
+    return this.media.localTrack("microphone");
   }
-  getLocalMediaStream() {}
-  setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId?: Map<string, string> | null) {}
-  toggleMicrophone() {}
-  enableMicrophone(enabled: boolean) {}
+  getLocalMediaStream(): MediaStream | null | undefined {
+    return this.media.localStream;
+  }
+  get _localMediaStream(): MediaStream | null {
+    return this.media.localStream;
+  }
+  setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null = null) {
+    return this.media.setLocalMediaStream(stream, videoContentHintByTrackId);
+  }
+  toggleMicrophone(): void {
+    this.media.toggleMicrophone();
+  }
+  enableMicrophone(enabled: boolean): void {
+    this.media.enableMicrophone(enabled);
+  }
   get isMicEnabled(): boolean | null {
-    return false;
+    return this.media.isMicEnabled;
   }
-  async enableCamera(track: MediaStreamTrack) {}
-  async disableCamera() {}
-  async enableShare(track: MediaStreamTrack) {}
-  async disableShare() {}
   kick(clientId: string) {}
   block(clientId: string) {}
   unblock(clientId: string) {}
@@ -135,6 +168,36 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
     this.bus.send(channel, message);
   }
   emitRTCEvent(level: string, tag: string, msgFunc: () => void) {}
+
+  // ========== Media Driver ==========
+
+  /** Publishes a local track of a kind that was not published before. */
+  protected abstract publishTrack(kind: LocalTrackKind, track: MediaStreamTrack): Promise<void>;
+
+  /** Swaps the track under the existing publication of a kind. */
+  protected abstract replaceTrack(kind: LocalTrackKind, track: MediaStreamTrack): Promise<void>;
+
+  /** Removes the publication of a kind, if any. */
+  protected abstract unpublishTrack(kind: LocalTrackKind): Promise<void>;
+
+  /** Applies the microphone state in the SDK. Returns false when there was nothing to apply it to. */
+  protected abstract setMicEnabled(enabled: boolean): boolean;
+
+  /** The microphone state as the SDK sees it. */
+  protected abstract micEnabled(): boolean | null;
+
+  /** The local tracks of a media kind for getMediaStream of the own client. By default the published ones. */
+  protected localTracks(kind: string): MediaStreamTrack[] {
+    return this.media.publishedTracks(kind);
+  }
+
+  /** Runs before a new local stream is applied. Returns false to leave the stream unapplied. */
+  protected beforeLocalStreamApplied(stream: MediaStream): boolean {
+    return true;
+  }
+
+  /** Runs after a new local stream has been applied and remembered. */
+  protected async afterLocalStreamApplied(stream: MediaStream): Promise<void> {}
 
   // ========== Data Channel Driver ==========
 

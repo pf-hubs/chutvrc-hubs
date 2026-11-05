@@ -40,10 +40,6 @@ export interface ISfuMediaStreams {
   getLocalMicTrack(): MediaStreamTrack | undefined;
   getLocalMediaStream(): MediaStream | null | undefined;
   setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId?: Map<string, string> | null): Promise<void> | void;
-  enableCamera(track: MediaStreamTrack): Promise<void>;
-  disableCamera(): Promise<void>;
-  enableShare(track: MediaStreamTrack): Promise<void>;
-  disableShare(): Promise<void>;
 }
 
 /**
