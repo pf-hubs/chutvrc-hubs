@@ -909,10 +909,16 @@ export class DialogAdapter extends SfuAdapter {
       this._micProducer = null;
     }
 
-    if (this._videoProducer) {
-      this._videoProducer.close();
-      this._protoo?.connected && this._protoo?.request("closeProducer", { producerId: this._videoProducer.id });
-      this._videoProducer = null;
+    if (this._cameraProducer) {
+      this._cameraProducer.close();
+      this._protoo?.connected && this._protoo?.request("closeProducer", { producerId: this._cameraProducer.id });
+      this._cameraProducer = null;
+    }
+
+    if (this._shareProducer) {
+      this._shareProducer.close();
+      this._protoo?.connected && this._protoo?.request("closeProducer", { producerId: this._shareProducer.id });
+      this._shareProducer = null;
     }
 
     // TODO: If _sendTransport is falsey then return
@@ -1023,7 +1029,6 @@ export class DialogAdapter extends SfuAdapter {
 
     await this._protoo.request("join", {
       displayName: this._clientId,
-      device: this._device,
       rtpCapabilities: this._mediasoupDevice.rtpCapabilities,
       sctpCapabilities: this._useDataChannel ? this._mediasoupDevice.sctpCapabilities : undefined,
       token: APP.hubChannel.token
@@ -1279,7 +1284,7 @@ export class DialogAdapter extends SfuAdapter {
   kick(clientId: string): Promise<void> {
     return this._protoo
       .request("kick", {
-        room_id: this.room,
+        room_id: this._roomId,
         user_id: clientId,
         token: APP.hubChannel.token
       })
