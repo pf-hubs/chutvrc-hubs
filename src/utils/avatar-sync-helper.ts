@@ -1,25 +1,25 @@
 import { AElement } from "aframe";
 import { SfuAdapter } from "../sfu-adapters/sfu-adapter";
 import { AvatarPart, AvatarTransformBuffer } from "./avatar-transform-buffer";
+import { PosePart } from "../avatar/net/interpolation-buffer";
 import { decodePart } from "../avatar/net/pose-codec-v0";
 import { PoseSender } from "../avatar/net/pose-sender";
 import { LocalPoseSource } from "../avatar/pose/local-pose-source";
-import { copyTransform, TrackedPose } from "../avatar/pose/tracked-pose";
 import { AvatarModelManager } from "../avatar/avatar-model-manager";
 import { Transform } from "../types/transform";
 import { AvatarAnimState, isValidAvatarAnimState } from "../types/avatar-types";
 
 /** The part of a tracked pose that a transform channel carries, by the part name in the channel label */
-function partOf(pose: TrackedPose, part: AvatarPart): Transform | undefined {
+function partOf(part: AvatarPart): PosePart | undefined {
   switch (part) {
     case AvatarPart.RIG:
-      return pose.rig;
+      return "rig";
     case AvatarPart.HEAD:
-      return pose.head;
+      return "head";
     case AvatarPart.LEFT:
-      return pose.leftHand;
+      return "leftHand";
     case AvatarPart.RIGHT:
-      return pose.rightHand;
+      return "rightHand";
     default:
       return undefined;
   }
@@ -120,14 +120,13 @@ export class AvatarSyncHelper {
       // receive other clients' avatar transform when updated
       const received = this._receivedTransform;
       const clientId = decodePart(data, received.pos, received.rot);
-      const avatarPart = channel.substring(8) as unknown as AvatarPart;
+      const part = partOf(channel.substring(8) as unknown as AvatarPart);
       this._poseClientIds.add(clientId);
-      const pose = APP.avatarPoses.getOrCreate(clientId);
-      const transform = partOf(pose, avatarPart);
-      if (transform) {
-        // The inverse kinematics reads the pose every frame; it is updated in place so a packet allocates nothing
-        copyTransform(received, transform);
-        pose.receivedAt = performance.now();
+      // The pose is not written here: the store keeps the packet and writes the part a short time later,
+      // blended between packets, once a frame before the solver reads it. The own pose is the local
+      // sampler's, so a packet of it that found its way back is not kept over it
+      if (part && clientId !== this._sfu.clientId) {
+        APP.avatarPoses.pushRemotePart(clientId, part, performance.now(), received);
       }
 
       if (this._sfu.bus.isRecording) {

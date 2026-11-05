@@ -344,6 +344,7 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   /* Implementation for using bitECS */
   APP.sfu.avatarSync?.localPoseSource?.sample(t);
   tickPoseSenders(t);
+  APP.avatarPoses.sample(t);
   avatarIkSystem(world, APP.avatarPoses);
   /* End of implementation for using bitECS */
   APP.addon_systems.beforeMatricesUpdate.forEach((systemConfig: SystemConfigT) => {
