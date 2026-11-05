@@ -501,9 +501,14 @@ export class DialogAdapter extends SfuAdapter {
                 }
               }
 
-              // Recording support
-              if (this._isRecording) {
-                this._recordedDataChannelMessages.push({ l: label, m: data, t: Date.now() });
+              // Recording support (avatar transform channels are recorded decoded by the avatar sync helper)
+              if (this._isRecording && !label.includes("#avatar-")) {
+                this._recordedDataChannelMessages.push({
+                  l: label,
+                  m: this._textDecoder.decode(data),
+                  t: Date.now(),
+                  s: 0
+                });
               }
             });
 
@@ -1299,7 +1304,9 @@ export class DialogAdapter extends SfuAdapter {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
       this._dataProducers?.get(channel)?.send(new TextEncoder().encode(message));
-      this._recordedDataChannelMessages.push({ l: channel, m: new TextEncoder().encode(message), t: Date.now() });
+      if (this._isRecording && !channel.includes("#avatar-")) {
+        this._recordedDataChannelMessages.push({ l: channel, m: message, t: Date.now(), s: 1 });
+      }
     } catch (error) {
       console.error(error);
     }
@@ -1309,7 +1316,14 @@ export class DialogAdapter extends SfuAdapter {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     try {
       this._dataProducers?.get(channel)?.send(message);
-      this._recordedDataChannelMessages.push({ l: channel, m: message, t: Date.now() });
+      if (this._isRecording && !channel.includes("#avatar-")) {
+        this._recordedDataChannelMessages.push({
+          l: channel,
+          m: this._textDecoder.decode(message),
+          t: Date.now(),
+          s: 1
+        });
+      }
     } catch (error) {
       console.error(error);
     }
