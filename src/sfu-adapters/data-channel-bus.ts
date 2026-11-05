@@ -153,7 +153,7 @@ export class DataChannelBus {
 
   /** Sends on a channel. A receive-only adapter sends nothing. */
   send(label: string, data: string | Uint8Array): void {
-    if (this.adapter._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    if (this.adapter.connectionType === SFU_CONNECTION_TYPE.RECV) return;
     const spec = channelSpec(label);
     const isBytes = data instanceof Uint8Array;
     const bytes = isBytes ? data : this.textEncoder.encode(data);
@@ -174,7 +174,7 @@ export class DataChannelBus {
       this.record({ l: label, m: this.textDecoder.decode(data), t: Date.now(), s: 0 });
     }
     // The public speaking mirror keeps what it receives so the agents can relay it to the audience rooms
-    if (this.adapter._roomId.includes("public_speaking") && this.adapter._connectionType === SFU_CONNECTION_TYPE.RECV) {
+    if (this.adapter.roomId.includes("public_speaking") && this.adapter.connectionType === SFU_CONNECTION_TYPE.RECV) {
       this.relayQueue.push({ channelLabel: label, message: buffer });
       while (this.relayQueue.length > RELAY_QUEUE_CAP) {
         this.relayQueue.shift();
@@ -215,5 +215,10 @@ export class DataChannelBus {
   /** The oldest message queued for relay, if any. */
   dequeueRelay(): DataChannelMessage | undefined {
     return this.relayQueue.shift();
+  }
+
+  /** Drops every message queued for relay. */
+  clearRelay(): void {
+    this.relayQueue = [];
   }
 }

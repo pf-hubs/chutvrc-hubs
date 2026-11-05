@@ -6,7 +6,6 @@ import * as mediasoupClient from "mediasoup-client";
 import protooClient from "protoo-client";
 import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
-import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { DialogConfig, SfuConfig, TurnConfig, withDialogHost } from "./sfu-config";
 import { dataChannelLabels } from "./data-channel-bus";
@@ -77,10 +76,8 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
   public scene: any;
 
   constructor(sfuType: SFU_CONNECTION_TYPE = SFU_CONNECTION_TYPE.SENDRECV) {
-    super();
+    super(SFU.DIALOG, sfuType);
 
-    this._sfuId = SFU.DIALOG;
-    this._connectionType = sfuType;
     this._micProducer = null;
     this._cameraProducer = null;
     this._shareProducer = null;
@@ -91,8 +88,6 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     this._useDataChannel = true; // DataChannel implementation
     this.scene = null;
     this._consumerStats = {};
-    this._avatarSyncHelper = new AvatarSyncHelper(this);
-    this._publicSpeakerClientIdsInRoom = [];
 
     // Initialize message dispatcher with handlers for DialogAdapter
     this.initializeDialogHandlers();
@@ -484,7 +479,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
           consumer.close();
           this.removeConsumer(consumer.id);
 
-          if (this === APP.publicSpeakersMirrorSfu) {
+          if (this === APP.publicSpeakersMirrorSfu?.adapter) {
             this.disconnect();
           }
 
@@ -1074,8 +1069,9 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     this.media.forgetLocalTracks();
   }
 
-  disconnect(): void {
+  protected async closeConnection(): Promise<void> {
     debug("disconnect()");
+    // Closing the transports closes the producers and consumers; the tracks were produced with stopTracks: false
     this.cleanUpLocalState();
     if (this._protoo) {
       this._protoo.removeAllListeners();
@@ -1084,9 +1080,9 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
         this.emitRTCEvent("info", "Signaling", () => `[close]`);
       }
     }
-    if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
-    this._avatarSyncHelper?.stopSyncing();
-    this.cleanupDispatcher();
+    this._consumers.clear();
+    this._dataConsumers.clear();
+    this._dataProducers.clear();
   }
 
   kick(clientId: string): Promise<void> {

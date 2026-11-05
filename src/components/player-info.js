@@ -114,13 +114,7 @@ AFRAME.registerComponent("player-info", {
     this.el.sceneEl.addEventListener("stateremoved", this.update);
 
     if (this.isLocalPlayerInfo) {
-      if (APP.sfu) {
-        APP.sfu.on("mic-state-changed", this.onMicStateChanged);
-      } else {
-        APP.sfuCandidates.forEach(sfu => {
-          sfu.on("mic-state-changed", this.onMicStateChanged);
-        });
-      }
+      APP.sfu.on("mic-state-changed", this.onMicStateChanged);
     }
   },
 

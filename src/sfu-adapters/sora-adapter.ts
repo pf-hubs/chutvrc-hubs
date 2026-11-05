@@ -2,7 +2,6 @@ import Sora, * as SoraType from "sora-js-sdk";
 import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 import { MediaDevices } from "../utils/media-devices-utils";
-import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { SfuConfig, SoraConfig } from "./sfu-config";
 import { soraDataChannels } from "./data-channel-bus";
@@ -26,22 +25,16 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
   _clientStreamIdPair: Map<string, string>;
   _blockedClients: Map<string, boolean>;
   _scene: Element | null;
-  _avatarSyncHelper: AvatarSyncHelper;
   _accessToken?: string;
   // Laser pointer handler instance for cleanup on client leave
   private _laserPointerHandler: LaserPointerHandler | null = null;
 
   constructor(sfuType = SFU_CONNECTION_TYPE.SENDRECV) {
-    super();
-    this._sfuId = SFU.SORA;
-    this._connectionType = sfuType;
-    this._clientId = "";
+    super(SFU.SORA, sfuType);
     this._connector = null;
     this._remoteMediaStreams = new Map<string, MediaStream | null>();
     this._clientStreamIdPair = new Map<string, string>();
     this._blockedClients = new Map<string, boolean>();
-    this._avatarSyncHelper = new AvatarSyncHelper(this);
-    this._publicSpeakerClientIdsInRoom = [];
 
     // Initialize message dispatcher with handlers for SoraAdapter
     this.initializeSoraHandlers();
@@ -246,15 +239,13 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
     }
   }
 
-  async disconnect() {
+  protected async closeConnection(): Promise<void> {
     if (this._connector) {
       await this._connector.disconnect();
       this._connector = null;
     }
-    if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
-    this._avatarSyncHelper?.stopSyncing();
-    this.cleanupDispatcher();
-    this._cleanupTokenHandler();
+    this._remoteMediaStreams.clear();
+    this._clientStreamIdPair.clear();
     debug("disconnect()");
     this.emitRTCEvent("info", "Signaling", () => `[close]`);
   }

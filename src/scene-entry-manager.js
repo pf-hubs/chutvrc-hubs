@@ -188,8 +188,8 @@ export default class SceneEntryManager {
 
     this._lastFetchedAvatarId = avatarId;
     const avatarSrc = await getAvatarSrc(avatarId);
-    APP.sfu._avatarSyncHelper.sendSelfAvatarSrc(avatarId);
-    APP.sfu._avatarSyncHelper.replaceAvatarModel(avatarId, APP.sfu._clientId);
+    APP.sfu.avatarSync.sendSelfAvatarSrc(avatarId);
+    APP.sfu.avatarSync.replaceAvatarModel(avatarId, APP.sfu.clientId);
     this.avatarRig.setAttribute("player-info", { avatarSrc, avatarType: getAvatarType(avatarId) });
   };
 

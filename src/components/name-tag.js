@@ -181,9 +181,7 @@ AFRAME.registerComponent("name-tag", {
 
         if (!this.neck && this.ikRoot) {
           this.neck = APP.world.eid2obj.get(
-            AvatarComponent.neck[
-              APP.sfu._avatarSyncHelper._client2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))
-            ]
+            AvatarComponent.neck[APP.sfu.avatarSync._client2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
           );
         }
         if (this.ikRoot) {
@@ -308,7 +306,7 @@ AFRAME.registerComponent("name-tag", {
     this.ikRoot = findAncestorWithComponent(this.el, "ik-root").object3D;
     this.ikRoot.el.object3D.visible = true;
     this.neck = APP.world.eid2obj.get(
-      AvatarComponent.neck[APP.sfu._avatarSyncHelper._client2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
+      AvatarComponent.neck[APP.sfu.avatarSync._client2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
     );
     // this.ikRoot.el.querySelector(".Neck").object3D;
     this.audioAnalyzer = this.ikRoot.el.querySelector(".model").components["networked-audio-analyser"];

@@ -23,78 +23,34 @@ export enum SfuConnectionState {
 }
 
 /**
- * Connection lifecycle management
+ * What the rest of the client may use on a media server connection. The SfuSession behind
+ * APP.sfu implements it, and so does the adapter inside the session.
  */
-export interface ISfuConnectable {
-  connect(config: SfuConfig): Promise<void> | void;
-  disconnect(): Promise<void> | void;
-  readonly clientId: string;
+export interface ISfuAdapter extends EventEmitter, BridgeCapable {
+  /** The media server kind, or null while the session has not connected to one */
+  readonly sfuId: SFU | null;
+  /** Connection type (sendrecv, send, recv) */
+  readonly connectionType: SFU_CONNECTION_TYPE;
   readonly roomId: string;
-}
+  readonly config: SfuConfig | null;
+  readonly isConnected: boolean;
+  hubChannel: any;
 
-/**
- * Media stream management for audio/video tracks
- */
-export interface ISfuMediaStreams {
-  getMediaStream(clientId: string, kind: string): Promise<MediaStream | null> | MediaStream | null | undefined;
+  connect(config: SfuConfig): Promise<void>;
+  disconnect(): Promise<void>;
+
+  getMediaStream(clientId: string, kind?: string): Promise<MediaStream | null>;
   getLocalMicTrack(): MediaStreamTrack | undefined;
   getLocalMediaStream(): MediaStream | null | undefined;
-  setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId?: Map<string, string> | null): Promise<void> | void;
-}
-
-/**
- * Microphone-specific control
- */
-export interface ISfuMicrophoneControl {
+  setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId?: Map<string, string> | null): Promise<void>;
   enableMicrophone(enabled: boolean): void;
   toggleMicrophone(): void;
   readonly isMicEnabled: boolean | null;
-}
 
-/**
- * Data channel communication for avatar sync and other real-time data
- */
-export interface ISfuDataChannels {
   broadcast(channel: string, message: string): void;
   broadcastUint8(channel: string, message: Uint8Array): void;
-}
 
-/**
- * Participant management (kick, block, unblock)
- */
-export interface ISfuParticipantControl {
   kick(clientId: string): Promise<void> | void;
   block(clientId: string): Promise<void> | void;
   unblock(clientId: string): Promise<void> | void;
-}
-
-/**
- * RTC event diagnostics and logging
- */
-export interface ISfuDiagnostics {
-  emitRTCEvent(level: string, tag: string, msgFunc: () => string | void): void;
-}
-
-/**
- * Combined SFU adapter interface implementing all capabilities
- * Adapters should implement ISfuAdapter to be fully compatible
- */
-export interface ISfuAdapter
-  extends EventEmitter,
-    ISfuConnectable,
-    ISfuMediaStreams,
-    ISfuMicrophoneControl,
-    ISfuDataChannels,
-    ISfuParticipantControl,
-    ISfuDiagnostics,
-    BridgeCapable {
-  /**
-   * SFU type identifier
-   */
-  readonly sfuId: SFU;
-
-  /**
-   * Connection type (sendrecv, send, recv)
-   */
-  readonly connectionType: SFU_CONNECTION_TYPE;
 }

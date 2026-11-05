@@ -1,6 +1,6 @@
 import { derivePublicSpeakingConfig } from "../sfu-adapters/sfu-config";
 import { SFU_CONNECTION_TYPE } from "../sfu-types";
-import { SfuAdapterFactory } from "../sfu-adapters/adapter-factory";
+import { SfuSession } from "../sfu-adapters/sfu-session";
 
 export class PublicSpeakingSystem {
   static clientIds = [];
@@ -12,12 +12,12 @@ export class PublicSpeakingSystem {
           const clientId = message.split("|")[0];
           const isOn = message.split("|")[1] === "1";
           if (isOn) {
-            if (clientId === APP.sfu._clientId) PublicSpeakingSystem.initPublicSpeaker();
-            APP.sfu._publicSpeakerClientIdsInRoom.push(clientId);
+            if (clientId === APP.sfu.clientId) PublicSpeakingSystem.initPublicSpeaker();
+            APP.sfu.publicSpeakerClientIds.push(clientId);
           } else {
-            if (clientId === APP.sfu._clientId) PublicSpeakingSystem.closePublicSpeaker();
-            const index = APP.sfu._publicSpeakerClientIdsInRoom.indexOf(clientId);
-            if (index > -1) APP.sfu._publicSpeakerClientIdsInRoom.splice(index, 1);
+            if (clientId === APP.sfu.clientId) PublicSpeakingSystem.closePublicSpeaker();
+            const index = APP.sfu.publicSpeakerClientIds.indexOf(clientId);
+            if (index > -1) APP.sfu.publicSpeakerClientIds.splice(index, 1);
           }
         });
       } else {
@@ -31,10 +31,10 @@ export class PublicSpeakingSystem {
   static toggleRemotePublicSpeaker(clientId, isOn) {
     APP.sfu.broadcast("#togglePublicSpeaker", clientId + "|" + (isOn ? "1" : "0"));
     if (isOn) {
-      APP.sfu._publicSpeakerClientIdsInRoom.push(clientId);
+      APP.sfu.publicSpeakerClientIds.push(clientId);
     } else {
-      const index = APP.sfu._publicSpeakerClientIdsInRoom.indexOf(clientId);
-      if (index > -1) APP.sfu._publicSpeakerClientIdsInRoom.splice(index, 1);
+      const index = APP.sfu.publicSpeakerClientIds.indexOf(clientId);
+      if (index > -1) APP.sfu.publicSpeakerClientIds.splice(index, 1);
     }
   }
 
@@ -44,10 +44,10 @@ export class PublicSpeakingSystem {
       return;
     }
     console.log("initPublicSpeaker");
-    APP.publicSpeakingSfu = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.SEND);
+    APP.publicSpeakingSfu = new SfuSession(SFU_CONNECTION_TYPE.SEND);
     APP.publicSpeakingSfu.hubChannel = APP.hubChannel;
     APP.publicSpeakingSfu.connect(
-      derivePublicSpeakingConfig(APP.sfu.config, "public_speaking", "PS-" + APP.sfu._clientId)
+      derivePublicSpeakingConfig(APP.sfu.config, "public_speaking", "PS-" + APP.sfu.clientId)
     );
     APP.sfu.emit("public-speaking-sfu-initialized");
 
@@ -66,7 +66,7 @@ export class PublicSpeakingSystem {
     if (!APP.publicSpeakingSfu.isConnected) {
       window.setTimeout(PublicSpeakingSystem.speakerTrySetLocalMediaStream, 1000);
     } else {
-      APP.publicSpeakingSfu.setLocalMediaStream(APP.sfu._localMediaStream);
+      APP.publicSpeakingSfu.setLocalMediaStream(APP.sfu.localMediaStream);
     }
   }
 
@@ -76,10 +76,10 @@ export class PublicSpeakingSystem {
       return;
     }
     console.log("initPublicSpeakingMirroring");
-    APP.publicSpeakersMirrorSfu = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.RECV);
+    APP.publicSpeakersMirrorSfu = new SfuSession(SFU_CONNECTION_TYPE.RECV);
     APP.publicSpeakersMirrorSfu.hubChannel = APP.hubChannel;
     APP.publicSpeakersMirrorSfu.connect(
-      derivePublicSpeakingConfig(APP.sfu.config, "public_speaking", APP.sfu._clientId)
+      derivePublicSpeakingConfig(APP.sfu.config, "public_speaking", APP.sfu.clientId)
     );
 
     APP.publicSpeakersMirrorSfu.on("stream_updated", this.mirrorPublicSpeaking, this);
@@ -131,11 +131,11 @@ export class PublicSpeakingSystem {
     }
     console.log("initPublicSpeakerAgent");
     this.clientIds.push(clientId);
-    APP.publicSpeakerAgentSfus[clientId] = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.SEND);
+    APP.publicSpeakerAgentSfus[clientId] = new SfuSession(SFU_CONNECTION_TYPE.SEND);
     APP.publicSpeakerAgentSfus[clientId].hubChannel = APP.hubChannel;
     const sfuToken = await APP.hubChannel.getSfuTokenOrFetch();
     APP.publicSpeakerAgentSfus[clientId].connect(
-      derivePublicSpeakingConfig(APP.sfu.config, APP.sfu._roomId, clientId, sfuToken)
+      derivePublicSpeakingConfig(APP.sfu.config, APP.sfu.roomId, clientId, sfuToken)
     );
   }
 }

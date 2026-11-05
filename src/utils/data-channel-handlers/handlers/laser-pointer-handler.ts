@@ -22,7 +22,7 @@ export class LaserPointerHandler implements IChannelHandler {
 
   handleMessage(data: Uint8Array, context: ChannelHandlerContext): void {
     // Only process if not in receive-only mode
-    if (context.adapter._connectionType === SFU_CONNECTION_TYPE.RECV) {
+    if (context.adapter.connectionType === SFU_CONNECTION_TYPE.RECV) {
       return;
     }
 

@@ -11,7 +11,7 @@ import { SFU } from "../../sfu-types";
 
 // The panel reads mediasoup internals, so it has data only while the active adapter is Dialog.
 function getDialogAdapter() {
-  return APP.sfu && APP.sfu._sfuId === SFU.DIALOG ? APP.sfu : null;
+  return APP.sfu.sfuId === SFU.DIALOG ? APP.sfu.adapter : null;
 }
 
 const isMobile = AFRAME.utils.device.isMobile();

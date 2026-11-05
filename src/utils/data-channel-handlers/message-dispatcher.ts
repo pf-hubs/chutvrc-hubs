@@ -18,8 +18,8 @@ export class DataChannelMessageDispatcher {
     this.registry = registry;
     this.context = {
       adapter,
-      clientId: adapter._clientId,
-      roomId: adapter._roomId,
+      clientId: adapter.clientId,
+      roomId: adapter.roomId,
       textDecoder: new TextDecoder(),
       textEncoder: new TextEncoder(),
       avatarSyncHelper

@@ -55,6 +55,8 @@ export interface SoraConfig extends SfuConfigBase {
  */
 export type SfuConfig = DialogConfig | LivekitConfig | SoraConfig;
 
+export type SfuKind = SfuConfig["kind"];
+
 /**
  * The media server fields of reticulum's reply to joining or migrating to a hub.
  */

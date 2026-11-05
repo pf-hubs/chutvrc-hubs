@@ -1,7 +1,5 @@
 import { getReticulumFetchUrl, hubUrl } from "./utils/phoenix-utils";
 import { updateEnvironmentForHub, getSceneUrlForHub, updateUIForHub, remountUI } from "./hub";
-import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
-import { SfuAdapterFactory } from "./sfu-adapters/adapter-factory";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
 import { localClientID, pendingMessages, pendingParts } from "./bit-systems/networking";
@@ -122,7 +120,6 @@ export async function changeHub(hubId, addToHistory = true, waypoint = "") {
 
   APP.retChannel.push("change_hub", { hub_id: hub.hub_id });
 
-  APP.sfu = SfuAdapterFactory.create(data.sfu, SFU_CONNECTION_TYPE.SENDRECV);
   APP.sfu.hubChannel = APP.hubChannel;
 
   if (data.sfu_access_token) {

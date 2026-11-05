@@ -55,17 +55,15 @@ export function UserProfileSidebar({
   );
   const newLevel = calcLevel(multiplier);
   const canTogglePublicSpeaker = useRole("owner");
-  const [publicSpeakerActive, setPublicSpeakerActive] = useState(
-    APP.sfu._publicSpeakerClientIdsInRoom.includes(userId)
-  );
+  const [publicSpeakerActive, setPublicSpeakerActive] = useState(APP.sfu.publicSpeakerClientIds.includes(userId));
 
   function togglePublicSpeaker() {
-    setPublicSpeakerActive(!APP.sfu._publicSpeakerClientIdsInRoom.includes(userId));
-    PublicSpeakingSystem.toggleRemotePublicSpeaker(userId, !APP.sfu._publicSpeakerClientIdsInRoom.includes(userId));
+    setPublicSpeakerActive(!APP.sfu.publicSpeakerClientIds.includes(userId));
+    PublicSpeakingSystem.toggleRemotePublicSpeaker(userId, !APP.sfu.publicSpeakerClientIds.includes(userId));
   }
 
   useEffect(() => {
-    setPublicSpeakerActive(APP.sfu._publicSpeakerClientIdsInRoom.includes(userId));
+    setPublicSpeakerActive(APP.sfu.publicSpeakerClientIds.includes(userId));
   }, [userId]);
 
   return (

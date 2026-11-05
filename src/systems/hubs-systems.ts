@@ -342,18 +342,19 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   PublicSpeakingSystem.mirrorDataChannelMessageFromSpeaker();
 
   /* Implementation for using bitECS */
-  if (APP.sfu) {
+  const avatarSync = APP.sfu.avatarSync;
+  if (avatarSync) {
     avatarIkSystem(
       world,
       {
-        rig: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.RIG) || new Map(),
-        hmd: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.HEAD) || new Map(),
-        leftController: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.LEFT) || new Map(),
-        rightController: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.RIGHT) || new Map()
+        rig: avatarSync._client2Transform.get(AvatarPart.RIG) || new Map(),
+        hmd: avatarSync._client2Transform.get(AvatarPart.HEAD) || new Map(),
+        leftController: avatarSync._client2Transform.get(AvatarPart.LEFT) || new Map(),
+        rightController: avatarSync._client2Transform.get(AvatarPart.RIGHT) || new Map()
       },
-      APP.sfu._avatarSyncHelper._avatarEid2ClientId,
-      APP.sfu._avatarSyncHelper._client2VrMode,
-      APP.sfu._avatarSyncHelper._client2AnimState
+      avatarSync._avatarEid2ClientId,
+      avatarSync._client2VrMode,
+      avatarSync._client2AnimState
     );
   }
   /* End of implementation for using bitECS */

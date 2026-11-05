@@ -165,7 +165,7 @@ export class AvatarIkManager {
       leftController: poseInputs.leftController?.get(clientId) || DummyInputTransform,
       rightController: poseInputs.rightController?.get(clientId) || DummyInputTransform
     };
-    this.isSelfAvatar = clientId === APP.sfu._clientId;
+    this.isSelfAvatar = clientId === APP.sfu.clientId;
     this.isVR = isVr;
     if (this.animState !== animState) {
       switch (animState) {

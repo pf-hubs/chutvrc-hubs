@@ -28,9 +28,8 @@ import { mainTick } from "./systems/hubs-systems";
 import { waitForPreloads } from "./utils/preload";
 import SceneEntryManager from "./scene-entry-manager";
 import { getStore } from "./utils/store-instance";
-import { SFU, SFU_CONNECTION_TYPE } from "./sfu-types";
-import { SfuAdapter } from "./sfu-adapters/sfu-adapter";
-import { SfuAdapterFactory } from "./sfu-adapters/adapter-factory";
+import { SFU_CONNECTION_TYPE } from "./sfu-types";
+import { SfuSession } from "./sfu-adapters/sfu-session";
 import { addObject3DComponent } from "./utils/jsx-entity";
 import { ElOrEid } from "./utils/bit-utils";
 import { AvatarIkManager } from "./utils/avatar-ik-manager";
@@ -109,14 +108,10 @@ export class App {
 
   audioListener: AudioListener;
 
-  sfuCandidates = Object.keys(SFU)
-    .filter(v => !isNaN(Number(v)))
-    .map(sfuId => SfuAdapterFactory.create(Number(sfuId) as SFU, SFU_CONNECTION_TYPE.SENDRECV));
-  // sfuCandidates: SfuAdapter[] = [new DialogAdapter(), new SoraAdapter()];
-  sfu: SfuAdapter;
-  publicSpeakingSfu: SfuAdapter;
-  publicSpeakersMirrorSfu: SfuAdapter;
-  publicSpeakerAgentSfus: { [clientId: string]: SfuAdapter };
+  sfu = new SfuSession(SFU_CONNECTION_TYPE.SENDRECV);
+  publicSpeakingSfu: SfuSession;
+  publicSpeakersMirrorSfu: SfuSession;
+  publicSpeakerAgentSfus: { [clientId: string]: SfuSession };
 
   // libpeer IoT device manager for external device WebRTC DataChannel connections
   libpeerDeviceManager?: LibpeerDeviceManager;

@@ -1139,7 +1139,7 @@ class UIRoot extends Component {
     const isModerator = this.props.hubChannel && this.props.hubChannel.canOrWillIfCreator("kick_users") && !isMobileVR;
 
     // const canToggleChutvrcPopovers =
-    //   APP.sfu && APP.hubChannel.presence?.state[APP.sfu._clientId]?.metas[0].roles["owner"];
+    //   APP.sfu && APP.hubChannel.presence?.state[APP.sfu.clientId]?.metas[0].roles["owner"];
 
     const moreMenu = [
       {

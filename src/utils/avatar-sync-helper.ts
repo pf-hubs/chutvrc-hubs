@@ -28,6 +28,8 @@ export class AvatarSyncHelper {
   _setSelfIsVrFlagIntervalId: NodeJS.Timer | undefined;
   _sendSelfIsVrFlagIntervalId: NodeJS.Timer | undefined;
   _sendSelfAnimStateIntervalId: NodeJS.Timer | undefined;
+  /** Set after the room was left: the next sync init sends the own avatar id, so the others send theirs back. */
+  announceSelfOnSyncInit = false;
 
   constructor(sfu: SfuAdapter) {
     this._sfu = sfu;
@@ -52,6 +54,10 @@ export class AvatarSyncHelper {
       this.handleVrModeSyncInit();
     } else if (channel === "#avatarAnimState") {
       this.handleAnimStateSyncInit();
+    } else if (channel === "#avatarId" && this.announceSelfOnSyncInit) {
+      this.announceSelfOnSyncInit = false;
+      // The room forgot this client while it was away; a second later the channel has had time to open
+      window.setTimeout(() => this.sendSelfAvatarSrc(), 1000);
     }
   }
 
@@ -75,7 +81,7 @@ export class AvatarSyncHelper {
       // if avatar id of this client is already recorded but with different avatar id (existing client but avatar changed),
       // or avatar id of this client is not recorded (new client to this room),
       // then load the client's avatar's model
-      if (clientId !== this._sfu._clientId) {
+      if (clientId !== this._sfu.clientId) {
         this.replaceAvatarModel(avatarId, clientId);
       }
     }
@@ -129,6 +135,19 @@ export class AvatarSyncHelper {
     });
   }
 
+  /** Forgets every remote client and removes its avatar entity and model. The own avatar stays. */
+  handleOnAllRemoteClientsLeave() {
+    const clientIds = new Set<string>([
+      ...this._client2AvatarAssetId.keys(),
+      ...this._client2AvatarEid.keys(),
+      ...this._client2VrMode.keys(),
+      ...this._client2AnimState.keys()
+    ]);
+    this._client2Transform.forEach(transforms => transforms.forEach((_, clientId) => clientIds.add(clientId)));
+    clientIds.delete(this._sfu.clientId);
+    clientIds.forEach(clientId => this.handleOnClientLeave(clientId));
+  }
+
   initSelfAvatarTransform() {
     // get self avatar parts
     const rig = document.querySelector("#avatar-rig") as AElement;
@@ -137,7 +156,7 @@ export class AvatarSyncHelper {
     const right = document.querySelector("#player-right-controller") as AElement;
 
     if (rig && head && left && right) {
-      this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._sfu._clientId, rig, head, left, right);
+      this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._sfu.clientId, rig, head, left, right);
       setInterval(() => this.updateSelfAvatarTransform(), 15);
       return true;
     }
@@ -150,9 +169,7 @@ export class AvatarSyncHelper {
     if (!buffer) return;
     this._avatarPartsToSync.forEach(part => {
       buffer.updateAvatarTransform(part);
-      this._client2Transform
-        .get(part)
-        ?.set(this._sfu._clientId, buffer.getAvatarTransform(part));
+      this._client2Transform.get(part)?.set(this._sfu.clientId, buffer.getAvatarTransform(part));
     });
   }
 
@@ -208,7 +225,7 @@ export class AvatarSyncHelper {
   };
 
   sendSelfAvatarSrc(avatarId?: string) {
-    this._sfu.broadcast("#avatarId", this._sfu._clientId + "|" + (avatarId || window.APP.store.state.profile.avatarId));
+    this._sfu.broadcast("#avatarId", this._sfu.clientId + "|" + (avatarId || window.APP.store.state.profile.avatarId));
     this.sendSelfAvatarTransform(false);
   }
 
@@ -223,12 +240,12 @@ export class AvatarSyncHelper {
       this._sfu.broadcastUint8("#avatar-" + AvatarPart[part], arrToSend);
 
       if (this._sfu.bus.isRecording) {
-        const transform = this._client2Transform.get(part)?.get(this._sfu._clientId);
+        const transform = this._client2Transform.get(part)?.get(this._sfu.clientId);
         if (!transform) return;
         this._sfu.bus.record({
           l: "#avatar-" + AvatarPart[part],
           m: {
-            c: this._sfu._clientId,
+            c: this._sfu.clientId,
             p: {
               x: Math.round(transform.pos.x * 1000) / 1000,
               y: Math.round(transform.pos.y * 1000) / 1000,
@@ -276,7 +293,7 @@ export class AvatarSyncHelper {
 
   private setSelfIsVrFlag() {
     this._client2VrMode.set(
-      this._sfu._clientId,
+      this._sfu.clientId,
       AFRAME.scenes[0]?.renderer
         ? AFRAME.scenes[0].renderer.xr.enabled && AFRAME.scenes[0].renderer.xr.isPresenting
         : false
@@ -286,7 +303,7 @@ export class AvatarSyncHelper {
   private sendSelfIsVrFlag() {
     this._sfu.broadcast(
       "#isVR",
-      this._sfu._clientId +
+      this._sfu.clientId +
         "|" +
         ((
           AFRAME.scenes[0]?.renderer
@@ -299,8 +316,8 @@ export class AvatarSyncHelper {
   }
 
   private sendSelfAnimState() {
-    const animState = this._client2AnimState.get(this._sfu._clientId) ?? AvatarAnimState.STAND;
-    this._sfu.broadcast("#avatarAnimState", this._sfu._clientId + "|" + animState);
+    const animState = this._client2AnimState.get(this._sfu.clientId) ?? AvatarAnimState.STAND;
+    this._sfu.broadcast("#avatarAnimState", this._sfu.clientId + "|" + animState);
   }
 
   private switchAnimState(clientId: string, state: AvatarAnimState) {
@@ -308,7 +325,7 @@ export class AvatarSyncHelper {
   }
 
   switchSelfAnimState(state: AvatarAnimState) {
-    this.switchAnimState(this._sfu._clientId, state);
+    this.switchAnimState(this._sfu.clientId, state);
   }
 
   stopSyncing() {

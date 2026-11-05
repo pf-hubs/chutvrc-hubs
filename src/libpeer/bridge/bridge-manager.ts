@@ -13,7 +13,6 @@
 import EventEmitter from "eventemitter3";
 import { LibpeerDeviceManager } from "../libpeer-device-manager";
 import { IoTMessage } from "../iot-types";
-import { SfuAdapter } from "../../sfu-adapters/sfu-adapter";
 import { BridgeCapable, BridgeEnvelope, BridgeMessageCallback, isBridgeCapable } from "./bridge-capable";
 import {
   createDeviceToRoomEnvelope,
@@ -41,7 +40,7 @@ export interface BridgeManagerEvents {
   /** Emitted when the bridge is disconnected */
   bridge_disconnected: () => void;
   /** Emitted when adapter changes */
-  adapter_changed: (adapter: SfuAdapter & BridgeCapable) => void;
+  adapter_changed: (adapter: BridgeCapable) => void;
 }
 
 /**
@@ -70,7 +69,7 @@ const DEFAULT_CONFIG: BridgeManagerConfig = {
  */
 export class BridgeManager extends EventEmitter<BridgeManagerEvents> {
   private deviceManager: LibpeerDeviceManager | null = null;
-  private sfuAdapter: (SfuAdapter & BridgeCapable) | null = null;
+  private sfuAdapter: BridgeCapable | null = null;
   private config: BridgeManagerConfig;
   private _initialized = false;
 
@@ -97,7 +96,7 @@ export class BridgeManager extends EventEmitter<BridgeManagerEvents> {
    * @param deviceManager The libpeer device manager
    * @param sfuAdapter The SFU adapter (must implement BridgeCapable)
    */
-  init(deviceManager: LibpeerDeviceManager, sfuAdapter: SfuAdapter): void {
+  init(deviceManager: LibpeerDeviceManager, sfuAdapter: BridgeCapable): void {
     if (this._initialized) {
       this.log("warn", "Already initialized, call destroy() first");
       return;
@@ -126,7 +125,7 @@ export class BridgeManager extends EventEmitter<BridgeManagerEvents> {
    * Update the SFU adapter (e.g., when switching from Dialog to Sora)
    * @param sfuAdapter The new SFU adapter
    */
-  setAdapter(sfuAdapter: SfuAdapter): void {
+  setAdapter(sfuAdapter: BridgeCapable): void {
     if (!isBridgeCapable(sfuAdapter)) {
       this.log("error", "New adapter does not implement BridgeCapable");
       this.emit("error", new Error("Adapter not bridge capable"), "setAdapter");

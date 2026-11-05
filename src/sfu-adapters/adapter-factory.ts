@@ -1,5 +1,6 @@
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { SfuAdapter } from "./sfu-adapter";
+import { SfuKind } from "./sfu-config";
 
 // Import adapters
 import { DialogAdapter } from "./dialog-adapter";
@@ -19,17 +20,31 @@ export class SfuAdapterFactory {
     [SFU.LIVEKIT, LivekitAdapter as AdapterConstructor]
   ]);
 
+  private static readonly kinds: Record<SfuKind, SFU> = {
+    dialog: SFU.DIALOG,
+    sora: SFU.SORA,
+    livekit: SFU.LIVEKIT
+  };
+
+  /**
+   * The SFU type a config kind stands for
+   */
+  static sfuTypeOf(kind: SfuKind): SFU {
+    return this.kinds[kind];
+  }
+
   /**
    * Create an SFU adapter instance
-   * @param sfuType The type of SFU adapter to create
+   * @param sfuType The type of SFU adapter to create, as an SFU value or a config kind
    * @param connectionType The connection type (sendrecv, send, recv)
    * @returns A new adapter instance
    * @throws Error if the SFU type is unknown
    */
-  static create(sfuType: SFU, connectionType: SFU_CONNECTION_TYPE): SfuAdapter {
-    const AdapterClass = this.adapters.get(sfuType);
+  static create(sfuType: SFU | SfuKind, connectionType: SFU_CONNECTION_TYPE): SfuAdapter {
+    const resolvedType = typeof sfuType === "string" ? this.sfuTypeOf(sfuType) : sfuType;
+    const AdapterClass = this.adapters.get(resolvedType);
     if (!AdapterClass) {
-      throw new Error(`Unknown SFU type: ${SFU[sfuType]} (${sfuType})`);
+      throw new Error(`Unknown SFU type: ${SFU[resolvedType]} (${resolvedType})`);
     }
     return new AdapterClass(connectionType);
   }

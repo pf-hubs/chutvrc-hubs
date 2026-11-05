@@ -270,6 +270,7 @@ import { listenForNetworkMessages } from "./utils/listen-for-network-messages";
 import { exposeBitECSDebugHelpers } from "./bitecs-debug-helpers";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL } from "./sfu-adapters/sfu-adapter";
 import { buildSfuConfig, withDialogHost } from "./sfu-adapters/sfu-config";
+import { switchSfu } from "./sfu-adapters/switch-sfu";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
 import { LibpeerDeviceManager, BridgeManager } from "./libpeer";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
@@ -697,8 +698,7 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
 
       // Disconnect in case this is a re-entry
 
-      APP.sfu?.disconnect();
-      APP.sfu = APP.sfuCandidates.find((sfu, sfuId) => sfuId === data.sfu);
+      APP.sfu.disconnect();
       APP.sfu.hubChannel = hubChannel;
       listenSfuConnection(scene);
       registerNetworkSchemas();
@@ -1531,9 +1531,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       scene.emit("hub_closed");
     }
 
-    // if (hub.sfu !== APP.usingSfu) {
-    //   scene.emit("hub_updated_require_refresh");
-    // }
+    if (hub.sfu !== APP.sfu.sfuId) {
+      switchSfu(hub, scene);
+    }
 
     scene.emit("hub_updated", { hub });
   });

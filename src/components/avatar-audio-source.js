@@ -106,13 +106,7 @@ AFRAME.registerComponent("avatar-audio-source", {
     this.audioSystem = this.el.sceneEl.systems["hubs-systems"].audioSystem;
     // We subscribe to audio stream notifications for this peer to update the audio source
     // This could happen in case there is an ICE failure that requires a transport recreation.
-    if (APP.sfu) {
-      APP.sfu.on("stream_updated", this._onStreamUpdated, this);
-    } else {
-      APP.sfuCandidates.forEach(sfu => {
-        sfu.on("stream_updated", this._onStreamUpdated, this);
-      });
-    }
+    APP.sfu.on("stream_updated", this._onStreamUpdated, this);
 
     this.createAudio();
 

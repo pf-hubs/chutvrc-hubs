@@ -73,9 +73,9 @@ export class MediaSession {
 
   /** The stream for a client, or a pending promise for it until the driver reports its track. */
   getMediaStream(clientId: string, kind: string = "audio"): Promise<MediaStream | null> {
-    const connectionType = this.adapter._connectionType;
-    const isSelf = this.adapter._clientId === clientId && connectionType !== SFU_CONNECTION_TYPE.RECV;
-    const isOther = this.adapter._clientId !== clientId && connectionType !== SFU_CONNECTION_TYPE.SEND;
+    const connectionType = this.adapter.connectionType;
+    const isSelf = this.adapter.clientId === clientId && connectionType !== SFU_CONNECTION_TYPE.RECV;
+    const isOther = this.adapter.clientId !== clientId && connectionType !== SFU_CONNECTION_TYPE.SEND;
 
     let tracks: MediaStreamTrack[] = [];
     if (isSelf) {
@@ -165,10 +165,19 @@ export class MediaSession {
     this.pending.delete(clientId);
   }
 
-  /** Forgets every remote stream and waiting request, without settling the requests. */
-  clearRemote(): void {
+  /**
+   * Forgets every remote client: the streams, the public speaker audio played from their agents, and the
+   * waiting requests, which are rejected with the error when one is given and left unsettled otherwise.
+   */
+  clearRemote(error?: Error): void {
+    for (const clientId of Array.from(this.pending.keys())) {
+      this.removePeer(clientId, error);
+    }
     this.remoteStreams.clear();
     this.pending.clear();
+    for (const clientId of Object.keys(this.publicSpeakerAudioSources)) {
+      this.removePublicSpeakerAudio(clientId);
+    }
   }
 
   private remoteTracks(clientId: string, kind: string): MediaStreamTrack[] {
@@ -197,7 +206,7 @@ export class MediaSession {
    * audio stream is awaited first. Keeps trying every second until the avatar exists.
    */
   async tryAttachAudioToPublicSpeakerAgent(clientId: string, stream?: MediaStream): Promise<void> {
-    if (!clientId.includes("PS-") || this.adapter._roomId.includes("public_speaking")) return;
+    if (!clientId.includes("PS-") || this.adapter.roomId.includes("public_speaking")) return;
 
     try {
       const audio = stream ?? (await this.getMediaStream(clientId, "audio"));
@@ -207,7 +216,7 @@ export class MediaSession {
       sources[clientId] = new CrossRoomStreamerAudioSource(new MediaStream(audio));
 
       const tryAttachAudioToAvatar = (): void => {
-        const avatarEid = this.adapter._avatarSyncHelper._client2AvatarEid.get(clientId);
+        const avatarEid = this.adapter.avatarSync._client2AvatarEid.get(clientId);
         if (avatarEid) {
           const avatarObj = APP.world.eid2obj.get(avatarEid);
           if (avatarObj) {
@@ -283,7 +292,7 @@ export class MediaSession {
     stream: MediaStream,
     videoContentHintByTrackId: Map<string, string> | null = null
   ): Promise<void> {
-    if (this.adapter._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    if (this.adapter.connectionType === SFU_CONNECTION_TYPE.RECV) return;
     if (!this.driver.beforeLocalStreamApplied(stream)) return;
 
     const microphone = stream.getAudioTracks()[0];
@@ -322,8 +331,8 @@ export class MediaSession {
     this.stream = stream;
 
     // A request for the own stream is answered with the stream's track of that kind
-    if (microphone) this.resolvePending(this.adapter._clientId, "audio", new MediaStream([microphone]));
-    if (videoTracks[0]) this.resolvePending(this.adapter._clientId, "video", new MediaStream([videoTracks[0]]));
+    if (microphone) this.resolvePending(this.adapter.clientId, "audio", new MediaStream([microphone]));
+    if (videoTracks[0]) this.resolvePending(this.adapter.clientId, "video", new MediaStream([videoTracks[0]]));
 
     await this.driver.afterLocalStreamApplied(stream);
   }
@@ -352,12 +361,12 @@ export class MediaSession {
   }
 
   get isMicEnabled(): boolean | null {
-    if (this.adapter._connectionType === SFU_CONNECTION_TYPE.RECV) return false;
+    if (this.adapter.connectionType === SFU_CONNECTION_TYPE.RECV) return false;
     return this.driver.micEnabled();
   }
 
   enableMicrophone(enabled: boolean): void {
-    if (this.adapter._connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    if (this.adapter.connectionType === SFU_CONNECTION_TYPE.RECV) return;
     if (!this.driver.setMicEnabled(enabled)) return;
     this.micWanted = enabled;
     this.adapter.emit("mic-state-changed", { enabled });

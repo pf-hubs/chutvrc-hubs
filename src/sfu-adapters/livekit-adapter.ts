@@ -18,7 +18,6 @@ import {
 } from "livekit-client";
 import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
-import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { SfuConnectionState } from "../types/sfu-adapter-interface";
 import { LivekitConfig, SfuConfig } from "./sfu-config";
@@ -59,6 +58,8 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
   private _micPublication: LocalTrackPublication | null = null;
   private _cameraPublication: LocalTrackPublication | null = null;
   private _sharePublication: LocalTrackPublication | null = null;
+  // The microphone stream the adapter acquired itself on connect; the only local stream it may stop
+  private _ownAudioStream: MediaStream | null = null;
 
   // Remote participants
   private _remoteParticipants: Map<string, RemoteParticipant> = new Map();
@@ -74,12 +75,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
   private _laserPointerHandler: LaserPointerHandler | null = null;
 
   constructor(connectionType: SFU_CONNECTION_TYPE) {
-    super({ pendingTimeoutMs: PENDING_MEDIA_TIMEOUT_MS });
-    this._sfuId = SFU.LIVEKIT;
-    this._connectionType = connectionType;
-    this._clientId = "";
-    this._avatarSyncHelper = new AvatarSyncHelper(this);
-    this._publicSpeakerClientIdsInRoom = [];
+    super(SFU.LIVEKIT, connectionType, { pendingTimeoutMs: PENDING_MEDIA_TIMEOUT_MS });
 
     // Initialize message dispatcher with handlers for LivekitAdapter
     this.initializeLivekitHandlers();
@@ -382,6 +378,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
         audio: true,
         video: false
       });
+      this._ownAudioStream = localMediaStream;
       this.media.rememberLocalStream(localMediaStream);
 
       const audioTrack = localMediaStream.getAudioTracks()[0];
@@ -414,14 +411,9 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     });
   }
 
-  async disconnect(): Promise<void> {
+  protected async closeConnection(): Promise<void> {
     debug("disconnect()");
     this._connectionState = SfuConnectionState.DISCONNECTED;
-
-    // Clean up all participants
-    this._remoteParticipants.forEach((_, clientId) => {
-      this._cleanupParticipant(clientId);
-    });
 
     // Disconnect from room. Detach the listeners first so that this intentional
     // disconnect does not trigger a reconnect from the Disconnected event.
@@ -431,33 +423,17 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
       this._room = null;
     }
 
-    // Clean up intervals
-    if (this._sendSelfAvatarSrcIntervalId) {
-      clearInterval(this._sendSelfAvatarSrcIntervalId);
+    // The microphone the adapter acquired itself is stopped; a stream set from outside is left running
+    if (this._ownAudioStream) {
+      this._ownAudioStream.getTracks().forEach(track => track.stop());
+      if (this.media.localStream === this._ownAudioStream) this.media.clearLocal();
+      this._ownAudioStream = null;
     }
-
-    // Stop avatar sync
-    this._avatarSyncHelper?.stopSyncing();
-
-    // Cleanup message dispatcher
-    this.cleanupDispatcher();
-
-    // Cleanup token handler
-    this._cleanupTokenHandler();
-
-    // Clean up local media
-    const localMediaStream = this.media.localStream;
-    if (localMediaStream) {
-      localMediaStream.getTracks().forEach(track => track.stop());
-    }
-    this.media.clearLocal();
 
     this._micPublication = null;
     this._cameraPublication = null;
     this._sharePublication = null;
-    this._laserPointerHandler = null;
     this._remoteParticipants.clear();
-    this.media.clearRemote();
     this._dataChannelReadyChannels.clear();
 
     this.emitRTCEvent("info", "Signaling", () => `[close]`);
