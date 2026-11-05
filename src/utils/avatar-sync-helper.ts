@@ -24,6 +24,7 @@ export class AvatarSyncHelper {
   _avatarEid2ClientId: Map<number, string>;
   _avatarPartsToSync: AvatarPart[];
   _isStartSendingSelfAvatarTransform: boolean;
+  _updateSelfAvatarTransformIntervalId: NodeJS.Timer | undefined;
   _sendSelfAvatarTransformIntervalId: NodeJS.Timer | undefined;
   _setSelfIsVrFlagIntervalId: NodeJS.Timer | undefined;
   _sendSelfIsVrFlagIntervalId: NodeJS.Timer | undefined;
@@ -157,7 +158,10 @@ export class AvatarSyncHelper {
 
     if (rig && head && left && right) {
       this._selfAvatarTransformBuffer = new AvatarTransformBuffer(this._sfu.clientId, rig, head, left, right);
-      setInterval(() => this.updateSelfAvatarTransform(), 15);
+      // Every connect() of the adapter ends up here; one sampler is enough, it reads the current buffer
+      if (!this._updateSelfAvatarTransformIntervalId) {
+        this._updateSelfAvatarTransformIntervalId = setInterval(() => this.updateSelfAvatarTransform(), 15);
+      }
       return true;
     }
 
@@ -329,7 +333,11 @@ export class AvatarSyncHelper {
   }
 
   stopSyncing() {
+    if (this._updateSelfAvatarTransformIntervalId) clearInterval(this._updateSelfAvatarTransformIntervalId);
+    this._updateSelfAvatarTransformIntervalId = undefined;
     if (this._sendSelfAvatarTransformIntervalId) clearInterval(this._sendSelfAvatarTransformIntervalId);
+    // So that the next transform sync init starts a sender again
+    this._isStartSendingSelfAvatarTransform = false;
     if (this._setSelfIsVrFlagIntervalId) clearInterval(this._setSelfIsVrFlagIntervalId);
     if (this._sendSelfIsVrFlagIntervalId) clearInterval(this._sendSelfIsVrFlagIntervalId);
     if (this._sendSelfAnimStateIntervalId) clearInterval(this._sendSelfAnimStateIntervalId);
