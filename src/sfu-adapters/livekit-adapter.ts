@@ -360,7 +360,15 @@ export class LivekitAdapter extends SfuAdapter {
         const label = topic;
         const data = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
 
-        this._dataChannelMessages.push({ channelLabel: label, message: data as ArrayBuffer });
+        // Queue messages for relay when acting as public speaking mirror
+        // This enables mirrorDataChannelMessageFromSpeaker() to relay avatar data to receiving rooms
+        if (this._roomId.includes("public_speaking") && this._connectionType === SFU_CONNECTION_TYPE.RECV) {
+          this._dataChannelMessages.push({ channelLabel: label, message: data as ArrayBuffer });
+          // Prevent memory leaks - cap queue size
+          while (this._dataChannelMessages.length > 100) {
+            this._dataChannelMessages.shift();
+          }
+        }
 
         if (this._isRecording && !label.includes("#avatar-")) {
           this._recordedDataChannelMessages.push({
@@ -369,11 +377,6 @@ export class LivekitAdapter extends SfuAdapter {
             t: Date.now(),
             s: 0
           });
-        }
-
-        // Limit queue size
-        while (this._dataChannelMessages.length > 100) {
-          this._dataChannelMessages.shift();
         }
 
         // Dispatch through handler system (base class method)
