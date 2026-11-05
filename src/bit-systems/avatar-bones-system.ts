@@ -270,30 +270,44 @@ export const avatarIkSystem = (
   return world;
 };
 
-export const removeAvatarEntityAndModel = (world: HubsWorld, avatarEid: number | undefined) => {
+/**
+ * Removes the avatar's model from the scene, its bone and avatar entities, its inverse kinematics manager
+ * and, when the map is given, its client id entry.
+ */
+export const removeAvatarEntityAndModel = (
+  world: HubsWorld,
+  avatarEid: number | undefined,
+  avatarEid2ClientId?: Map<number, string>
+) => {
   if (!avatarEid) return;
   const model = world.eid2obj.get(avatarEid);
   if (model) world.scene.remove(model);
 
-  removeEntity(world, AvatarComponent.root[avatarEid]);
-  removeEntity(world, AvatarComponent.hips[avatarEid]);
-  removeEntity(world, AvatarComponent.spine[avatarEid]);
-  removeEntity(world, AvatarComponent.chest[avatarEid]);
-  removeEntity(world, AvatarComponent.neck[avatarEid]);
-  removeEntity(world, AvatarComponent.head[avatarEid]);
-  removeEntity(world, AvatarComponent.leftUpperLeg[avatarEid]);
-  removeEntity(world, AvatarComponent.leftLowerLeg[avatarEid]);
-  removeEntity(world, AvatarComponent.leftFoot[avatarEid]);
-  removeEntity(world, AvatarComponent.rightUpperLeg[avatarEid]);
-  removeEntity(world, AvatarComponent.rightLowerLeg[avatarEid]);
-  removeEntity(world, AvatarComponent.rightFoot[avatarEid]);
-  removeEntity(world, AvatarComponent.leftShoulder[avatarEid]);
-  removeEntity(world, AvatarComponent.leftUpperArm[avatarEid]);
-  removeEntity(world, AvatarComponent.leftLowerArm[avatarEid]);
-  removeEntity(world, AvatarComponent.leftHand[avatarEid]);
-  removeEntity(world, AvatarComponent.rightShoulder[avatarEid]);
-  removeEntity(world, AvatarComponent.rightUpperArm[avatarEid]);
-  removeEntity(world, AvatarComponent.rightLowerArm[avatarEid]);
-  removeEntity(world, AvatarComponent.rightHand[avatarEid]);
+  // A bone the model does not have is stored as 0, which is the reserved entity 0 and must stay
+  const removeBoneEntity = (boneEid: number) => {
+    if (boneEid) removeEntity(world, boneEid);
+  };
+  removeBoneEntity(AvatarComponent.root[avatarEid]);
+  removeBoneEntity(AvatarComponent.hips[avatarEid]);
+  removeBoneEntity(AvatarComponent.spine[avatarEid]);
+  removeBoneEntity(AvatarComponent.chest[avatarEid]);
+  removeBoneEntity(AvatarComponent.neck[avatarEid]);
+  removeBoneEntity(AvatarComponent.head[avatarEid]);
+  removeBoneEntity(AvatarComponent.leftUpperLeg[avatarEid]);
+  removeBoneEntity(AvatarComponent.leftLowerLeg[avatarEid]);
+  removeBoneEntity(AvatarComponent.leftFoot[avatarEid]);
+  removeBoneEntity(AvatarComponent.rightUpperLeg[avatarEid]);
+  removeBoneEntity(AvatarComponent.rightLowerLeg[avatarEid]);
+  removeBoneEntity(AvatarComponent.rightFoot[avatarEid]);
+  removeBoneEntity(AvatarComponent.leftShoulder[avatarEid]);
+  removeBoneEntity(AvatarComponent.leftUpperArm[avatarEid]);
+  removeBoneEntity(AvatarComponent.leftLowerArm[avatarEid]);
+  removeBoneEntity(AvatarComponent.leftHand[avatarEid]);
+  removeBoneEntity(AvatarComponent.rightShoulder[avatarEid]);
+  removeBoneEntity(AvatarComponent.rightUpperArm[avatarEid]);
+  removeBoneEntity(AvatarComponent.rightLowerArm[avatarEid]);
+  removeBoneEntity(AvatarComponent.rightHand[avatarEid]);
   removeEntity(world, avatarEid);
+  world.eid2Ik.delete(avatarEid);
+  avatarEid2ClientId?.delete(avatarEid);
 };

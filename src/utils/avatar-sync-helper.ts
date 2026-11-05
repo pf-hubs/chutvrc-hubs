@@ -124,7 +124,7 @@ export class AvatarSyncHelper {
   }
 
   handleOnClientLeave(clientId: string) {
-    removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
+    removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId), this._avatarEid2ClientId);
     this._client2AvatarAssetId.delete(clientId);
     this._client2AvatarEid.delete(clientId);
     this._loadingAvatars.delete(clientId);
@@ -212,7 +212,8 @@ export class AvatarSyncHelper {
 
     // Remove old avatar if exists
     if (this._client2AvatarEid.has(clientId)) {
-      removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId));
+      removeAvatarEntityAndModel(APP.world, this._client2AvatarEid.get(clientId), this._avatarEid2ClientId);
+      this._client2AvatarEid.delete(clientId);
     }
 
     try {
