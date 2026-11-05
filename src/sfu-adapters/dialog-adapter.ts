@@ -887,7 +887,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
   protected async replaceTrack(kind: LocalTrackKind, track: MediaStreamTrack): Promise<void> {
     if (kind === "microphone") {
       this._micProducer.track.stop();
-      this._micProducer.replaceTrack(track);
+      this._micProducer.replaceTrack({ track });
       return;
     }
     await this.unpublishTrack(kind);
