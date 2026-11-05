@@ -175,6 +175,16 @@ export class LivekitAdapter extends SfuAdapter {
       }
     };
 
+    if (this._room) {
+      // Drop the old room's listeners first so its own Disconnected event cannot start a second reconnect
+      this._room.removeAllListeners();
+      try {
+        await this._room.disconnect();
+      } catch (error) {
+        console.error("Failed to disconnect old LiveKit room:", error);
+      }
+    }
+
     this._room = new Room(roomOptions);
     this._setupRoomEventListeners();
 
