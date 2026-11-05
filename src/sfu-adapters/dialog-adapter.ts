@@ -802,6 +802,7 @@ export class DialogAdapter extends SfuAdapter {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     // Create mediasoup Transport for sending (unless we don't want to produce).
     const sendTransportInfo = await this._protoo.request("createWebRtcTransport", {
+      forceTcp: !!this._forceTcp,
       producing: true,
       consuming: false,
       sctpCapabilities: { OS: 1024, MIS: 1024 }
@@ -934,6 +935,7 @@ export class DialogAdapter extends SfuAdapter {
     if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
     // Create mediasoup Transport for sending (unless we don't want to consume).
     const recvTransportInfo = await this._protoo.request("createWebRtcTransport", {
+      forceTcp: !!this._forceTcp,
       producing: false,
       consuming: true,
       sctpCapabilities: { OS: 1024, MIS: 1024 }
