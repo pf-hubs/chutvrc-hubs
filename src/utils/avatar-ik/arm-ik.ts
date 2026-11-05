@@ -1,17 +1,16 @@
 import { Euler, Matrix4, Mesh, Object3D, Quaternion, Vector3 } from "three";
 import { Transform } from "../../types/transform";
 import { JointInitSettings, LimbIk } from "./limb-ik";
-import { HubsWorld } from "../../app";
 import { TransformLowPassFilter } from "../transform-low-pass-filter";
 
 const VECTOR_UP = new Vector3(0, 1, 0);
+const parentWorldQuaternion = new Quaternion();
 
 export class ArmIk extends LimbIk {
   private isDebug?: boolean;
   private isLeft: boolean;
   private isHalfBody: boolean;
   private isVisible: boolean;
-  private world: HubsWorld;
   private inputFilter: TransformLowPassFilter;
 
   constructor(
@@ -23,7 +22,6 @@ export class ArmIk extends LimbIk {
     isFlippedY: boolean,
     isLeft: boolean,
     isHalfBody: boolean,
-    world: HubsWorld,
     isDebug?: boolean
   ) {
     super(avatarRootBone, avatarHipsBone, base, elbow, effector, isFlippedY);
@@ -38,7 +36,6 @@ export class ArmIk extends LimbIk {
     this.isVisible = true;
     this.inputFilter = new TransformLowPassFilter(0.3, 0.2);
     this.isDebug = isDebug;
-    this.world = world;
     this.effector.rotation.order = "YXZ";
   }
 
@@ -71,25 +68,25 @@ export class ArmIk extends LimbIk {
     if (!this.isHalfBody || !input || !(this.isVR || this.isNPC)) return;
     const parent = this.effector.parent;
 
-    // Attach hand to scene -> apply world position -> attach back to original parent
-    this.world.scene.attach(this.effector);
+    // World position of the hand, expressed in the frame of its parent bone
     this.effector.position.copy(this.currentInputPosition);
+    if (parent) {
+      parent.updateWorldMatrix(true, false);
+      parent.worldToLocal(this.effector.position);
+    }
     this.effector.updateMatrix();
-    parent?.attach(this.effector);
   }
 
   protected override adjustEffectorTransform(input: Transform | null) {
     if (input && (this.isVR || this.isNPC) && this.avatarRoot) {
-      let parent = this.effector.parent;
+      const parent = this.effector.parent;
       let targetQ = new Quaternion();
       targetQ.setFromEuler(new Euler(input.rot.x, input.rot.y, input.rot.z, "YXZ"));
 
-      // Attach hand to scene -> apply world rotation -> attach back to original parent
-      this.world.scene.attach(this.effector);
-      this.effector.quaternion.copy(this.avatarRoot?.quaternion.clone().multiply(targetQ) || targetQ); // world rotation
-      this.effector.quaternion._onChangeCallback();
-      this.effector.updateMatrix();
-      parent?.attach(this.effector);
+      // World rotation of the hand, then expressed in the frame of its parent bone:
+      // local = inverse(parent world rotation) * world rotation
+      this.effector.quaternion.copy(this.avatarRoot.quaternion).multiply(targetQ);
+      if (parent) this.effector.quaternion.premultiply(parent.getWorldQuaternion(parentWorldQuaternion).invert());
 
       if (this.isFlippedY) {
         this.effector.rotateZ(this.isLeft ? Math.PI / 2 : -Math.PI / 2);

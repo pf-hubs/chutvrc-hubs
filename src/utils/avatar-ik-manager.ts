@@ -18,7 +18,6 @@ const DummyInputTransform = {
 };
 
 export class AvatarIkManager {
-  private world: HubsWorld;
   private isVR: boolean;
   private animState: AvatarAnimState;
   private isFlippedY: boolean;
@@ -57,7 +56,6 @@ export class AvatarIkManager {
     const leftFoot = world.eid2obj.get(AvatarComponent.leftFoot[avatarEid]);
     const rightFoot = world.eid2obj.get(AvatarComponent.rightFoot[avatarEid]);
 
-    this.world = world;
     this.isVR = false;
     this.animState = 0; // avatar anim state TODO: change number to type AvatarAnimState
     this.isFlippedY = (right?.position?.x || 0) - (left?.position?.x || 0) > 0;
@@ -112,8 +110,7 @@ export class AvatarIkManager {
           left,
           this.isFlippedY,
           true,
-          this.isHalfBody,
-          this.world
+          this.isHalfBody
           // true
         );
       }
@@ -127,7 +124,6 @@ export class AvatarIkManager {
           this.isFlippedY,
           false,
           this.isHalfBody,
-          this.world,
           true
         );
       }
