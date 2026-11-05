@@ -500,8 +500,10 @@ export class LivekitAdapter extends SfuAdapter {
       this._cleanupParticipant(clientId);
     });
 
-    // Disconnect from room
+    // Disconnect from room. Detach the listeners first so that this intentional
+    // disconnect does not trigger a reconnect from the Disconnected event.
     if (this._room) {
+      this._room.removeAllListeners();
       await this._room.disconnect();
       this._room = null;
     }
