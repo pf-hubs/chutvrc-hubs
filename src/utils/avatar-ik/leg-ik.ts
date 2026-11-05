@@ -19,6 +19,7 @@ export class LegIk extends LimbIk {
     super(avatarRootBone, avatarHipsBone, base, elbow, effector, isFlippedY);
 
     this.elbow.isYRotFixed = true;
+    this.elbow.ikSolver.setYRotFixedFlag(true);
     this.isLeft = isLeft;
   }
 

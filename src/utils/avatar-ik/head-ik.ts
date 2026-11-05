@@ -19,7 +19,9 @@ export class HeadIk extends LimbIk {
     super(avatarRootBone, avatarHipsBone, base, elbow, effector, isFlippedY);
 
     this.base.isYRotFixed = true;
+    this.base.ikSolver.setYRotFixedFlag(true);
     this.elbow.isYRotFixed = true;
+    this.elbow.ikSolver.setYRotFixedFlag(true);
     this.headEffectorOffset = new Vector3();
   }
 
