@@ -3,7 +3,6 @@
 import { fetchReticulumAuthenticated } from "./phoenix-utils";
 import { proxiedUrlFor } from "./media-url-utils";
 import avatarUnavailableImage from "../assets/images/avatar_unavailable.png";
-import { Object3D } from "three";
 
 const AVATARS_API = "/api/v1/avatars";
 
@@ -94,56 +93,4 @@ export async function remixAvatar(parentId, name) {
   };
 
   return fetchReticulumAuthenticated(AVATARS_API, "POST", { avatar });
-}
-
-// ============= Avatar Transform Encoding/Decoding =============
-
-/**
- * Encode avatar transform using Float32 (4 bytes per axis) for full precision
- * Format: [posX(4)] [posY(4)] [posZ(4)] [rotX(4)] [rotY(4)] [rotZ(4)] [clientId(n)]
- * Total: 24 + clientId.length bytes
- */
-export function encodeAvatarTransform(avatarPartObj: Object3D, clientId: Uint8Array): Uint8Array {
-  const buffer = new ArrayBuffer(24 + clientId.length);
-  const view = new DataView(buffer);
-  const result = new Uint8Array(buffer);
-
-  // Position (3 x Float32 = 12 bytes)
-  view.setFloat32(0, avatarPartObj.position.x, true);
-  view.setFloat32(4, avatarPartObj.position.y, true);
-  view.setFloat32(8, avatarPartObj.position.z, true);
-
-  // Rotation (3 x Float32 = 12 bytes)
-  view.setFloat32(12, avatarPartObj.rotation.x, true);
-  view.setFloat32(16, avatarPartObj.rotation.y, true);
-  view.setFloat32(20, avatarPartObj.rotation.z, true);
-
-  // Client ID
-  result.set(clientId, 24);
-
-  return result;
-}
-
-/**
- * Decode position from encoded transform
- */
-export function decodePosition(encodedTransform: Uint8Array) {
-  const view = new DataView(encodedTransform.buffer as ArrayBuffer, encodedTransform.byteOffset);
-  return {
-    x: Math.round(view.getFloat32(0, true) * 1000) / 1000,
-    y: Math.round(view.getFloat32(4, true) * 1000) / 1000,
-    z: Math.round(view.getFloat32(8, true) * 1000) / 1000
-  };
-}
-
-/**
- * Decode rotation from encoded transform
- */
-export function decodeRotation(encodedTransform: Uint8Array) {
-  const view = new DataView(encodedTransform.buffer as ArrayBuffer, encodedTransform.byteOffset);
-  return {
-    x: Math.round(view.getFloat32(12, true) * 1000) / 1000,
-    y: Math.round(view.getFloat32(16, true) * 1000) / 1000,
-    z: Math.round(view.getFloat32(20, true) * 1000) / 1000
-  };
 }

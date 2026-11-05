@@ -1,6 +1,6 @@
 import { AElement } from "aframe";
 import { Euler, Object3D, Vector3 } from "three";
-import { encodeAvatarTransform } from "./avatar-utils";
+import { encodePart, POSE_BYTES } from "../avatar/net/pose-codec-v0";
 
 export enum AvatarPart {
   RIG = "RIG",
@@ -75,7 +75,7 @@ export class AvatarTransformBuffer {
     //   [AvatarPart.LEFT]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
     //   [AvatarPart.RIGHT]: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } }
     // };
-    const bufferSize = 24 + this._encodedClientId.length;
+    const bufferSize = POSE_BYTES + this._encodedClientId.length;
     this._encodedAvatarTransform = {
       [AvatarPart.RIG]: new Uint8Array(bufferSize),
       [AvatarPart.HEAD]: new Uint8Array(bufferSize),
@@ -106,15 +106,12 @@ export class AvatarTransformBuffer {
     return this._lastAvatarTransform[part];
   }
 
+  /** Encodes the live pose of the part into its own buffer, which is sent as is, and returns that buffer */
   getEncodedAvatarTransform(part: AvatarPart) {
-    if (this._encodedAvatarTransform[part]) {
-      this._encodedAvatarTransform[part].set(encodeAvatarTransform(this._avatarObj[part], this._encodedClientId));
-    } else {
-      this._encodedAvatarTransform[part] = new Uint8Array(
-        encodeAvatarTransform(this._avatarObj[part], this._encodedClientId)
-      );
-    }
-    return this._encodedAvatarTransform[part];
+    const obj = this._avatarObj[part];
+    const encoded = this._encodedAvatarTransform[part];
+    encodePart(obj.position, obj.rotation, this._encodedClientId, encoded);
+    return encoded;
   }
 
   isPositionUpdated(p1: Vector3, p2: Vector3) {

@@ -1,7 +1,8 @@
 import { AElement } from "aframe";
 import { SfuAdapter } from "../sfu-adapters/sfu-adapter";
 import { AvatarPart, AvatarTransformBuffer } from "./avatar-transform-buffer";
-import { decodePosition, decodeRotation, getAvatarSrc } from "./avatar-utils";
+import { decodePart } from "../avatar/net/pose-codec-v0";
+import { getAvatarSrc } from "./avatar-utils";
 import { createAvatarBoneEntities, removeAvatarEntityAndModel } from "../bit-systems/avatar-bones-system";
 import { loadModel } from "../components/gltf-model-plus";
 import { Object3D } from "three";
@@ -11,8 +12,14 @@ type Vector3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number };
 type Transform = { pos: Vector3; rot: Quaternion };
 
-/** The zero bytes that pad the client id at the end of a transform packet */
-const NUL_PADDING = /\u0000/g;
+function copyTransform(from: Transform, to: Transform) {
+  to.pos.x = from.pos.x;
+  to.pos.y = from.pos.y;
+  to.pos.z = from.pos.z;
+  to.rot.x = from.rot.x;
+  to.rot.y = from.rot.y;
+  to.rot.z = from.rot.z;
+}
 
 /* Sync BitECS-managed avatars through WebRTC DataChannel */
 export class AvatarSyncHelper {
@@ -20,6 +27,8 @@ export class AvatarSyncHelper {
   private _client2AvatarAssetId: Map<string, string>;
   private _loadingAvatars: Set<string>; // Track clients with in-progress avatar loads
   private readonly _textDecoder = new TextDecoder();
+  /** Where a received transform packet is decoded before it is copied to the sender's entry */
+  private readonly _receivedTransform: Transform = { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } };
   _sfu: SfuAdapter;
   _client2AvatarEid: Map<string, number>;
   _client2VrMode: Map<string, boolean>;
@@ -108,18 +117,24 @@ export class AvatarSyncHelper {
 
     if (channel.includes("#avatar-")) {
       // receive other clients' avatar transform when updated
-      // Client ID starts at byte 24 (after 24 bytes of Float32 position/rotation data)
-      const clientId = this._textDecoder.decode(data.subarray(24)).replace(NUL_PADDING, "");
+      const received = this._receivedTransform;
+      const clientId = decodePart(data, received.pos, received.rot);
       const avatarPart = channel.substring(8) as unknown as AvatarPart;
-      this._client2Transform.get(avatarPart)?.set(clientId, {
-        pos: decodePosition(data),
-        rot: decodeRotation(data)
-      });
+      const transforms = this._client2Transform.get(avatarPart);
+      if (transforms) {
+        // The inverse kinematics reads the entry every frame; it is updated in place so a packet allocates nothing
+        let transform = transforms.get(clientId);
+        if (!transform) {
+          transform = { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } };
+          transforms.set(clientId, transform);
+        }
+        copyTransform(received, transform);
+      }
 
       if (this._sfu.bus.isRecording) {
         this._sfu.bus.record({
           l: channel,
-          m: { c: clientId, p: decodePosition(data), r: decodeRotation(data) },
+          m: { c: clientId, p: { ...received.pos }, r: { ...received.rot } },
           t: Date.now(),
           s: 0
         });
