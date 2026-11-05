@@ -11,11 +11,15 @@ type Vector3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number };
 type Transform = { pos: Vector3; rot: Quaternion };
 
+/** The zero bytes that pad the client id at the end of a transform packet */
+const NUL_PADDING = /\u0000/g;
+
 /* Sync BitECS-managed avatars through WebRTC DataChannel */
 export class AvatarSyncHelper {
   private _selfAvatarTransformBuffer: AvatarTransformBuffer | undefined;
   private _client2AvatarAssetId: Map<string, string>;
   private _loadingAvatars: Set<string>; // Track clients with in-progress avatar loads
+  private readonly _textDecoder = new TextDecoder();
   _sfu: SfuAdapter;
   _client2AvatarEid: Map<string, number>;
   _client2VrMode: Map<string, boolean>;
@@ -64,7 +68,7 @@ export class AvatarSyncHelper {
 
   handleRecvMessage(channel: string, data: Uint8Array) {
     if (channel === "#avatarId") {
-      let [clientId, avatarId] = new TextDecoder().decode(data).split("|");
+      let [clientId, avatarId] = this._textDecoder.decode(data).split("|");
 
       // Skip if this client's avatar is already being loaded (prevents race condition)
       if (this._loadingAvatars.has(clientId)) return;
@@ -88,12 +92,12 @@ export class AvatarSyncHelper {
     }
 
     if (channel === "#isVR") {
-      let [clientId, isVR] = new TextDecoder().decode(data).split("|");
+      let [clientId, isVR] = this._textDecoder.decode(data).split("|");
       this._client2VrMode.set(clientId, isVR === "1");
     }
 
     if (channel === "#avatarAnimState") {
-      let [clientId, animStateStr] = new TextDecoder().decode(data).split("|");
+      let [clientId, animStateStr] = this._textDecoder.decode(data).split("|");
       const animState = parseInt(animStateStr);
       if (isValidAvatarAnimState(animState)) {
         this.switchAnimState(clientId, animState);
@@ -105,7 +109,7 @@ export class AvatarSyncHelper {
     if (channel.includes("#avatar-")) {
       // receive other clients' avatar transform when updated
       // Client ID starts at byte 24 (after 24 bytes of Float32 position/rotation data)
-      const clientId = new TextDecoder().decode(data.subarray(24)).replace(/\u0000/g, "");
+      const clientId = this._textDecoder.decode(data.subarray(24)).replace(NUL_PADDING, "");
       const avatarPart = channel.substring(8) as unknown as AvatarPart;
       this._client2Transform.get(avatarPart)?.set(clientId, {
         pos: decodePosition(data),
