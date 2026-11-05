@@ -1,5 +1,5 @@
 import { addComponent, addEntity, defineQuery, removeEntity } from "bitecs";
-import { Object3D, Quaternion, Vector3 } from "three";
+import { Object3D } from "three";
 import { BoneType } from "../constants";
 import { AvatarComponent, BoneComponent } from "../bit-components";
 import { addObject3DComponent } from "../utils/jsx-entity";
@@ -27,32 +27,6 @@ export type InputTransform = {
   rightFoot?: Transform;
 };
 
-/*
-class BoneProxy {
-  eid: number;
-  store: any;
-  obj: Object3D;
-
-  constructor(eid: number, obj: Object3D) { 
-    this.eid = eid
-    this.store = BoneComponent
-    this.obj = obj
-  }
-
-  get position ()    { return this.store.transform.position[this.eid] }
-  set position (val) { this.store.transform.position[this.eid] = val }
-
-  get rotation ()    { return this.store.transform.rotation[this.eid] }
-  set rotation (val) { this.store.transform.rotation[this.eid] = val }
-
-  get worldPos ()    { return this.store.transform.position[this.eid] }
-  set worldPos (val) { this.store.transform.position[this.eid] = val }
-
-  get worldRot ()    { return this.store.transform.rotation[this.eid] }
-  set worldRot (val) { this.store.transform.rotation[this.eid] = val }
-}
-*/
-
 export const createBoneEntity = (
   world: HubsWorld,
   bone: Object3D | undefined,
@@ -67,66 +41,6 @@ export const createBoneEntity = (
 
   // TODO: when creating the bone entity, calculate offset matrix for a required bone when there are optional bones between it and its parent in advance
   // TODO: function or property to calculate world coordinates (for every tick use)
-
-  /*
-  // position
-  Object.defineProperty(bone.position, "eid", { get: () => eid });
-  Object.defineProperty(bone.position, "store", { get: () => BoneComponent.transform.position });
-
-  Object.defineProperty(bone.position, "x", {
-    get() {
-      return this.store.x[this.eid];
-    },
-    set(n) {
-      this.store.x[this.eid] = n;
-    }
-  });
-  Object.defineProperty(bone.position, "y", {
-    get() {
-      return this.store.y[this.eid];
-    },
-    set(n) {
-      this.store.y[this.eid] = n;
-    }
-  });
-  Object.defineProperty(bone.position, "z", {
-    get() {
-      return this.store.z[this.eid];
-    },
-    set(n) {
-      this.store.z[this.eid] = n;
-    }
-  });
-
-  // rotation
-  Object.defineProperty(bone.rotation, "eid", { get: () => eid });
-  Object.defineProperty(bone.rotation, "store", { get: () => BoneComponent.transform.rotation });
-
-  Object.defineProperty(bone.rotation, "_x", {
-    get() {
-      return this.store.x[this.eid];
-    },
-    set(n) {
-      this.store.x[this.eid] = n;
-    }
-  });
-  Object.defineProperty(bone.rotation, "_y", {
-    get() {
-      return this.store.y[this.eid];
-    },
-    set(n) {
-      this.store.y[this.eid] = n;
-    }
-  });
-  Object.defineProperty(bone.rotation, "_z", {
-    get() {
-      return this.store.z[this.eid];
-    },
-    set(n) {
-      this.store.z[this.eid] = n;
-    }
-  });
-  */
 
   addObject3DComponent(world, eid, bone);
   addComponent(world, BoneComponent, eid);
@@ -167,39 +81,6 @@ export const createAvatarEntity = (
   AvatarComponent.rightHand[eid] = boneType2Eid.get(BoneType.RightHand) || 0;
 
   return eid;
-};
-
-export const createSelfAvatarBoneEntities = (world: HubsWorld, avatar: Object3D) => {
-  const avatarBoneMap = mapAvatarBone(avatar);
-  const boneType2Eid = new Map<BoneType, number>();
-  const avatarRoot = avatarBoneMap.get(BoneType.Root);
-  // TODO: check avatar's orientation by relative positions between hands, etc. Then rotate the avatar if necessary.
-
-  var boneEid;
-  for (const boneType of Object.values(BoneType)) {
-    boneEid = createBoneEntity(world, avatarBoneMap.get(boneType as BoneType), avatarRoot, boneType as BoneType);
-    if (boneEid) boneType2Eid.set(boneType as BoneType, boneEid);
-  }
-
-  if (boneType2Eid.size > 0) {
-    const avatarEid = createAvatarEntity(APP.world, boneType2Eid);
-    if (avatarEid) {
-      addObject3DComponent(world, avatarEid, avatar);
-
-      // const leftHandX = APP.world.eid2obj.get(AvatarComponent.leftHand[avatarEid])?.position?.x || 0;
-      // const rightHandX = APP.world.eid2obj.get(AvatarComponent.rightHand[avatarEid])?.position?.x || 0;
-      APP.world.eid2Ik.set(avatarEid, new AvatarIkManager(world, avatarEid));
-
-      // let chestPos = avatarBoneMap.get(BoneType.Chest)?.position;
-      // let neckPos = avatarBoneMap.get(BoneType.Neck)?.position;
-      // let headPos = avatarBoneMap.get(BoneType.Head)?.position;
-      // if (chestPos && neckPos && headPos) {
-      //   invHipsToHeadVector.addVectors(chestPos, neckPos).add(headPos).negate();
-      // }
-      return avatarEid;
-    }
-  }
-  return null;
 };
 
 export const createAvatarBoneEntities = (

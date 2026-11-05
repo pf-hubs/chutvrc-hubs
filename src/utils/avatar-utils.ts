@@ -99,15 +99,6 @@ export async function remixAvatar(parentId, name) {
 // ============= Avatar Transform Encoding/Decoding =============
 
 /**
- * Decoded avatar transform with client ID
- */
-export interface AvatarTransformDecoded {
-  pos: { x: number; y: number; z: number };
-  rot: { x: number; y: number; z: number };
-  clientId: string;
-}
-
-/**
  * Encode avatar transform using Float32 (4 bytes per axis) for full precision
  * Format: [posX(4)] [posY(4)] [posZ(4)] [rotX(4)] [rotY(4)] [rotZ(4)] [clientId(n)]
  * Total: 24 + clientId.length bytes
@@ -155,47 +146,4 @@ export function decodeRotation(encodedTransform: Uint8Array) {
     y: Math.round(view.getFloat32(16, true) * 1000) / 1000,
     z: Math.round(view.getFloat32(20, true) * 1000) / 1000
   };
-}
-
-/**
- * Decode avatar transform with client ID
- */
-export function decodeAvatarTransform(data: Uint8Array): AvatarTransformDecoded | null {
-  if (data.length < 24) {
-    console.warn("Avatar transform data too short");
-    return null;
-  }
-
-  const view = new DataView(data.buffer as ArrayBuffer, data.byteOffset);
-  return {
-    pos: {
-      x: Math.round(view.getFloat32(0, true) * 1000) / 1000,
-      y: Math.round(view.getFloat32(4, true) * 1000) / 1000,
-      z: Math.round(view.getFloat32(8, true) * 1000) / 1000
-    },
-    rot: {
-      x: Math.round(view.getFloat32(12, true) * 1000) / 1000,
-      y: Math.round(view.getFloat32(16, true) * 1000) / 1000,
-      z: Math.round(view.getFloat32(20, true) * 1000) / 1000
-    },
-    clientId: new TextDecoder().decode(data.subarray(24)).replace(/\u0000/g, "")
-  };
-}
-
-/**
- * Decode and set avatar transform on an Object3D
- */
-export function decodeAndSetAvatarTransform(encodedTransform: Uint8Array, avatarPartObj: Object3D): void {
-  const view = new DataView(encodedTransform.buffer as ArrayBuffer, encodedTransform.byteOffset);
-  avatarPartObj.position.set(
-    view.getFloat32(0, true),
-    view.getFloat32(4, true),
-    view.getFloat32(8, true)
-  );
-  avatarPartObj.rotation.set(
-    view.getFloat32(12, true),
-    view.getFloat32(16, true),
-    view.getFloat32(20, true),
-    "YXZ"
-  );
 }
