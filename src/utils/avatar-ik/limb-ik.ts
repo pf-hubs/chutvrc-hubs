@@ -92,13 +92,14 @@ export class LimbIk {
     this.avatarRoot.getWorldPosition(this.avatarRootWorldPos);
     this.updateCurrentInput(input, cameraTransform);
 
-    if (!isNPC) this.adjustEffectorTransform(input); // TODO: remove `if (!isNPC)`
-
     for (let _ = 0; _ < 3; _++) {
       this.base?.ikSolver?.alignBoneWithGoal(this.currentInputPosition);
       this.elbow?.ikSolver?.alignBoneWithGoal(this.currentInputPosition, this.effector.rotation.y);
     }
 
     this.adjustElbow();
+
+    // Write the effector orientation only once the chain above it has settled
+    if (!isNPC) this.adjustEffectorTransform(input); // TODO: remove `if (!isNPC)`
   }
 }

@@ -66,18 +66,26 @@ export class ArmIk extends LimbIk {
     // );
   }
 
+  // A half-body hand is not driven by an arm chain, so its position is written directly from the input
+  private adjustEffectorPosition(input: Transform | null) {
+    if (!this.isHalfBody || !input || !(this.isVR || this.isNPC)) return;
+    const parent = this.effector.parent;
+
+    // Attach hand to scene -> apply world position -> attach back to original parent
+    this.world.scene.attach(this.effector);
+    this.effector.position.copy(this.currentInputPosition);
+    this.effector.updateMatrix();
+    parent?.attach(this.effector);
+  }
+
   protected override adjustEffectorTransform(input: Transform | null) {
     if (input && (this.isVR || this.isNPC) && this.avatarRoot) {
       let parent = this.effector.parent;
       let targetQ = new Quaternion();
       targetQ.setFromEuler(new Euler(input.rot.x, input.rot.y, input.rot.z, "YXZ"));
 
-      // Attach hand to scene -> apply world transform -> attach back to original parent
+      // Attach hand to scene -> apply world rotation -> attach back to original parent
       this.world.scene.attach(this.effector);
-      if (this.isHalfBody) {
-        // world position
-        this.effector.position.copy(this.currentInputPosition);
-      }
       this.effector.quaternion.copy(this.avatarRoot?.quaternion.clone().multiply(targetQ) || targetQ); // world rotation
       this.effector.quaternion._onChangeCallback();
       this.effector.updateMatrix();
@@ -127,10 +135,8 @@ export class ArmIk extends LimbIk {
     this.avatarRoot.getWorldPosition(this.avatarRootWorldPos);
     this.updateCurrentInput(input, cameraTransform);
 
-    if (!isNPC) this.adjustEffectorTransform(input); // TODO: remove `if (!isNPC)`
+    if (!isNPC) this.adjustEffectorPosition(input); // TODO: remove `if (!isNPC)`
 
-    const rotY = this.effector.rotation.y;
-    // this.effector.rotation.y = 0;
     this.effector.updateMatrix();
 
     for (let _ = 0; _ < 2; _++) {
@@ -139,5 +145,8 @@ export class ArmIk extends LimbIk {
     }
 
     this.adjustElbow();
+
+    // Write the hand orientation only once the arm chain has settled, so it does not lag the arm
+    if (!isNPC) this.adjustEffectorTransform(input); // TODO: remove `if (!isNPC)`
   }
 }
