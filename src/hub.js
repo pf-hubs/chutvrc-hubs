@@ -1562,7 +1562,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     APP.sfu.disconnect();
-    connectSfu({
+    connectSfu(APP.sfu, {
       sfuId: APP.sfu._sfuId,
       clientId: APP.getString(localClientID),
       channelId: APP.hub.hub_id,
