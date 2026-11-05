@@ -6,6 +6,7 @@ import {
   Track,
   RemoteTrack,
   TrackPublication,
+  LocalAudioTrack,
   LocalTrackPublication,
   RemoteTrackPublication,
   ConnectionState,
@@ -643,11 +644,13 @@ export class LivekitAdapter extends SfuAdapter {
         if (track.kind === "audio") {
           sawAudio = true;
 
-          if (this._micPublication) {
-            // Publish new track (will replace old one)
-            await this._room!.localParticipant.publishTrack(track, {
-              name: "microphone"
-            });
+          const micTrack = this._micPublication?.track;
+          if (micTrack instanceof LocalAudioTrack) {
+            // Swap the MediaStreamTrack under the existing publication instead of publishing a second mic.
+            // replaceTrack() keeps the publication's muted flag but not the new track's enabled flag,
+            // so align them first or a muted mic would start sending audio.
+            track.enabled = !micTrack.isMuted;
+            await micTrack.replaceTrack(track);
           } else {
             this._micPublication = await this._room!.localParticipant.publishTrack(track, {
               name: "microphone"
