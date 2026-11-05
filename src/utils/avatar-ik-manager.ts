@@ -1,8 +1,7 @@
 import { Object3D, Vector3 } from "three";
-import { HubsWorld } from "../app";
-import { AvatarComponent } from "../bit-components";
 import { InputTransform } from "../bit-systems/avatar-bones-system";
 import { TrackedPose } from "../avatar/pose/tracked-pose";
+import { RigDescription } from "../avatar/rig/rig-description";
 import { Transform } from "../types/transform";
 import { HeadIk } from "./avatar-ik/head-ik";
 import { ArmIk } from "./avatar-ik/arm-ik";
@@ -43,19 +42,21 @@ export class AvatarIkManager {
   private leftFootWorldInput: Transform;
   private rightFootWorldInput: Transform;
 
-  constructor(world: HubsWorld, avatarEid: number, isNPC?: boolean) {
-    const head = world.eid2obj.get(AvatarComponent.head[avatarEid]);
-    const spine = world.eid2obj.get(AvatarComponent.spine[avatarEid]);
-    this.hipsBone = world.eid2obj.get(AvatarComponent.hips[avatarEid]);
-    const left = world.eid2obj.get(AvatarComponent.leftHand[avatarEid]);
-    const right = world.eid2obj.get(AvatarComponent.rightHand[avatarEid]);
-    const leftFoot = world.eid2obj.get(AvatarComponent.leftFoot[avatarEid]);
-    const rightFoot = world.eid2obj.get(AvatarComponent.rightFoot[avatarEid]);
+  /** Takes the bones and the measurements of the rig as they were described when the model was loaded */
+  constructor(rig: RigDescription, isNPC?: boolean) {
+    const bone = (name: keyof RigDescription["bones"]) => rig.bones[name] ?? undefined;
+    const head = bone("head");
+    const spine = bone("spine");
+    this.hipsBone = bone("hips");
+    const left = bone("leftHand");
+    const right = bone("rightHand");
+    const leftFoot = bone("leftFoot");
+    const rightFoot = bone("rightFoot");
 
     this.isVR = false;
     this.animState = 0; // avatar anim state TODO: change number to type AvatarAnimState
-    this.isFlippedY = (right?.position?.x || 0) - (left?.position?.x || 0) > 0;
-    this.rootBone = world.eid2obj.get(AvatarComponent.root[avatarEid]);
+    this.isFlippedY = rig.isFlippedY;
+    this.rootBone = bone("root");
     this.rootPos = new Vector3();
     this.isInputReady = false;
     this.isSelfAvatar = false;
@@ -67,13 +68,8 @@ export class AvatarIkManager {
       rightController: DummyInputTransform
     };
 
-    let headWorldPos = new Vector3();
-    let hipsWorldPos = new Vector3();
-    head?.getWorldPosition(headWorldPos);
-    this.hipsBone?.getWorldPosition(hipsWorldPos);
-    this.hips2HeadDist = (headWorldPos.y || 1) - (hipsWorldPos.y || 0);
-
-    this.isHalfBody = left?.parent === spine && right?.parent === spine && spine?.parent === this.hipsBone;
+    this.hips2HeadDist = rig.lengths.hipsToHead;
+    this.isHalfBody = rig.isHalfBody;
 
     this.stand();
 
@@ -85,7 +81,7 @@ export class AvatarIkManager {
           this.rootBone,
           this.hipsBone,
           { bone: spine, ...JointSettings.head.base },
-          { bone: world.eid2obj.get(AvatarComponent.neck[avatarEid]), ...JointSettings.head.elbow },
+          { bone: bone("neck"), ...JointSettings.head.elbow },
           head,
           this.isFlippedY
         );
@@ -94,8 +90,8 @@ export class AvatarIkManager {
         this.leftArmIK = new ArmIk(
           this.rootBone,
           this.hipsBone,
-          { bone: world.eid2obj.get(AvatarComponent.leftUpperArm[avatarEid]), ...JointSettings.leftArm.base },
-          { bone: world.eid2obj.get(AvatarComponent.leftLowerArm[avatarEid]), ...JointSettings.leftArm.elbow },
+          { bone: bone("leftUpperArm"), ...JointSettings.leftArm.base },
+          { bone: bone("leftLowerArm"), ...JointSettings.leftArm.elbow },
           left,
           this.isFlippedY,
           true,
@@ -107,8 +103,8 @@ export class AvatarIkManager {
         this.rightArmIK = new ArmIk(
           this.rootBone,
           this.hipsBone,
-          { bone: world.eid2obj.get(AvatarComponent.rightUpperArm[avatarEid]), ...JointSettings.rightArm.base },
-          { bone: world.eid2obj.get(AvatarComponent.rightLowerArm[avatarEid]), ...JointSettings.rightArm.elbow },
+          { bone: bone("rightUpperArm"), ...JointSettings.rightArm.base },
+          { bone: bone("rightLowerArm"), ...JointSettings.rightArm.elbow },
           right,
           this.isFlippedY,
           false,
@@ -120,8 +116,8 @@ export class AvatarIkManager {
         this.leftLegIK = new LegIk(
           this.rootBone,
           this.hipsBone,
-          { bone: world.eid2obj.get(AvatarComponent.leftUpperLeg[avatarEid]), ...JointSettings.leftLeg.base },
-          { bone: world.eid2obj.get(AvatarComponent.leftLowerLeg[avatarEid]), ...JointSettings.leftLeg.elbow },
+          { bone: bone("leftUpperLeg"), ...JointSettings.leftLeg.base },
+          { bone: bone("leftLowerLeg"), ...JointSettings.leftLeg.elbow },
           leftFoot,
           this.isFlippedY,
           true
@@ -131,8 +127,8 @@ export class AvatarIkManager {
         this.rightLegIK = new LegIk(
           this.rootBone,
           this.hipsBone,
-          { bone: world.eid2obj.get(AvatarComponent.rightUpperLeg[avatarEid]), ...JointSettings.rightLeg.base },
-          { bone: world.eid2obj.get(AvatarComponent.rightLowerLeg[avatarEid]), ...JointSettings.rightLeg.elbow },
+          { bone: bone("rightUpperLeg"), ...JointSettings.rightLeg.base },
+          { bone: bone("rightLowerLeg"), ...JointSettings.rightLeg.elbow },
           rightFoot,
           this.isFlippedY,
           false

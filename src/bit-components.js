@@ -1,5 +1,5 @@
 import { defineComponent, setDefaultSize, setRemovedRecycleThreshold, Types } from "bitecs";
-import { BoneType } from "./constants";
+import { bodyBoneRecord } from "./avatar/rig/bone-names";
 
 // TODO this has to happen before all components are defined. Is there a better spot to be doing this?
 setDefaultSize(10000);
@@ -501,28 +501,8 @@ const BoneSchema = {
   // boneType: Types.ui8,
   transform: TransformSchema
 };
-const AvatarSchema = {
-  root: Types.eid,
-  hips: Types.eid,
-  spine: Types.eid,
-  chest: Types.eid,
-  neck: Types.eid,
-  head: Types.eid,
-  leftUpperLeg: Types.eid,
-  leftLowerLeg: Types.eid,
-  leftFoot: Types.eid,
-  rightUpperLeg: Types.eid,
-  rightLowerLeg: Types.eid,
-  rightFoot: Types.eid,
-  leftShoulder: Types.eid,
-  leftUpperArm: Types.eid,
-  leftLowerArm: Types.eid,
-  leftHand: Types.eid,
-  rightShoulder: Types.eid,
-  rightUpperArm: Types.eid,
-  rightLowerArm: Types.eid,
-  rightHand: Types.eid
-};
+// The bone entity of each body bone, by bone name; 0 for a bone the model lacks
+const AvatarSchema = bodyBoneRecord(Types.eid);
 
 export const TransformComponent = defineComponent(TransformSchema);
 export const BoneComponent = defineComponent(BoneSchema);
