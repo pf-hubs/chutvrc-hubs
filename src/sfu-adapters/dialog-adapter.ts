@@ -11,6 +11,7 @@ import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "../components/cross-room-streamer-audio-source";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { DataChannelMessage } from "../types/sfu-adapter-interface";
+import { DialogConfig, SfuConfig, TurnConfig, withDialogHost } from "./sfu-config";
 import {
   ChannelHandlerRegistry,
   createAvatarSyncHandlers,
@@ -58,31 +59,7 @@ const SCREEN_SHARING_SIMULCAST_ENCODINGS = [
   { dtx: true, maxBitrate: 6000000 }
 ];
 
-interface TurnConfig {
-  enabled: boolean;
-  username: string;
-  credential: string;
-  transports: Array<{ port: number }>;
-}
-
-interface ServerParams {
-  host: string;
-  port: number;
-  turn?: TurnConfig;
-}
-
-interface ConnectProps {
-  serverUrl: string;
-  roomId: string;
-  serverParams: ServerParams;
-  scene: any;
-  clientId: string;
-  forceTcp: boolean;
-  forceTurn: boolean;
-  iceTransportPolicy: RTCIceTransportPolicy | null;
-}
-
-export class DialogAdapter extends SfuAdapter {
+export class DialogAdapter extends SfuAdapter<DialogConfig> {
   private _micShouldBeEnabled: boolean;
   private _micProducer: any;
   private _cameraProducer: any;
@@ -93,18 +70,13 @@ export class DialogAdapter extends SfuAdapter {
   private _dataConsumers: Map<string, any>;
   private _pendingMediaRequests: Map<string, any>;
   private _blockedClients: Map<string, boolean>;
-  private _forceTcp: boolean;
-  private _forceTurn: boolean;
-  private _iceTransportPolicy: RTCIceTransportPolicy | null;
   private _useDataChannel: boolean;
-  private _serverParams: ServerParams;
   private _consumerStats: Record<string, any>;
   private _protoo: any;
   private _mediasoupDevice: any;
   private _sendTransport: any;
   private _recvTransport: any;
   private _downlinkBwe: any;
-  private _serverUrl: string;
   private crossRoomStreamerAudioSource: Record<string, any>;
   private _laserPointerHandler: LaserPointerHandler | null = null;
   public scene: any;
@@ -124,12 +96,8 @@ export class DialogAdapter extends SfuAdapter {
     this._dataConsumers = new Map(); // DataChannel implementation
     this._pendingMediaRequests = new Map();
     this._blockedClients = new Map();
-    this._forceTcp = false;
-    this._forceTurn = false;
-    this._iceTransportPolicy = null;
     this._useDataChannel = true; // DataChannel implementation
     this.scene = null;
-    this._serverParams = {} as ServerParams;
     this._consumerStats = {};
     this._avatarSyncHelper = new AvatarSyncHelper(this);
     this._dataChannelMessages = [];
@@ -179,15 +147,17 @@ export class DialogAdapter extends SfuAdapter {
     return this._dataProducers?.has("#iot") && this._sendTransport && !this._sendTransport._closed;
   }
 
-  getIceServers(host: string, port: number, turn?: TurnConfig): RTCIceServer[] {
-    const iceServers: RTCIceServer[] = [];
+  get isConnected(): boolean {
+    return !!this._sendTransport;
+  }
 
-    this._serverUrl = `wss://${host}:${port}`;
+  getIceServers(host: string, port: number, turn?: TurnConfig | null): RTCIceServer[] {
+    const iceServers: RTCIceServer[] = [];
 
     if (turn && turn.enabled) {
       turn.transports.forEach(ts => {
         // Try both TURN DTLS and TCP/TLS
-        if (!this._forceTcp) {
+        if (!this._config.forceTcp) {
           iceServers.push({
             urls: `turns:${host}:${ts.port}`,
             username: turn.username,
@@ -288,7 +258,7 @@ export class DialogAdapter extends SfuAdapter {
         await this.iceRestart(this._sendTransport);
       } else {
         // If the transport is closed but the signaling is connected, we try to recreate
-        const { host, port, turn } = this._serverParams;
+        const { host, port, turn } = this._config;
         const iceServers = this.getIceServers(host, port, turn);
         await this.recreateSendTransport(iceServers);
       }
@@ -331,7 +301,7 @@ export class DialogAdapter extends SfuAdapter {
         await this.iceRestart(this._recvTransport);
       } else {
         // If the transport is closed but the signaling is connected, we try to recreate
-        const { host, port, turn } = this._serverParams;
+        const { host, port, turn } = this._config;
         const iceServers = this.getIceServers(host, port, turn);
         await this.recreateRecvTransport(iceServers);
       }
@@ -352,21 +322,20 @@ export class DialogAdapter extends SfuAdapter {
     }
   }
 
-  async connect(props: ConnectProps): Promise<void> {
-    const { serverUrl, roomId, serverParams, scene, clientId, forceTcp, forceTurn, iceTransportPolicy } = props;
-    this._serverUrl = serverUrl;
+  async connect(config: SfuConfig): Promise<void> {
+    if (config.kind !== "dialog") {
+      throw new Error(`DialogAdapter cannot connect with a ${config.kind} config`);
+    }
+    const { roomId, scene, clientId, host, port } = config;
+    this._config = config;
     this._roomId = roomId;
-    this._serverParams = serverParams;
     this._clientId = clientId;
     this.scene = scene;
-    this._forceTcp = forceTcp;
-    this._forceTurn = forceTurn;
-    this._iceTransportPolicy = iceTransportPolicy;
 
     // Update dispatcher context with connection info
     this.updateDispatcherContext();
 
-    const urlWithParams = new URL(this._serverUrl);
+    const urlWithParams = new URL(`wss://${host}:${port}`);
     urlWithParams.searchParams.append("roomId", this._roomId);
     urlWithParams.searchParams.append("peerId", this._clientId);
 
@@ -674,25 +643,14 @@ export class DialogAdapter extends SfuAdapter {
   async _retryConnectWithNewHost(): Promise<void> {
     this.cleanUpLocalState();
     this._protoo.removeAllListeners();
-    const serverParams = await APP.hubChannel.getHost();
-    const { host, port } = serverParams;
-    const newServerUrl = `wss://${host}:4443`;
-    if (this._serverUrl === newServerUrl) {
+    const { host, port, turn } = await APP.hubChannel.getHost();
+    if (this._config.host === host && this._config.port === port) {
       console.error("Reconnect to dialog failed.");
       this.emit(SFU_CONNECTION_ERROR_FATAL);
       return;
     }
-    console.log(`The Dialog server has changed to ${newServerUrl}, reconnecting with the new server...`);
-    await this.connect({
-      serverUrl: newServerUrl,
-      roomId: this._roomId,
-      serverParams,
-      scene: this.scene,
-      clientId: this._clientId,
-      forceTcp: this._forceTcp,
-      forceTurn: this._forceTurn,
-      iceTransportPolicy: this._iceTransportPolicy
-    });
+    console.log(`The Dialog server has changed to wss://${host}:${port}, reconnecting with the new server...`);
+    await this.connect(withDialogHost(this._config, { host, port, turn }));
   }
 
   closePeer(peerId: string): void {
@@ -802,7 +760,7 @@ export class DialogAdapter extends SfuAdapter {
     if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
     // Create mediasoup Transport for sending (unless we don't want to produce).
     const sendTransportInfo = await this._protoo.request("createWebRtcTransport", {
-      forceTcp: !!this._forceTcp,
+      forceTcp: this._config.forceTcp,
       producing: true,
       consuming: false,
       sctpCapabilities: { OS: 1024, MIS: 1024 }
@@ -815,7 +773,7 @@ export class DialogAdapter extends SfuAdapter {
       dtlsParameters: sendTransportInfo.dtlsParameters,
       sctpParameters: sendTransportInfo.sctpParameters,
       iceServers,
-      iceTransportPolicy: this._iceTransportPolicy,
+      iceTransportPolicy: this._config.iceTransportPolicy,
       proprietaryConstraints: PC_PROPRIETARY_CONSTRAINTS
     });
 
@@ -941,7 +899,7 @@ export class DialogAdapter extends SfuAdapter {
     if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
     // Create mediasoup Transport for sending (unless we don't want to consume).
     const recvTransportInfo = await this._protoo.request("createWebRtcTransport", {
-      forceTcp: !!this._forceTcp,
+      forceTcp: this._config.forceTcp,
       producing: false,
       consuming: true,
       sctpCapabilities: { OS: 1024, MIS: 1024 }
@@ -954,7 +912,7 @@ export class DialogAdapter extends SfuAdapter {
       dtlsParameters: recvTransportInfo.dtlsParameters,
       sctpParameters: recvTransportInfo.sctpParameters,
       iceServers,
-      iceTransportPolicy: this._iceTransportPolicy
+      iceTransportPolicy: this._config.iceTransportPolicy
     });
 
     this._recvTransport.on(
@@ -1021,7 +979,7 @@ export class DialogAdapter extends SfuAdapter {
 
     await this._mediasoupDevice.load({ routerRtpCapabilities });
 
-    const { host, port, turn } = this._serverParams;
+    const { host, port, turn } = this._config;
     const iceServers = this.getIceServers(host, port, turn);
 
     if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) await this.createSendTransport(iceServers);

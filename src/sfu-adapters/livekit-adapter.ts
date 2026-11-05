@@ -23,6 +23,7 @@ import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "../components/cross-room-streamer-audio-source";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { SfuConnectionState } from "../types/sfu-adapter-interface";
+import { LivekitConfig, SfuConfig } from "./sfu-config";
 import {
   ChannelHandlerRegistry,
   createAvatarSyncHandlers,
@@ -43,27 +44,18 @@ const RETRY_CONFIG = {
   maxDelay: 10000
 };
 
-type ConnectProps = {
-  clientId: string;
-  roomName: string;
-  serverUrl: string;
-  accessToken: string;
-  scene: Element;
-};
-
 interface PendingMediaRequest {
   resolve: (stream: MediaStream) => void;
   reject: (error: Error) => void;
   promise?: Promise<MediaStream>;
 }
 
-export class LivekitAdapter extends SfuAdapter {
+export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
   // LiveKit Room instance
   private _room: Room | null = null;
 
   // Connection state management
   private _connectionState: SfuConnectionState = SfuConnectionState.DISCONNECTED;
-  private _connectParams: ConnectProps | null = null;
   private _retryCount: number = 0;
 
   // Local media state
@@ -134,15 +126,23 @@ export class LivekitAdapter extends SfuAdapter {
     return this._connectionState;
   }
 
-  protected _handleSfuTokenUpdated(event: CustomEvent): void {
-    if (this._connectParams) this._connectParams.accessToken = event.detail.token;
+  get isConnected(): boolean {
+    return this._room !== null && this._room.state === ConnectionState.Connected;
   }
 
-  async connect({ clientId, roomName, serverUrl, accessToken, scene }: ConnectProps): Promise<void> {
+  protected _handleSfuTokenUpdated(event: CustomEvent): void {
+    if (this._config) this._config = { ...this._config, accessToken: event.detail.token };
+  }
+
+  async connect(config: SfuConfig): Promise<void> {
+    if (config.kind !== "livekit") {
+      throw new Error(`LivekitAdapter cannot connect with a ${config.kind} config`);
+    }
+    const { clientId, roomName, serverUrl, accessToken, scene } = config;
     this._scene = scene;
     this._roomId = roomName;
     this._clientId = clientId;
-    this._connectParams = { clientId, roomName, serverUrl, accessToken, scene };
+    this._config = config;
     this._connectionState = SfuConnectionState.CONNECTING;
 
     this.updateDispatcherContext();
@@ -153,7 +153,7 @@ export class LivekitAdapter extends SfuAdapter {
       const freshToken = await this._ensureFreshToken();
       if (freshToken) {
         tokenToUse = freshToken;
-        if (this._connectParams) this._connectParams.accessToken = freshToken;
+        this._config = { ...config, accessToken: freshToken };
       } else {
         console.error("Failed to get LiveKit access token from server");
         this._connectionState = SfuConnectionState.FAILED;
@@ -223,8 +223,8 @@ export class LivekitAdapter extends SfuAdapter {
   }
 
   async reconnect(): Promise<void> {
-    if (!this._connectParams) {
-      console.error("Cannot reconnect: no connection params saved");
+    if (!this._config) {
+      console.error("Cannot reconnect: no connection config saved");
       return;
     }
 
@@ -239,7 +239,7 @@ export class LivekitAdapter extends SfuAdapter {
     this._retryCount++;
 
     const freshToken = await this._ensureFreshToken();
-    if (freshToken && this._connectParams) this._connectParams.accessToken = freshToken;
+    if (freshToken) this._config = { ...this._config, accessToken: freshToken };
 
     const delay = Math.min(RETRY_CONFIG.baseDelay * Math.pow(2, this._retryCount - 1), RETRY_CONFIG.maxDelay);
     debug(`Reconnecting in ${delay}ms (attempt ${this._retryCount}/${RETRY_CONFIG.maxRetries})`);
@@ -247,7 +247,7 @@ export class LivekitAdapter extends SfuAdapter {
     await new Promise(resolve => setTimeout(resolve, delay));
 
     try {
-      await this.connect(this._connectParams);
+      await this.connect(this._config);
     } catch (error) {
       console.error("Reconnection failed:", error);
       this._connectionState = SfuConnectionState.FAILED;

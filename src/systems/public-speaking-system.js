@@ -1,4 +1,4 @@
-import { connectSfu } from "../utils/sfu-adapter-utils";
+import { derivePublicSpeakingConfig } from "../sfu-adapters/sfu-config";
 import { SFU_CONNECTION_TYPE } from "../sfu-types";
 import { SfuAdapterFactory } from "../sfu-adapters/adapter-factory";
 
@@ -46,20 +46,9 @@ export class PublicSpeakingSystem {
     console.log("initPublicSpeaker");
     APP.publicSpeakingSfu = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.SEND);
     APP.publicSpeakingSfu.hubChannel = APP.hubChannel;
-    await connectSfu(APP.publicSpeakingSfu, {
-      sfuId: APP.sfu._sfuId,
-      clientId: "PS-" + APP.sfu._clientId,
-      channelId: "public_speaking",
-      scene: null,
-      serverUrl: `wss://${APP.sfu._serverParams?.host || "localhost"}:4443`,
-      serverParams: APP.sfu._serverParams || { host: "localhost", port: 443, turn: null },
-      signalingUrl: APP.sfu._signalingUrl || "",
-      accessToken: process.env.SORA_PUBLIC_SPEAKING_CHANNEL_TOKEN,
-      forceTcp: APP.sfu._forceTcp || false,
-      forceTurn: APP.sfu._forceTurn || false,
-      iceTransportPolicy: APP.sfu._iceTransportPolicy || false,
-      debug: false
-    });
+    APP.publicSpeakingSfu.connect(
+      derivePublicSpeakingConfig(APP.sfu.config, "public_speaking", "PS-" + APP.sfu._clientId)
+    );
     APP.sfu.emit("public-speaking-sfu-initialized");
 
     PublicSpeakingSystem.speakerTrySetLocalMediaStream();
@@ -74,7 +63,7 @@ export class PublicSpeakingSystem {
   }
 
   static speakerTrySetLocalMediaStream() {
-    if (!APP.publicSpeakingSfu._sendTransport && !APP.publicSpeakingSfu._connector) {
+    if (!APP.publicSpeakingSfu.isConnected) {
       window.setTimeout(PublicSpeakingSystem.speakerTrySetLocalMediaStream, 1000);
     } else {
       APP.publicSpeakingSfu.setLocalMediaStream(APP.sfu._localMediaStream);
@@ -89,20 +78,9 @@ export class PublicSpeakingSystem {
     console.log("initPublicSpeakingMirroring");
     APP.publicSpeakersMirrorSfu = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.RECV);
     APP.publicSpeakersMirrorSfu.hubChannel = APP.hubChannel;
-    await connectSfu(APP.publicSpeakersMirrorSfu, {
-      sfuId: APP.sfu._sfuId,
-      clientId: APP.sfu._clientId,
-      channelId: "public_speaking",
-      scene: null,
-      serverUrl: `wss://${APP.sfu._serverParams?.host || "localhost"}:4443`,
-      serverParams: APP.sfu._serverParams || { host: "localhost", port: 443, turn: null },
-      signalingUrl: APP.sfu._signalingUrl || "",
-      accessToken: process.env.SORA_PUBLIC_SPEAKING_CHANNEL_TOKEN,
-      forceTcp: APP.sfu._forceTcp || false,
-      forceTurn: APP.sfu._forceTurn || false,
-      iceTransportPolicy: APP.sfu._iceTransportPolicy || false,
-      debug: false
-    });
+    APP.publicSpeakersMirrorSfu.connect(
+      derivePublicSpeakingConfig(APP.sfu.config, "public_speaking", APP.sfu._clientId)
+    );
 
     APP.publicSpeakersMirrorSfu.on("stream_updated", this.mirrorPublicSpeaking, this);
   }
@@ -155,19 +133,8 @@ export class PublicSpeakingSystem {
     APP.publicSpeakerAgentSfus[clientId] = SfuAdapterFactory.create(APP.sfu._sfuId, SFU_CONNECTION_TYPE.SEND);
     APP.publicSpeakerAgentSfus[clientId].hubChannel = APP.hubChannel;
     const sfuToken = await APP.hubChannel.getSfuTokenOrFetch();
-    await connectSfu(APP.publicSpeakerAgentSfus[clientId], {
-      sfuId: APP.sfu._sfuId,
-      clientId: clientId,
-      channelId: APP.sfu._roomId,
-      scene: null,
-      serverUrl: `wss://${APP.sfu._serverParams?.host || "localhost"}:4443`,
-      serverParams: APP.sfu._serverParams || { host: "localhost", port: 3306, turn: null },
-      signalingUrl: APP.sfu._signalingUrl || "",
-      sfuAccessToken: sfuToken,
-      forceTcp: APP.sfu._forceTcp || false,
-      forceTurn: APP.sfu._forceTurn || false,
-      iceTransportPolicy: APP.sfu._iceTransportPolicy || false,
-      debug: false
-    });
+    APP.publicSpeakerAgentSfus[clientId].connect(
+      derivePublicSpeakingConfig(APP.sfu.config, APP.sfu._roomId, clientId, sfuToken)
+    );
   }
 }

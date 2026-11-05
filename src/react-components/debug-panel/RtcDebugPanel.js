@@ -580,16 +580,7 @@ export default class RtcDebugPanel extends Component {
   connectSignaling = () => {
     const dialog = getDialogAdapter();
     if (!dialog) return;
-    dialog.connect({
-      serverUrl: dialog._serverUrl,
-      roomId: dialog._roomId,
-      serverParams: dialog._serverParams,
-      scene: dialog.scene,
-      clientId: dialog._clientId,
-      forceTcp: dialog._forceTcp,
-      forceTurn: dialog._forceTurn,
-      iceTransportPolicy: dialog._iceTransportPolicy
-    });
+    dialog.connect(dialog.config);
   };
 
   disconnectSignaling = () => {

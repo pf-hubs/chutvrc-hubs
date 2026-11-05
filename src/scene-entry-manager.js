@@ -568,7 +568,7 @@ export default class SceneEntryManager {
       await APP.sfu.setLocalMediaStream(this.mediaDevicesManager.mediaStream);
       audioEl.play();
     };
-    if (APP.sfu._sendTransport || APP.sfu._connector) {
+    if (APP.sfu.isConnected) {
       connect();
     } else {
       this.scene.addEventListener("didConnectToSfu", connect);

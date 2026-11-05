@@ -5,6 +5,7 @@ import { MediaDevices } from "../utils/media-devices-utils";
 import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
 import { CrossRoomStreamerAudioSource } from "../components/cross-room-streamer-audio-source";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
+import { SfuConfig, SoraConfig } from "./sfu-config";
 import {
   ChannelHandlerRegistry,
   createAvatarSyncHandlers,
@@ -18,17 +19,7 @@ import {
 
 const debug = newDebug("naf-dialog-adapter:debug");
 
-type ConnectProps = {
-  clientId: string;
-  channelId: string;
-  signalingUrl: string | string[];
-  accessToken: string;
-  scene: Element;
-  debug: boolean;
-  options?: SoraType.ConnectionOptions;
-};
-
-export class SoraAdapter extends SfuAdapter {
+export class SoraAdapter extends SfuAdapter<SoraConfig> {
   _connector: SoraType.ConnectionPublisher | SoraType.ConnectionSubscriber | null;
   _localMediaStream: MediaStream | null;
   _remoteMediaStreams: Map<string, MediaStream | null>;
@@ -38,7 +29,6 @@ export class SoraAdapter extends SfuAdapter {
   _micShouldBeEnabled: boolean;
   _scene: Element | null;
   _avatarSyncHelper: AvatarSyncHelper;
-  _signalingUrl?: string | string[];
   _accessToken?: string;
   crossRoomStreamerAudioSource: { [clientId: string]: CrossRoomStreamerAudioSource };
   // Laser pointer handler instance for cleanup on client leave
@@ -95,11 +85,15 @@ export class SoraAdapter extends SfuAdapter {
     this._accessToken = event.detail.token;
   }
 
-  async connect({ clientId, channelId, signalingUrl, accessToken, scene, debug }: ConnectProps) {
+  async connect(config: SfuConfig): Promise<void> {
+    if (config.kind !== "sora") {
+      throw new Error(`SoraAdapter cannot connect with a ${config.kind} config`);
+    }
+    const { clientId, channelId, signalingUrls, accessToken, scene, debug } = config;
+    this._config = config;
     this._scene = scene;
     this._roomId = channelId;
     this._clientId = clientId;
-    this._signalingUrl = signalingUrl;
 
     let tokenToUse = accessToken;
     if (!tokenToUse || tokenToUse === "") {
@@ -110,7 +104,7 @@ export class SoraAdapter extends SfuAdapter {
 
     this.updateDispatcherContext();
 
-    const sora = Sora.connection(signalingUrl, debug);
+    const sora = Sora.connection(signalingUrls, debug);
     const metadata = { access_token: tokenToUse };
     const options = {
       clientId: clientId,
@@ -399,6 +393,10 @@ export class SoraAdapter extends SfuAdapter {
   // BridgeCapable implementation
   get isBridgeChannelReady(): boolean {
     return this._connector !== null && this._connectionType !== SFU_CONNECTION_TYPE.RECV;
+  }
+
+  get isConnected(): boolean {
+    return this._connector !== null;
   }
 
   async setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null = null) {

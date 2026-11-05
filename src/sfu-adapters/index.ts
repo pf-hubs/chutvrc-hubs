@@ -11,6 +11,3 @@ export { SoraAdapter } from "./sora-adapter";
 
 // Adapter factory
 export { SfuAdapterFactory } from "./adapter-factory";
-
-// Adapter utilities
-export { connectSfu } from "../utils/sfu-adapter-utils";

@@ -23,6 +23,7 @@ import {
   ChannelHandlerRegistry,
   IChannelHandler
 } from "../utils/data-channel-handlers";
+import { SfuConfig } from "./sfu-config";
 
 // Re-export for backwards compatibility
 export type { DataChannelMessage };
@@ -40,7 +41,7 @@ type RecordedDataChannelMessage = {
 export const SFU_CONNECTION_CONNECTED = "sfu-connection-connected";
 export const SFU_CONNECTION_ERROR_FATAL = "sfu-connection-error-fatal";
 
-export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
+export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends EventEmitter implements BridgeCapable {
   _sfuId: SFU;
   _clientId: string;
   _roomId: string;
@@ -51,6 +52,9 @@ export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
   _isRecording: boolean;
   _sendSelfAvatarSrcIntervalId: NodeJS.Timer;
   _publicSpeakerClientIdsInRoom: string[];
+
+  // The config of the current (or last) connection, set by connect()
+  protected _config: TConfig | null = null;
 
   // Message dispatcher for structured channel handling
   protected _messageDispatcher: DataChannelMessageDispatcher | null = null;
@@ -80,6 +84,18 @@ export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
     return this._hubChannel;
   }
 
+  get config(): TConfig | null {
+    return this._config;
+  }
+
+  /**
+   * Whether the adapter has a live connection that can carry media and data.
+   * Each adapter overrides this with its own readiness condition.
+   */
+  get isConnected(): boolean {
+    return false;
+  }
+
   protected _handleSfuTokenUpdated(event: CustomEvent): void {}
 
   protected async _ensureFreshToken(): Promise<string | null> {
@@ -98,7 +114,7 @@ export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
     }
   }
 
-  connect(props: any) {}
+  async connect(config: SfuConfig): Promise<void> {}
   disconnect() {}
   getMediaStream(clientId: string, kind: string) {}
   getDataChannelMessage(): DataChannelMessage | undefined {

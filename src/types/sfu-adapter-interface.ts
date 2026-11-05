@@ -1,6 +1,7 @@
 import EventEmitter from "eventemitter3";
 import { BridgeCapable } from "../libpeer/bridge/bridge-capable";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
+import { SfuConfig } from "../sfu-adapters/sfu-config";
 
 /**
  * Data channel message type for SFU communication
@@ -25,7 +26,7 @@ export enum SfuConnectionState {
  * Connection lifecycle management
  */
 export interface ISfuConnectable {
-  connect(props: Record<string, unknown>): Promise<void> | void;
+  connect(config: SfuConfig): Promise<void> | void;
   disconnect(): Promise<void> | void;
   readonly clientId: string;
   readonly roomId: string;
