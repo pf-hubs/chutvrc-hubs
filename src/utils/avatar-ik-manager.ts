@@ -11,6 +11,7 @@ import { AvatarAnimState } from "../types/avatar-types";
 
 const SelfHipsPositionOffset = new Vector3(0, 0, -0.1);
 const SelfHipsPositionFlippedOffset = new Vector3(0, 0, 0.1);
+const hipsPositionOffset = new Vector3();
 
 const DummyInputTransform = {
   pos: { x: 0, y: 0, z: 0 },
@@ -36,6 +37,7 @@ export class AvatarIkManager {
   private rightArmIK: ArmIk;
   private leftLegIK: LegIk;
   private rightLegIK: LegIk;
+  private poseInput: InputTransform;
 
   private rootPosBeforeWalk: Position;
   private isWalking: boolean;
@@ -64,6 +66,12 @@ export class AvatarIkManager {
     this.isInputReady = false;
     this.isSelfAvatar = false;
     this.isNPC = isNPC || false;
+    this.poseInput = {
+      rig: DummyInputTransform,
+      hmd: DummyInputTransform,
+      leftController: DummyInputTransform,
+      rightController: DummyInputTransform
+    };
 
     let headWorldPos = new Vector3();
     let hipsWorldPos = new Vector3();
@@ -155,12 +163,10 @@ export class AvatarIkManager {
   }
 
   updateAvatarBoneIkById(poseInputs: InputTransformById, clientId: string, isVr: boolean, animState: AvatarAnimState) {
-    const poseInput: InputTransform = {
-      rig: poseInputs.rig?.get(clientId) || DummyInputTransform,
-      hmd: poseInputs.hmd?.get(clientId) || DummyInputTransform,
-      leftController: poseInputs.leftController?.get(clientId) || DummyInputTransform,
-      rightController: poseInputs.rightController?.get(clientId) || DummyInputTransform
-    };
+    this.poseInput.rig = poseInputs.rig?.get(clientId) || DummyInputTransform;
+    this.poseInput.hmd = poseInputs.hmd?.get(clientId) || DummyInputTransform;
+    this.poseInput.leftController = poseInputs.leftController?.get(clientId) || DummyInputTransform;
+    this.poseInput.rightController = poseInputs.rightController?.get(clientId) || DummyInputTransform;
     this.isSelfAvatar = clientId === APP.sfu.clientId;
     this.isVR = isVr;
     if (this.animState !== animState) {
@@ -180,7 +186,7 @@ export class AvatarIkManager {
       this.animState = animState;
     }
 
-    this.updateAvatarBoneIk(poseInput);
+    this.updateAvatarBoneIk(this.poseInput);
   }
 
   updateAvatarBoneIk(poseInput: InputTransform) {
@@ -227,8 +233,8 @@ export class AvatarIkManager {
       );
       if (this.isSelfAvatar) {
         this.hipsBone.position.add(
-          (this.isFlippedY ? SelfHipsPositionFlippedOffset : SelfHipsPositionOffset)
-            .clone()
+          hipsPositionOffset
+            .copy(this.isFlippedY ? SelfHipsPositionFlippedOffset : SelfHipsPositionOffset)
             .applyQuaternion(this.hipsBone.quaternion)
         );
       }

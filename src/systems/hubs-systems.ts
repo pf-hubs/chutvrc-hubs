@@ -79,7 +79,8 @@ import { scenePreviewCameraSystem } from "../bit-systems/scene-preview-camera-sy
 import { linearTransformSystem } from "../bit-systems/linear-transform";
 import { mixerAnimatableSystem } from "../bit-systems/mixer-animatable";
 import { loopAnimationSystem } from "../bit-systems/loop-animation";
-import { avatarIkSystem } from "../bit-systems/avatar-bones-system";
+import { avatarIkSystem, InputTransformById } from "../bit-systems/avatar-bones-system";
+import { Transform } from "../types/transform";
 import { linkSystem } from "../bit-systems/link-system";
 import { objectMenuTransformSystem } from "../bit-systems/object-menu-transform-system";
 import { bitPenCompatSystem } from "./bit-pen-system";
@@ -115,6 +116,15 @@ const timeSystem = (world: HubsWorld) => {
 };
 
 const enableNetworkDebug = qsTruthy("networkDebug");
+
+// Reused every frame to hand the avatar pose maps to the avatar solvers without allocating
+const noTransforms: Map<string, Transform> = new Map();
+const avatarPoseInputs: InputTransformById = {
+  rig: noTransforms,
+  hmd: noTransforms,
+  leftController: noTransforms,
+  rightController: noTransforms
+};
 
 // NOTE keeping this around since many things index into it to get a reference to a system. This will
 // naturally burn down as we migrate things, so it is not worth going through and changing all of them.
@@ -344,14 +354,13 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   /* Implementation for using bitECS */
   const avatarSync = APP.sfu.avatarSync;
   if (avatarSync) {
+    avatarPoseInputs.rig = avatarSync._client2Transform.get(AvatarPart.RIG) || noTransforms;
+    avatarPoseInputs.hmd = avatarSync._client2Transform.get(AvatarPart.HEAD) || noTransforms;
+    avatarPoseInputs.leftController = avatarSync._client2Transform.get(AvatarPart.LEFT) || noTransforms;
+    avatarPoseInputs.rightController = avatarSync._client2Transform.get(AvatarPart.RIGHT) || noTransforms;
     avatarIkSystem(
       world,
-      {
-        rig: avatarSync._client2Transform.get(AvatarPart.RIG) || new Map(),
-        hmd: avatarSync._client2Transform.get(AvatarPart.HEAD) || new Map(),
-        leftController: avatarSync._client2Transform.get(AvatarPart.LEFT) || new Map(),
-        rightController: avatarSync._client2Transform.get(AvatarPart.RIGHT) || new Map()
-      },
+      avatarPoseInputs,
       avatarSync._avatarEid2ClientId,
       avatarSync._client2VrMode,
       avatarSync._client2AnimState

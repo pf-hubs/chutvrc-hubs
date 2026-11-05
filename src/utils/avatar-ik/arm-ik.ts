@@ -4,6 +4,8 @@ import { JointInitSettings, LimbIk } from "./limb-ik";
 import { TransformLowPassFilter } from "../transform-low-pass-filter";
 
 const VECTOR_UP = new Vector3(0, 1, 0);
+const targetEuler = new Euler();
+const targetQuaternion = new Quaternion();
 const parentWorldQuaternion = new Quaternion();
 
 export class ArmIk extends LimbIk {
@@ -80,12 +82,11 @@ export class ArmIk extends LimbIk {
   protected override adjustEffectorTransform(input: Transform | null) {
     if (input && (this.isVR || this.isNPC) && this.avatarRoot) {
       const parent = this.effector.parent;
-      let targetQ = new Quaternion();
-      targetQ.setFromEuler(new Euler(input.rot.x, input.rot.y, input.rot.z, "YXZ"));
+      targetQuaternion.setFromEuler(targetEuler.set(input.rot.x, input.rot.y, input.rot.z, "YXZ"));
 
       // World rotation of the hand, then expressed in the frame of its parent bone:
       // local = inverse(parent world rotation) * world rotation
-      this.effector.quaternion.copy(this.avatarRoot.quaternion).multiply(targetQ);
+      this.effector.quaternion.copy(this.avatarRoot.quaternion).multiply(targetQuaternion);
       if (parent) this.effector.quaternion.premultiply(parent.getWorldQuaternion(parentWorldQuaternion).invert());
 
       if (this.isFlippedY) {

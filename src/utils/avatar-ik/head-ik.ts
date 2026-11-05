@@ -4,6 +4,8 @@ import { JointInitSettings, LimbIk } from "./limb-ik";
 
 const FULL_BODY_HEAD_OFFSET = 0.1;
 const VECTOR_UP = new Vector3(0, 1, 0);
+// Avatar root position shifted by the head offset: the origin of the self avatar's head target
+const headOrigin = new Vector3();
 
 export class HeadIk extends LimbIk {
   private headEffectorOffset: Vector3;
@@ -38,7 +40,11 @@ export class HeadIk extends LimbIk {
     this.currentInputPosition
       .set(-input.pos.x, input.pos.y, -input.pos.z)
       .applyAxisAngle(VECTOR_UP, this.avatarRoot.rotation.y - Math.PI)
-      .add(this.isSelfAvatar ? this.avatarRootWorldPos.clone().add(this.headEffectorOffset) : this.avatarRootWorldPos);
+      .add(
+        this.isSelfAvatar
+          ? headOrigin.addVectors(this.avatarRootWorldPos, this.headEffectorOffset)
+          : this.avatarRootWorldPos
+      );
 
     // this.effector.position.set(this.currentInputPosition.x, this.currentInputPosition.y, this.currentInputPosition.z)
   }
