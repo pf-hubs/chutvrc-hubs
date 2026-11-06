@@ -324,7 +324,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     urlWithParams.searchParams.append("roomId", this._roomId);
     urlWithParams.searchParams.append("peerId", this._clientId);
 
-    this._avatarSyncHelper.initSelfAvatarTransform();
+    this._poseSync.initSelfAvatarTransform();
 
     // TODO: Establishing connection could take a very long time.
     //       Inform the user if we are stuck here.
@@ -474,7 +474,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
             break;
           }
 
-          this._avatarSyncHelper.handleOnClientLeave(consumer.appData.peerId);
+          this._poseSync.handleOnClientLeave(consumer.appData.peerId);
 
           consumer.close();
           this.removeConsumer(consumer.id);
@@ -497,7 +497,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
             break;
           }
 
-          this._avatarSyncHelper.handleOnClientLeave(dataConsumer.appData.peerId);
+          this._poseSync.handleOnClientLeave(dataConsumer.appData.peerId);
 
           dataConsumer.close();
           this.removeDataConsumer(dataConsumer.id);
@@ -926,14 +926,14 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
 
         this._dataProducers.set(label, dataProducer);
         if (!this._clientId.includes("PS-") || this._roomId === "public_speaking") {
-          this._avatarSyncHelper.handleSyncInit(label);
+          this._poseSync.handleSyncInit(label);
         }
       })
     );
 
     // TODO: move to other appropriate place
     if (this && this._clientId.includes("PS-") && this._roomId === "public_speaking") {
-      this._sendSelfAvatarSrcIntervalId = setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
+      this._sendSelfAvatarSrcIntervalId = setInterval(() => this._poseSync.sendSelfAvatarSrc(), 1000);
     }
   }
 

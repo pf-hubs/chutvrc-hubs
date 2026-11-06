@@ -1,14 +1,14 @@
 import { AElement } from "aframe";
-import { SfuAdapter } from "../sfu-adapters/sfu-adapter";
-import { POSE_PARTS, PosePart } from "../avatar/net/interpolation-buffer";
-import { decodePart } from "../avatar/net/pose-codec-v0";
-import { decodeBody, isOlderSeq, POSE_CHANNEL } from "../avatar/net/pose-codec-v1";
-import { PoseSender, recordedBody } from "../avatar/net/pose-sender";
-import { LocalPoseSource } from "../avatar/pose/local-pose-source";
-import { createTrackedPose, TRACKED_ALL } from "../avatar/pose/tracked-pose";
-import { AvatarModelManager } from "../avatar/avatar-model-manager";
-import { Transform } from "../types/transform";
-import { AvatarAnimState, isValidAvatarAnimState } from "../types/avatar-types";
+import { SfuAdapter } from "../../sfu-adapters/sfu-adapter";
+import { POSE_PARTS, PosePart } from "./interpolation-buffer";
+import { decodePart } from "./pose-codec-v0";
+import { decodeBody, isOlderSeq, POSE_CHANNEL } from "./pose-codec-v1";
+import { PoseSender, recordedBody } from "./pose-sender";
+import { LocalPoseSource } from "../pose/local-pose-source";
+import { createTrackedPose, TRACKED_ALL } from "../pose/tracked-pose";
+import { AvatarModelManager } from "../avatar-model-manager";
+import { Transform } from "../../types/transform";
+import { AvatarAnimState, isValidAvatarAnimState } from "../../types/avatar-types";
 
 /**
  * A whole-body packet numbered behind the last one taken from its client is late and is dropped, unless
@@ -33,8 +33,14 @@ function partOf(channel: string): PosePart | undefined {
   }
 }
 
-/* Sync BitECS-managed avatars through WebRTC DataChannel */
-export class AvatarSyncHelper {
+/**
+ * The avatar sync of one media server session: the sync channels (#avatar-pose, the old per-part
+ * #avatar-* channels, #avatarId, #isVR and #avatarAnimState) in and out, the start and stop of the own
+ * pose's sampler and sender, the recording of poses, and the clients' models through the model manager.
+ * There is one per adapter, reached as APP.sfu.avatarSync: a public speaking session has its own set of
+ * avatars, so the page has no single one.
+ */
+export class PoseSync {
   /** The clients whose pose or flags this session wrote to the pose store, so they are forgotten when all leave */
   private readonly _poseClientIds = new Set<string>();
   private readonly _textDecoder = new TextDecoder();

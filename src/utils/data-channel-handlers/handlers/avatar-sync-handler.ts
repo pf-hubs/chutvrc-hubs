@@ -9,7 +9,7 @@ const AVATAR_SYNC_PRIORITY = 0;
 /**
  * Note: The pose channels (#avatar-pose and the old per-part #avatar-RIG, #avatar-HEAD, #avatar-LEFT,
  * #avatar-RIGHT) are handled directly in the DataChannelMessageDispatcher via pattern matching.
- * They delegate to AvatarSyncHelper.handleRecvMessage() without needing separate handlers.
+ * They delegate to PoseSync.handleRecvMessage() without needing separate handlers.
  */
 
 /**
@@ -31,7 +31,7 @@ export class AvatarIdHandler implements IChannelHandler {
       return;
     }
 
-    context.avatarSyncHelper.handleRecvMessage(this.channelLabel, data);
+    context.poseSync.handleRecvMessage(this.channelLabel, data);
   }
 }
 
@@ -45,7 +45,7 @@ export class IsVRHandler implements IChannelHandler {
   readonly priority = AVATAR_SYNC_PRIORITY;
 
   handleMessage(data: Uint8Array, context: ChannelHandlerContext): void {
-    context.avatarSyncHelper.handleRecvMessage(this.channelLabel, data);
+    context.poseSync.handleRecvMessage(this.channelLabel, data);
   }
 }
 
@@ -59,7 +59,7 @@ export class AvatarAnimStateHandler implements IChannelHandler {
   readonly priority = AVATAR_SYNC_PRIORITY;
 
   handleMessage(data: Uint8Array, context: ChannelHandlerContext): void {
-    context.avatarSyncHelper.handleRecvMessage(this.channelLabel, data);
+    context.poseSync.handleRecvMessage(this.channelLabel, data);
   }
 }
 

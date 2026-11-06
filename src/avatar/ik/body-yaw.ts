@@ -10,10 +10,6 @@ export function createBodyYawState(): BodyYawState {
   return { yaw: 0, initialized: false };
 }
 
-export function resetBodyYaw(state: BodyYawState) {
-  state.initialized = false;
-}
-
 /** The angle brought into (-pi, pi] */
 export function wrapAngle(angle: number): number {
   let wrapped = angle % (2 * Math.PI);

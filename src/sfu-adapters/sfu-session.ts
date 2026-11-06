@@ -2,7 +2,7 @@ import EventEmitter from "eventemitter3";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { BridgeEnvelope, BridgeMessageCallback } from "../libpeer/bridge/bridge-capable";
 import { ISfuAdapter } from "../types/sfu-adapter-interface";
-import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
+import { PoseSync } from "../avatar/net/pose-sync";
 import { BRIDGE_MESSAGE_RECEIVED, SfuAdapter } from "./sfu-adapter";
 import { SfuAdapterFactory } from "./adapter-factory";
 import { SfuConfig } from "./sfu-config";
@@ -119,7 +119,7 @@ export class SfuSession extends EventEmitter implements ISfuAdapter {
     return this._adapter ? this._adapter.media : null;
   }
 
-  get avatarSync(): AvatarSyncHelper | null {
+  get avatarSync(): PoseSync | null {
     return this._adapter ? this._adapter.avatarSync : null;
   }
 

@@ -1,16 +1,25 @@
 import { Object3D, Vector3 } from "three";
-import { InputTransform } from "../bit-systems/avatar-bones-system";
-import { applyToBones, readRestFrames } from "../avatar/ik/apply-to-bones";
-import { recalibrate as resetHeightCalibration } from "../avatar/ik/calibration";
-import { BoneWrites, createBoneWrites, createIkState, IkState, solveBody } from "../avatar/ik/solve-body";
-import { TrackedPose } from "../avatar/pose/tracked-pose";
-import { RigDescription } from "../avatar/rig/rig-description";
-import { Transform } from "../types/transform";
-import { HeadIk } from "./avatar-ik/head-ik";
-import { ArmIk } from "./avatar-ik/arm-ik";
-import { LegIk } from "./avatar-ik/leg-ik";
-import { JointSettings } from "./avatar-ik/joint-settings";
-import { AvatarAnimState } from "../types/avatar-types";
+import { applyToBones, readRestFrames } from "./apply-to-bones";
+import { recalibrate as resetHeightCalibration } from "./calibration";
+import { BoneWrites, createBoneWrites, createIkState, IkState, solveBody } from "./solve-body";
+import { TrackedPose } from "../pose/tracked-pose";
+import { RigDescription } from "../rig/rig-description";
+import { Transform } from "../../types/transform";
+import { HeadIk } from "./legacy/head-ik";
+import { ArmIk } from "./legacy/arm-ik";
+import { LegIk } from "./legacy/leg-ik";
+import { JointSettings } from "./legacy/joint-settings";
+import { AvatarAnimState } from "../../types/avatar-types";
+
+/** The pose as the old solver reads it: the rig and the headset and controller transforms in the rig's space */
+type InputTransform = {
+  rig: Transform;
+  hmd: Transform;
+  leftController: Transform;
+  rightController: Transform;
+  leftFoot?: Transform;
+  rightFoot?: Transform;
+};
 
 const SelfHipsPositionOffset = new Vector3(0, 0, -0.1);
 const SelfHipsPositionFlippedOffset = new Vector3(0, 0, 0.1);

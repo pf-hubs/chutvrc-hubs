@@ -1,5 +1,5 @@
 import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
-import { Transform } from "../../types/transform";
+import { Transform } from "../../../types/transform";
 import { JointInitSettings, LimbIk } from "./limb-ik";
 
 const FULL_BODY_HEAD_OFFSET = 0.1;

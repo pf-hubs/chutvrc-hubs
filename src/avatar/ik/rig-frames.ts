@@ -53,7 +53,7 @@ const parentQuaternion = new Quaternion();
 const parentPosition = new Vector3();
 
 /** How far the bone has turned from its rest orientation, as a rotation in root space */
-export function deltaOf(rest: RestFrames, solved: SolvedFrames, name: BoneName, out: Quaternion): Quaternion {
+function deltaOf(rest: RestFrames, solved: SolvedFrames, name: BoneName, out: Quaternion): Quaternion {
   const frame = rest[name];
   if (!frame) return out.identity();
   restInverse.copy(frame.quaternion).invert();

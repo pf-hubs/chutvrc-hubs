@@ -79,7 +79,6 @@ import { scenePreviewCameraSystem } from "../bit-systems/scene-preview-camera-sy
 import { linearTransformSystem } from "../bit-systems/linear-transform";
 import { mixerAnimatableSystem } from "../bit-systems/mixer-animatable";
 import { loopAnimationSystem } from "../bit-systems/loop-animation";
-import { avatarIkSystem } from "../bit-systems/avatar-bones-system";
 import { linkSystem } from "../bit-systems/link-system";
 import { objectMenuTransformSystem } from "../bit-systems/object-menu-transform-system";
 import { bitPenCompatSystem } from "./bit-pen-system";
@@ -94,7 +93,7 @@ import { linkedPDFSystem } from "../bit-systems/linked-pdf-system";
 import { inspectSystem } from "../bit-systems/inspect-system";
 import { snapMediaSystem } from "../bit-systems/snap-media-system";
 import { scaleWhenGrabbedSystem } from "../bit-systems/scale-when-grabbed-system";
-import { tickPoseSenders } from "../avatar/net/pose-sender";
+import { avatarSystemsTick } from "../avatar/avatar-systems";
 import { PublicSpeakingSystem } from "./public-speaking-system";
 import { NimproSystem } from "./nimpro-system";
 import { interactableSystem } from "../bit-systems/interactable-system";
@@ -341,12 +340,7 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
 
   PublicSpeakingSystem.mirrorDataChannelMessageFromSpeaker();
 
-  /* Implementation for using bitECS */
-  APP.sfu.avatarSync?.localPoseSource?.sample(t);
-  tickPoseSenders(t);
-  APP.avatarPoses.sample(t);
-  avatarIkSystem(world, APP.avatarPoses);
-  /* End of implementation for using bitECS */
+  avatarSystemsTick(world, t);
   APP.addon_systems.beforeMatricesUpdate.forEach((systemConfig: SystemConfigT) => {
     systemConfig.system(APP);
   });

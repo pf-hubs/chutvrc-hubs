@@ -35,7 +35,7 @@ export interface ChannelSpec {
    */
   readonly sequenced?: boolean;
   readonly sora: SoraDirectionRule;
-  /** Whether the raw message is recorded. Avatar poses are recorded decoded by the avatar sync helper. */
+  /** Whether the raw message is recorded. Avatar poses are recorded decoded by the pose sync. */
   readonly recordRaw: boolean;
 }
 

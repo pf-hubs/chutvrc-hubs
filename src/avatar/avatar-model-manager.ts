@@ -3,7 +3,7 @@ import { Material, Mesh, Object3D, SkinnedMesh, Texture } from "three";
 import { HubsWorld } from "../app";
 import { AvatarComponent, BoneComponent } from "../bit-components";
 import { loadModel } from "../components/gltf-model-plus";
-import { AvatarIkManager } from "../utils/avatar-ik-manager";
+import { AvatarIkManager } from "./ik/avatar-ik-manager";
 import { getAvatarSrc } from "../utils/avatar-utils";
 import { addObject3DComponent } from "../utils/jsx-entity";
 import { forEachMaterial } from "../utils/material-utils";
@@ -61,7 +61,7 @@ export function createAvatarEntities(
  * and its binding to a pose. The pose itself stays: the client may get a new avatar. The model's resources
  * are not freed here; the manager frees the ones it loaded.
  */
-export function removeAvatarEntities(world: HubsWorld, poses: PoseStore, avatarEid: number | undefined) {
+function removeAvatarEntities(world: HubsWorld, poses: PoseStore, avatarEid: number | undefined) {
   if (!avatarEid) return;
   const model = world.eid2obj.get(avatarEid);
   if (model) world.scene.remove(model);

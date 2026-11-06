@@ -32,7 +32,7 @@ import { SFU_CONNECTION_TYPE } from "./sfu-types";
 import { SfuSession } from "./sfu-adapters/sfu-session";
 import { addObject3DComponent } from "./utils/jsx-entity";
 import { ElOrEid } from "./utils/bit-utils";
-import { AvatarIkManager } from "./utils/avatar-ik-manager";
+import { AvatarIkManager } from "./avatar/ik/avatar-ik-manager";
 import { PoseStore } from "./avatar/pose/pose-store";
 import { onAddonsInit } from "./addons";
 import { CoreSystemKeyT, HubsSystemKeyT, SystemConfigT, SystemKeyT, SystemT } from "./types";

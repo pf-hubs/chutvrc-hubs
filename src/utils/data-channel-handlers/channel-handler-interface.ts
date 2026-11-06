@@ -1,5 +1,5 @@
 import { SfuAdapter } from "../../sfu-adapters/sfu-adapter";
-import { AvatarSyncHelper } from "../avatar-sync-helper";
+import { PoseSync } from "../../avatar/net/pose-sync";
 
 /**
  * Context provided to channel handlers for message processing.
@@ -15,8 +15,8 @@ export interface ChannelHandlerContext {
   textDecoder: TextDecoder;
   /** Shared text encoder for efficiency */
   textEncoder: TextEncoder;
-  /** Avatar sync helper for mandatory avatar channels */
-  avatarSyncHelper: AvatarSyncHelper;
+  /** The session's pose sync, which the mandatory avatar channels are handed to */
+  poseSync: PoseSync;
 }
 
 /**

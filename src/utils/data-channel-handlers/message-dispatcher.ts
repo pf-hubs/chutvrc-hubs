@@ -1,5 +1,5 @@
 import { SfuAdapter } from "../../sfu-adapters/sfu-adapter";
-import { AvatarSyncHelper } from "../avatar-sync-helper";
+import { PoseSync } from "../../avatar/net/pose-sync";
 import { ChannelHandlerContext, IChannelHandler } from "./channel-handler-interface";
 import { ChannelHandlerRegistry } from "./channel-handler-registry";
 
@@ -12,7 +12,7 @@ export class DataChannelMessageDispatcher {
 
   constructor(
     adapter: SfuAdapter,
-    avatarSyncHelper: AvatarSyncHelper,
+    poseSync: PoseSync,
     registry: ChannelHandlerRegistry
   ) {
     this.registry = registry;
@@ -22,7 +22,7 @@ export class DataChannelMessageDispatcher {
       roomId: adapter.roomId,
       textDecoder: new TextDecoder(),
       textEncoder: new TextEncoder(),
-      avatarSyncHelper
+      poseSync
     };
   }
 
@@ -56,8 +56,8 @@ export class DataChannelMessageDispatcher {
 
     // Check for the pose channels (pattern: #avatar-*: #avatar-pose and the old per-part channels)
     if (channelLabel.startsWith("#avatar-")) {
-      // Delegate the pose channels to AvatarSyncHelper, which tells the whole-body packets from the per-part ones
-      this.context.avatarSyncHelper.handleRecvMessage(channelLabel, uint8Data);
+      // Delegate the pose channels to the pose sync, which tells the whole-body packets from the per-part ones
+      this.context.poseSync.handleRecvMessage(channelLabel, uint8Data);
       return;
     }
 

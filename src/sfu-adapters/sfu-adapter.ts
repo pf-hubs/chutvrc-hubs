@@ -1,5 +1,5 @@
 import EventEmitter from "eventemitter3";
-import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
+import { PoseSync } from "../avatar/net/pose-sync";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { BridgeEnvelope, BridgeMessageCallback, IOT_BRIDGE_CHANNEL } from "../libpeer/bridge/bridge-capable";
 import { serializeBridgeEnvelope, deserializeBridgeEnvelope } from "../libpeer/bridge/bridge-message-protocol";
@@ -28,7 +28,7 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
   protected readonly _connectionType: SFU_CONNECTION_TYPE;
   protected _clientId = "";
   protected _roomId = "";
-  protected readonly _avatarSyncHelper: AvatarSyncHelper;
+  protected readonly _poseSync: PoseSync;
   protected _sendSelfAvatarSrcIntervalId: NodeJS.Timer | undefined;
   protected readonly _publicSpeakerClientIdsInRoom: string[] = [];
 
@@ -61,7 +61,7 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
     super();
     this._sfuId = sfuId;
     this._connectionType = connectionType;
-    this._avatarSyncHelper = new AvatarSyncHelper(this);
+    this._poseSync = new PoseSync(this);
     this.media = new MediaSession(
       this,
       {
@@ -101,8 +101,8 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
     return this._roomId;
   }
 
-  get avatarSync(): AvatarSyncHelper {
-    return this._avatarSyncHelper;
+  get avatarSync(): PoseSync {
+    return this._poseSync;
   }
 
   /** The clients speaking publicly in this room. Callers add and remove entries in place. */
@@ -177,9 +177,9 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
     this.media.clearRemote(new Error("Disconnected from the media server"));
     this.bus.clearRelay();
     if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
-    this._avatarSyncHelper.stopSyncing();
-    this._avatarSyncHelper.handleOnAllRemoteClientsLeave();
-    this._avatarSyncHelper.announceSelfOnSyncInit = true;
+    this._poseSync.stopSyncing();
+    this._poseSync.handleOnAllRemoteClientsLeave();
+    this._poseSync.announceSelfOnSyncInit = true;
     this._publicSpeakerClientIdsInRoom.length = 0;
     this.cleanupDispatcher();
     this._cleanupTokenHandler();
@@ -276,7 +276,7 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
    */
   protected initializeMessageDispatcher(registry: ChannelHandlerRegistry): void {
     this._handlerRegistry = registry;
-    this._messageDispatcher = new DataChannelMessageDispatcher(this, this._avatarSyncHelper, registry);
+    this._messageDispatcher = new DataChannelMessageDispatcher(this, this._poseSync, registry);
   }
 
   /**

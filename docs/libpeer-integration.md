@@ -405,7 +405,7 @@ get isBridgeChannelReady() {
 }
 
 // In setLocalMediaStream(), creates #iot data producer:
-const channelsToProduce = this._avatarSyncHelper._channelsForSync.concat(["#nimpro", "#iot"]);
+const channelsToProduce = dataChannelLabels(); // the channel table in data-channel-bus.ts, "#iot" included
 
 // In data consumer handler, routes #iot messages:
 if (label === "#iot") {

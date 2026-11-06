@@ -1,7 +1,7 @@
 import { Euler, Matrix4, Mesh, Object3D, Quaternion, Vector3 } from "three";
-import { Transform } from "../../types/transform";
+import { Transform } from "../../../types/transform";
 import { JointInitSettings, LimbIk } from "./limb-ik";
-import { TransformLowPassFilter } from "../transform-low-pass-filter";
+import { TransformLowPassFilter } from "../../../utils/transform-low-pass-filter";
 
 const VECTOR_UP = new Vector3(0, 1, 0);
 const targetEuler = new Euler();

@@ -1,5 +1,5 @@
 import { Euler, Matrix4, Object3D, Quaternion, Vector3 } from "three";
-import { Transform } from "../../types/transform";
+import { Transform } from "../../../types/transform";
 import { JointInitSettings, LimbIk } from "./limb-ik";
 
 const VECTOR_UP = new Vector3(0, 1, 0);

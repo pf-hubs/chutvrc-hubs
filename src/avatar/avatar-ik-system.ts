@@ -1,19 +1,9 @@
 import { defineQuery } from "bitecs";
 import { AvatarComponent } from "../bit-components";
 import { HubsWorld } from "../app";
-import { Transform } from "../types/transform";
-import { PoseStore } from "../avatar/pose/pose-store";
+import { PoseStore } from "./pose/pose-store";
 
-export type InputTransform = {
-  rig: Transform;
-  hmd: Transform;
-  leftController: Transform;
-  rightController: Transform;
-  leftFoot?: Transform;
-  rightFoot?: Transform;
-};
-
-export const avatarQuery = defineQuery([AvatarComponent]);
+const avatarQuery = defineQuery([AvatarComponent]);
 
 /**
  * Solves every avatar entity from the pose of the client it is bound to. A pose the chatbot writes is

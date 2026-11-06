@@ -46,7 +46,7 @@ function clamp(value: number, limit: number): number {
  * Limits a rotation by its twist about the up axis and by its swing away from it, each to the given
  * angle, with the rotation split as swing after twist. Changes the rotation in place and returns it.
  */
-export function clampSwingTwist(rotation: Quaternion, maxSwing: number, maxTwist: number): Quaternion {
+function clampSwingTwist(rotation: Quaternion, maxSwing: number, maxTwist: number): Quaternion {
   if (rotation.w < 0) rotation.set(-rotation.x, -rotation.y, -rotation.z, -rotation.w);
   const twistAngle = 2 * Math.atan2(rotation.y, rotation.w);
   twist.setFromAxisAngle(UP, twistAngle);

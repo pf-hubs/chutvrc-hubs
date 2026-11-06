@@ -63,7 +63,7 @@ export function createBoneWrites(): BoneWrites {
   };
 }
 
-export function clearBoneWrites(out: BoneWrites) {
+function clearBoneWrites(out: BoneWrites) {
   for (const name of BODY_BONE_NAMES) out.hasRotation[name] = false;
   out.hasPosition.root = false;
   out.hasPosition.hips = false;

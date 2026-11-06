@@ -140,13 +140,13 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
         ) {
           this._clientStreamIdPair.set(event.client_id, event.connection_id);
           this.keepRemoteStream(event.client_id);
-          // this._avatarSyncHelper.sendSelfAvatarTransform(false);
+          // this._poseSync.sendSelfAvatarTransform(false);
           this.media.tryAttachAudioToPublicSpeakerAgent(event.client_id);
           this.emit("stream_updated", event.client_id, "audio");
           this.emit("stream_updated", event.client_id, "video");
         }
 
-        if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) this._avatarSyncHelper.sendSelfAvatarTransform(false);
+        if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) this._poseSync.sendSelfAvatarTransform(false);
       }
 
       if (this._connectionType !== SFU_CONNECTION_TYPE.SEND) {
@@ -155,7 +155,7 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
           this.emit("stream_updated", event.client_id, "video");
         }
         if (event.event_type === "connection.destroyed" && event.client_id) {
-          this._avatarSyncHelper.handleOnClientLeave(event.client_id);
+          this._poseSync.handleOnClientLeave(event.client_id);
           console.log("Connection destroyed: " + event.client_id);
         }
       }
@@ -196,12 +196,12 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
     if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
       this._connector.on("datachannel", event => {
         if (!this._clientId.includes("PS-") || this._roomId.includes("public_speaking")) {
-          this._avatarSyncHelper.handleSyncInit(event.datachannel.label);
+          this._poseSync.handleSyncInit(event.datachannel.label);
         }
       });
       this._scene?.addEventListener("audio_ready", async () => {
         await new Promise(res => setTimeout(res, 1000));
-        this._avatarSyncHelper.sendSelfAvatarTransform(false);
+        this._poseSync.sendSelfAvatarTransform(false);
       });
     }
 
@@ -231,7 +231,7 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
             })
             .finally(() => {
               if (!this._clientId.includes("PS-")) this.enableMicrophone(false);
-              this._avatarSyncHelper.initSelfAvatarTransform();
+              this._poseSync.initSelfAvatarTransform();
             });
         }
       };
@@ -324,7 +324,7 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
 
     // TODO: move to other appropriate place
     if (this && this._clientId.includes("PS-") && this._roomId.includes("public_speaking")) {
-      this._sendSelfAvatarSrcIntervalId = setInterval(() => this._avatarSyncHelper.sendSelfAvatarSrc(), 1000);
+      this._sendSelfAvatarSrcIntervalId = setInterval(() => this._poseSync.sendSelfAvatarSrc(), 1000);
     }
   }
 

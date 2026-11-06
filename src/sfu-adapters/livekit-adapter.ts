@@ -186,7 +186,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
 
       // Initialize avatar sync with proper error handling
       try {
-        this._avatarSyncHelper.initSelfAvatarTransform();
+        this._poseSync.initSelfAvatarTransform();
       } catch (error) {
         console.error("Failed to initialize avatar transform:", error);
         // Continue - avatar sync is non-critical for basic functionality
@@ -289,7 +289,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
       this._remoteParticipants.set(participant.identity, participant);
 
       if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
-        this._avatarSyncHelper.sendSelfAvatarTransform(false);
+        this._poseSync.sendSelfAvatarTransform(false);
       }
 
       this._setupParticipantEventListeners(participant);
@@ -354,7 +354,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     this.media.removePublicSpeakerAudio(clientId);
 
     // Notify avatar sync helper (which should clean all its maps)
-    this._avatarSyncHelper.handleOnClientLeave(clientId);
+    this._poseSync.handleOnClientLeave(clientId);
 
     // Hide laser pointer when public speaker disconnects
     if (clientId.includes("PS") && this._laserPointerHandler) {
@@ -406,7 +406,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     dataChannelLabels().forEach(label => {
       this._dataChannelReadyChannels.add(label);
       if (!this._clientId.includes("PS-") || this._roomId.includes("public_speaking")) {
-        this._avatarSyncHelper.handleSyncInit(label);
+        this._poseSync.handleSyncInit(label);
       }
     });
   }
