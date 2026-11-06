@@ -92,6 +92,11 @@ function* loadSrc(
 
   swapObject3DComponent(world, eid, videoObj);
 
+  // The frame loop compares the networked source with this; the source is kept as the owner names it
+  MediaInfo.accessibleUrl[eid] = APP.getSid(src);
+  MediaInfo.contentType[eid] = APP.getSid(contentType);
+  MediaInfo.mediaType[eid] = mediaType;
+
   if ((NetworkedVideo.flags[eid] & VIDEO_FLAGS.PAUSED) === 0 || autoPlay) {
     video.play();
   }
