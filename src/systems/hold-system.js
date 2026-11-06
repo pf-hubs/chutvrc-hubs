@@ -90,7 +90,8 @@ function grab(world, userinput, queryHovered, held, grabPath) {
     target &&
     userinput.get(grabPath) &&
     (!isEntityPinned || AFRAME.scenes[0].is("frozen")) &&
-    Holdable.flags[interactable] & HOLDABLE_FLAGS.ENABLED &&
+    // The target is the hovered entity when it has no holdable ancestor with a rigid body; both carry Holdable
+    Holdable.flags[target] & HOLDABLE_FLAGS.ENABLED &&
     hasPermissionToGrab(world, target)
   ) {
     if (hasComponent(world, Networked, target)) {

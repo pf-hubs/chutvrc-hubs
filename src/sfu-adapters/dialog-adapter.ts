@@ -856,7 +856,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     const localStream = this.media.localStream;
     if (localStream) {
       // TODO: Refactor to be "Create producers"
-      await this.setLocalMediaStream(localStream);
+      await this.setLocalMediaStream(localStream, this.media.localVideoContentHints);
     }
   }
 

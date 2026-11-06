@@ -242,6 +242,12 @@ export class DataChannelBus {
     return recorded;
   }
 
+  /** Goes on with a recording another bus made: its entries come first, and recording stays on if it was on. */
+  continueRecording(recorded: RecordedDataChannelMessage[], recording: boolean): void {
+    this.recorded = recorded.concat(this.recorded);
+    this.recording = recording;
+  }
+
   // ----- Relay -----
 
   /** The oldest message queued for relay, if any. */

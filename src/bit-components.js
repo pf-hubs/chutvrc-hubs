@@ -40,8 +40,9 @@ export const MediaFrame = defineComponent({
   flags: Types.ui8
 });
 export const MediaRoot = defineComponent();
+// A string property holds a string id from APP.getSid(), which counts up without limit, so it needs 32 bits
 export const NetworkedText = defineComponent({
-  text: Types.ui8,
+  text: Types.ui32,
   anchorX: Types.ui8,
   anchorY: Types.ui8,
   color: Types.ui32,
@@ -51,15 +52,15 @@ export const NetworkedText = defineComponent({
   fontUrl: Types.ui8,
   fontSize: Types.f32,
   letterSpacing: Types.f32,
-  lineHeight: Types.ui8,
+  lineHeight: Types.ui32,
   textAlign: Types.ui8,
-  outlineWidth: Types.ui8,
+  outlineWidth: Types.ui32,
   outlineColor: Types.ui32,
-  outlineBlur: Types.ui8,
-  outlineOffsetX: Types.ui8,
-  outlineOffsetY: Types.ui8,
+  outlineBlur: Types.ui32,
+  outlineOffsetX: Types.ui32,
+  outlineOffsetY: Types.ui32,
   outlineOpacity: Types.f32,
-  strokeWidth: Types.ui8,
+  strokeWidth: Types.ui32,
   strokeColor: Types.ui32,
   strokeOpacity: Types.ui32,
   textIndent: Types.ui32,
@@ -316,7 +317,7 @@ export const LoopAnimation = defineComponent();
  */
 export const LoopAnimationData = new Map();
 export const NetworkedVideo = defineComponent({
-  src: Types.ui8,
+  src: Types.ui32,
   time: Types.f32,
   flags: Types.ui8,
   projection: Types.ui8
