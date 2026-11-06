@@ -161,10 +161,11 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     };
 
     if (this._room) {
-      // Drop the old room's listeners first so its own Disconnected event cannot start a second reconnect
+      // Drop the old room's listeners first so its own Disconnected event cannot start a second reconnect.
+      // The published tracks are left running: the microphone belongs to the media devices manager
       this._room.removeAllListeners();
       try {
-        await this._room.disconnect();
+        await this._room.disconnect(false);
       } catch (error) {
         console.error("Failed to disconnect old LiveKit room:", error);
       }
@@ -416,10 +417,12 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     this._connectionState = SfuConnectionState.DISCONNECTED;
 
     // Disconnect from room. Detach the listeners first so that this intentional
-    // disconnect does not trigger a reconnect from the Disconnected event.
+    // disconnect does not trigger a reconnect from the Disconnected event. The SDK stops the
+    // published tracks by default; they are unpublished only, since the tracks set from outside
+    // belong to the media devices manager
     if (this._room) {
       this._room.removeAllListeners();
-      await this._room.disconnect();
+      await this._room.disconnect(false);
       this._room = null;
     }
 
