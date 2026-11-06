@@ -18,7 +18,7 @@ function apply(eid: EntityID, { version, data }: StoredComponent) {
     write(NetworkedVideo.time, eid, time);
     write(NetworkedVideo.flags, eid, flags);
     write(NetworkedVideo.projection, eid, projection);
-    write(NetworkedVideo.src, eid, APP.getSid(src));
+    write(NetworkedVideo.src, eid, src);
     return true;
   }
   return false;
@@ -35,7 +35,7 @@ export const NetworkedVideoSchema: NetworkSchema = {
         time: read(NetworkedVideo.time, eid),
         flags: read(NetworkedVideo.flags, eid),
         projection: read(NetworkedVideo.projection, eid),
-        src: APP.getString(read(NetworkedVideo.src, eid))
+        src: read(NetworkedVideo.src, eid)
       }
     };
   },
