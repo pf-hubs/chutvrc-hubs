@@ -1,6 +1,6 @@
 import { Object3D, WebGLRenderer } from "three";
 import { PoseStore } from "./pose-store";
-import { copyXyz } from "./tracked-pose";
+import { copyQuat, copyXyz, TRACKED_HEAD, TRACKED_LEFT_HAND, TRACKED_RIGHT_HAND, TrackedPart } from "./tracked-pose";
 
 /** The own rig and the objects the headset and controllers move, as the scene has them */
 export type LocalPoseObjects = {
@@ -9,6 +9,16 @@ export type LocalPoseObjects = {
   leftHand: Object3D;
   rightHand: Object3D;
 };
+
+/**
+ * Copies an object's local position and rotation. three.js keeps an object's Euler angles and quaternion
+ * equal to each other, so both are read rather than one converted from the other.
+ */
+function copyObject(from: Object3D, to: TrackedPart) {
+  copyXyz(from.position, to.pos);
+  copyXyz(from.rotation, to.rot);
+  copyQuat(from.quaternion, to.quat);
+}
 
 /**
  * Reads the own rig, head and hands into the own pose once a frame, right before the solver runs, so
@@ -27,14 +37,13 @@ export class LocalPoseSource {
   sample(now: number) {
     const pose = this.store.getOrCreate(this.clientId);
     const { rig, head, leftHand, rightHand } = this.objects;
-    copyXyz(rig.position, pose.rig.pos);
-    copyXyz(rig.rotation, pose.rig.rot);
-    copyXyz(head.position, pose.head.pos);
-    copyXyz(head.rotation, pose.head.rot);
-    copyXyz(leftHand.position, pose.leftHand.pos);
-    copyXyz(leftHand.rotation, pose.leftHand.rot);
-    copyXyz(rightHand.position, pose.rightHand.pos);
-    copyXyz(rightHand.rotation, pose.rightHand.rot);
+    copyObject(rig, pose.rig);
+    copyObject(head, pose.head);
+    copyObject(leftHand, pose.leftHand);
+    copyObject(rightHand, pose.rightHand);
+    // The head always has a pose; a controller is shown only while its device reports one
+    pose.tracked =
+      TRACKED_HEAD | (leftHand.visible ? TRACKED_LEFT_HAND : 0) | (rightHand.visible ? TRACKED_RIGHT_HAND : 0);
     pose.isVR = this.renderer.xr.enabled && this.renderer.xr.isPresenting;
     pose.receivedAt = now;
   }

@@ -7,8 +7,8 @@ import { ChannelHandlerContext, IChannelHandler } from "../channel-handler-inter
 const AVATAR_SYNC_PRIORITY = 0;
 
 /**
- * Note: Avatar transform channels (#avatar-RIG, #avatar-HEAD, #avatar-LEFT, #avatar-RIGHT)
- * are handled directly in the DataChannelMessageDispatcher via pattern matching.
+ * Note: The pose channels (#avatar-pose and the old per-part #avatar-RIG, #avatar-HEAD, #avatar-LEFT,
+ * #avatar-RIGHT) are handled directly in the DataChannelMessageDispatcher via pattern matching.
  * They delegate to AvatarSyncHelper.handleRecvMessage() without needing separate handlers.
  */
 
@@ -65,7 +65,7 @@ export class AvatarAnimStateHandler implements IChannelHandler {
 
 /**
  * Factory to create all avatar sync handlers.
- * Note: Avatar transform channels are handled directly by the dispatcher.
+ * Note: The pose channels are handled directly by the dispatcher.
  */
 export function createAvatarSyncHandlers(): IChannelHandler[] {
   return [new AvatarIdHandler(), new IsVRHandler(), new AvatarAnimStateHandler()];

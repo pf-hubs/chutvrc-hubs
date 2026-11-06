@@ -1,7 +1,7 @@
 import { AvatarAnimState } from "../../types/avatar-types";
 import { Transform } from "../../types/transform";
 import { InterpolationBuffer, POSE_PARTS, PosePart } from "../net/interpolation-buffer";
-import { createTrackedPose, TrackedPose } from "./tracked-pose";
+import { createTrackedPose, Quat, TrackedPose } from "./tracked-pose";
 
 /** How far behind their newest packet remote poses are shown unless PoseStore.interpolationDelayMs is changed */
 export const DEFAULT_INTERPOLATION_DELAY_MS = 100;
@@ -80,10 +80,17 @@ export class PoseStore {
 
   /**
    * Keeps one part of a remote client's pose, as received at `receivedAt` on the clock the frame loop
-   * samples with (performance.now()), for `sample` to blend from. The arrival is noted on the pose at
-   * once, as a direct write would have; the part itself is written by `sample`.
+   * samples with (performance.now()), for `sample` to blend from. The rotation is `quat` when given,
+   * otherwise the transform's YXZ Euler angles. The arrival is noted on the pose at once, as a direct
+   * write would have; the part itself is written by `sample`.
    */
-  pushRemotePart(clientId: string, part: PosePart, receivedAt: number, transform: Readonly<Transform>) {
+  pushRemotePart(
+    clientId: string,
+    part: PosePart,
+    receivedAt: number,
+    transform: Readonly<Transform>,
+    quat?: Readonly<Quat>
+  ) {
     const pose = this.getOrCreate(clientId);
     pose.receivedAt = receivedAt;
     let buffer = this.buffers.get(clientId);
@@ -91,7 +98,7 @@ export class PoseStore {
       buffer = new InterpolationBuffer();
       this.buffers.set(clientId, buffer);
     }
-    buffer.push(part, receivedAt, transform.pos, transform.rot);
+    buffer.push(part, receivedAt, transform.pos, transform.rot, quat);
   }
 
   /**
@@ -104,7 +111,8 @@ export class PoseStore {
       const pose = this.poses.get(clientId);
       if (!pose) continue;
       for (const part of POSE_PARTS) {
-        buffer.sample(part, renderTime, pose[part].pos, pose[part].rot);
+        const target = pose[part];
+        buffer.sample(part, renderTime, target.pos, target.rot, target.quat);
       }
     }
   }

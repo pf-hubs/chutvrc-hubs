@@ -8,7 +8,7 @@ import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { DialogConfig, SfuConfig, TurnConfig, withDialogHost } from "./sfu-config";
-import { dataChannelLabels } from "./data-channel-bus";
+import { channelSpec, dataChannelLabels } from "./data-channel-bus";
 import { LocalTrackKind } from "./media-session";
 import {
   ChannelHandlerRegistry,
@@ -910,12 +910,14 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
   }
 
   protected async afterLocalStreamApplied(): Promise<void> {
-    // DataChannel implementation. The DataProducers are created with the label only, so every
-    // channel is ordered and reliable for now; the ordered / maxRetransmits values from the
-    // channel table will be passed in a later stage together with sequence numbers.
+    // DataChannel implementation. A sequenced channel (its packets carry sequence numbers, so the receiver
+    // drops late ones itself) is opened unordered and without retransmission; every other channel keeps
+    // mediasoup's defaults, ordered and reliable, including the old per-part transform channels.
     await Promise.all(
       dataChannelLabels().map(async label => {
-        const dataProducer = await this._sendTransport.produceData({ label });
+        const dataProducer = await this._sendTransport.produceData(
+          channelSpec(label).sequenced ? { label, ordered: false, maxRetransmits: 0 } : { label }
+        );
 
         dataProducer.on("transportclose", () => {
           this.emitRTCEvent("error", "RTC", () => `DataProducer transport closed. Channel: #${label}`);

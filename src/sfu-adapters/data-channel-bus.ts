@@ -20,12 +20,22 @@ export type SoraDataChannelDirection = "sendonly" | "recvonly" | "sendrecv";
 export interface ChannelSpec {
   readonly label: string;
   readonly kind: ChannelKind;
-  /** Whether the channel should retransmit lost messages. Only LiveKit honours this today. */
+  /**
+   * Whether the channel should retransmit lost messages. LiveKit honours this on every channel (its lossy
+   * delivery is unordered as well); Dialog only on a sequenced channel; Sora retransmits on every channel.
+   */
   readonly reliable: boolean;
-  /** Whether the channel should deliver messages in order. Only LiveKit honours this today. */
+  /** Whether the channel should deliver messages in order. Dialog honours this only on a sequenced channel. */
   readonly ordered: boolean;
+  /**
+   * Whether the packets carry sequence numbers, so that the receiver itself drops the ones that arrive
+   * late. Only such a channel is opened unordered and without retransmission on Dialog, which otherwise
+   * keeps its defaults: the old per-part transform channels carry none, and a receiver applies their
+   * packets in the order they arrive.
+   */
+  readonly sequenced?: boolean;
   readonly sora: SoraDirectionRule;
-  /** Whether the raw message is recorded. Avatar transforms are recorded decoded by the avatar sync helper. */
+  /** Whether the raw message is recorded. Avatar poses are recorded decoded by the avatar sync helper. */
   readonly recordRaw: boolean;
 }
 
@@ -40,6 +50,15 @@ export const CHANNEL_TABLE: readonly ChannelSpec[] = [
   { label: "#avatar-HEAD", kind: "binary", reliable: false, ordered: false, sora: "byConnection", recordRaw: false },
   { label: "#avatar-LEFT", kind: "binary", reliable: false, ordered: false, sora: "byConnection", recordRaw: false },
   { label: "#avatar-RIGHT", kind: "binary", reliable: false, ordered: false, sora: "byConnection", recordRaw: false },
+  {
+    label: "#avatar-pose",
+    kind: "binary",
+    reliable: false,
+    ordered: false,
+    sequenced: true,
+    sora: "byConnection",
+    recordRaw: false
+  },
   { label: "#nimpro", kind: "text", reliable: true, ordered: true, sora: "sendrecv", recordRaw: true },
   { label: "#iot", kind: "binary", reliable: true, ordered: true, sora: "sendrecv", recordRaw: true },
   { label: "#pdfPage", kind: "text", reliable: true, ordered: true, sora: "sendOrRecv", recordRaw: true },
@@ -49,11 +68,6 @@ export const CHANNEL_TABLE: readonly ChannelSpec[] = [
 ];
 
 const CHANNEL_SPECS_BY_LABEL = new Map(CHANNEL_TABLE.map(spec => [spec.label, spec]));
-
-/** Labels of the four avatar transform channels (#avatar-RIG, #avatar-HEAD, #avatar-LEFT, #avatar-RIGHT). */
-export function avatarTransformChannelLabels(): string[] {
-  return CHANNEL_TABLE.filter(spec => spec.label.startsWith("#avatar-")).map(spec => spec.label);
-}
 
 /** Labels of every channel, in the order Dialog creates its DataProducers and LiveKit marks its channels ready. */
 export function dataChannelLabels(): string[] {
@@ -106,10 +120,28 @@ export function soraDataChannels(
 // ========== Recording ==========
 
 type Vector3 = { x: number; y: number; z: number };
+/** One of the old per-part packets, decoded: the client id, the position and the YXZ Euler rotation */
 type RecordedDataChannelAvatarTransform = { c: string; p: Vector3; r: Vector3 };
+type RecordedPart = { p: Vector3; r: Vector3 };
+/**
+ * A whole-body packet, decoded: the client id, sequence number, sender time and flags, and each part's
+ * position and YXZ Euler rotation
+ */
+export type RecordedDataChannelAvatarPose = {
+  c: string;
+  seq: number;
+  t: number;
+  tracked: number;
+  isVR: boolean;
+  animState: number;
+  rig: RecordedPart;
+  head: RecordedPart;
+  left: RecordedPart;
+  right: RecordedPart;
+};
 export type RecordedDataChannelMessage = {
   l: string;
-  m: string | RecordedDataChannelAvatarTransform | null;
+  m: string | RecordedDataChannelAvatarTransform | RecordedDataChannelAvatarPose | null;
   t: number;
   s: 0 | 1;
 }; // l: label/channel, m: message, t: timestamp, s: isSend (0: false (is recv), 1: true)

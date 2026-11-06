@@ -1,20 +1,21 @@
 import { Euler, Quaternion } from "three";
 import { Position, Rotation } from "../../types/transform";
+import { Quat } from "../pose/tracked-pose";
 
-/** The parts of a pose that arrive as separate packets, named as the fields of a TrackedPose that hold them */
+/** The parts of a pose, named as the fields of a TrackedPose that hold them */
 export const POSE_PARTS = ["rig", "head", "leftHand", "rightHand"] as const;
 export type PosePart = (typeof POSE_PARTS)[number];
 
-/** Samples kept per part: about a second of packets at the rate the rig is sent */
+/** Samples kept per part: about a second of packets at the rate the body is sent */
 export const CAPACITY = 32;
 /** How far past the newest sample a part is carried on at its last velocity */
 export const MAX_EXTRAPOLATION_MS = 100;
 /** How long after that the part takes to come back to the newest sample, which it then holds */
 export const EXTRAPOLATION_RETURN_MS = 100;
 /**
- * The shortest spacing of the two samples a velocity is taken from. The wire format carries no send
- * time, so samples are timed by arrival; two that arrived closer than this were most likely sent further
- * apart and would give a velocity far too high, so the velocity is taken over the next older sample.
+ * The shortest spacing of the two samples a velocity is taken from. Samples are timed by arrival, not by
+ * the sender's clock; two that arrived closer than this were most likely sent further apart and would
+ * give a velocity far too high, so the velocity is taken over the next older sample.
  */
 const MIN_VELOCITY_SPAN_MS = 25;
 
@@ -24,15 +25,19 @@ const quatTo = new Quaternion();
 const quatOut = new Quaternion();
 
 /**
- * Writes a rotation as the YXZ Euler angles the solver reads. The rotation is the one the sender had;
- * only the angle triple can differ from the sender's, at a pitch of ±90°, where yaw and roll are not
- * separable and the decomposition puts the whole turn into the yaw.
+ * Writes a rotation as the quaternion and as the YXZ Euler angles the old solver reads. The rotation is
+ * the one the sender had; only the angle triple can differ from the sender's, at a pitch of ±90°, where
+ * yaw and roll are not separable and the decomposition puts the whole turn into the yaw.
  */
-function writeEuler(quat: Quaternion, out: Rotation) {
+function writeRotation(quat: Quaternion, outRot: Rotation, outQuat: Quat) {
   scratchEuler.setFromQuaternion(quat);
-  out.x = scratchEuler.x;
-  out.y = scratchEuler.y;
-  out.z = scratchEuler.z;
+  outRot.x = scratchEuler.x;
+  outRot.y = scratchEuler.y;
+  outRot.z = scratchEuler.z;
+  outQuat.x = quat.x;
+  outQuat.y = quat.y;
+  outQuat.z = quat.z;
+  outQuat.w = quat.w;
 }
 
 /**
@@ -48,7 +53,7 @@ class SampleRing {
   /** The slot the newest sample is in, once there is one */
   private newest = CAPACITY - 1;
 
-  push(time: number, pos: Readonly<Position>, quat: Quaternion) {
+  push(time: number, pos: Readonly<Position>, quat: Readonly<Quat>) {
     // Arrival times never go backwards; should a caller's clock, the ring stays ordered by insertion
     if (this.count > 0 && time < this.times[this.newest]) time = this.times[this.newest];
     const slot = (this.newest + 1) % CAPACITY;
@@ -67,20 +72,21 @@ class SampleRing {
   }
 
   /** Writes the pose at `time` into the outputs; returns false and writes nothing while the ring is empty */
-  sample(time: number, outPos: Position, outRot: Rotation): boolean {
+  sample(time: number, outPos: Position, outRot: Rotation, outQuat: Quat): boolean {
     if (this.count === 0) return false;
     // Walk back from the newest sample to the newest one at or before `time`
     let age = 0;
     while (age < this.count && this.times[this.slotAt(age)] > time) age++;
     if (age === 0) {
-      this.extrapolate(time, outPos, outRot);
+      this.extrapolate(time, outPos, outRot, outQuat);
     } else if (age === this.count) {
       // Older than every sample: hold the oldest
-      this.write(this.slotAt(age - 1), outPos, outRot);
+      this.write(this.slotAt(age - 1), outPos, outRot, outQuat);
     } else {
       const from = this.slotAt(age);
       const to = this.slotAt(age - 1);
-      this.blend(from, to, (time - this.times[from]) / (this.times[to] - this.times[from]), outPos, outRot);
+      const t = (time - this.times[from]) / (this.times[to] - this.times[from]);
+      this.blend(from, to, t, outPos, outRot, outQuat);
     }
     return true;
   }
@@ -93,28 +99,28 @@ class SampleRing {
   /**
    * Past the newest sample: carries the part on at the velocity between the newest sample and an earlier
    * one for MAX_EXTRAPOLATION_MS, then eases it back to the newest sample over EXTRAPOLATION_RETURN_MS and
-   * holds it there. Coming back matters because a head or hand is only sent while it moves: for those, no
-   * newer packet usually means "still", and the newest sample is where the part is.
+   * holds it there. Coming back matters because an old build sends a head or hand only while it moves:
+   * for those, no newer packet usually means "still", and the newest sample is where the part is.
    */
-  private extrapolate(time: number, outPos: Position, outRot: Rotation) {
+  private extrapolate(time: number, outPos: Position, outRot: Rotation, outQuat: Quat) {
     const newest = this.slotAt(0);
     const newestTime = this.times[newest];
     let age = 1;
     while (age < this.count && newestTime - this.times[this.slotAt(age)] < MIN_VELOCITY_SPAN_MS) age++;
     const ahead = time - newestTime;
     if (age === this.count || ahead >= MAX_EXTRAPOLATION_MS + EXTRAPOLATION_RETURN_MS) {
-      this.write(newest, outPos, outRot);
+      this.write(newest, outPos, outRot, outQuat);
       return;
     }
     const from = this.slotAt(age);
     const span = newestTime - this.times[from];
     const back = Math.max(0, ahead - MAX_EXTRAPOLATION_MS);
     const reach = Math.min(ahead, MAX_EXTRAPOLATION_MS) * (1 - back / EXTRAPOLATION_RETURN_MS);
-    this.blend(from, newest, 1 + reach / span, outPos, outRot);
+    this.blend(from, newest, 1 + reach / span, outPos, outRot, outQuat);
   }
 
   /** Writes the pose a fraction `t` of the way from one slot to another; `t` above one carries on past the second */
-  private blend(from: number, to: number, t: number, outPos: Position, outRot: Rotation) {
+  private blend(from: number, to: number, t: number, outPos: Position, outRot: Rotation, outQuat: Quat) {
     const p = this.positions;
     const a = from * 3;
     const b = to * 3;
@@ -124,28 +130,29 @@ class SampleRing {
     const r = this.rotations;
     quatFrom.set(r[from * 4], r[from * 4 + 1], r[from * 4 + 2], r[from * 4 + 3]);
     quatTo.set(r[to * 4], r[to * 4 + 1], r[to * 4 + 2], r[to * 4 + 3]);
-    writeEuler(quatOut.slerpQuaternions(quatFrom, quatTo, t), outRot);
+    writeRotation(quatOut.slerpQuaternions(quatFrom, quatTo, t), outRot, outQuat);
   }
 
-  private write(slot: number, outPos: Position, outRot: Rotation) {
+  private write(slot: number, outPos: Position, outRot: Rotation, outQuat: Quat) {
     const p = slot * 3;
     outPos.x = this.positions[p];
     outPos.y = this.positions[p + 1];
     outPos.z = this.positions[p + 2];
     const r = this.rotations;
     const i = slot * 4;
-    writeEuler(quatOut.set(r[i], r[i + 1], r[i + 2], r[i + 3]), outRot);
+    writeRotation(quatOut.set(r[i], r[i + 1], r[i + 2], r[i + 3]), outRot, outQuat);
   }
 }
 
 /**
  * The recent samples of one remote client's pose, a ring per part, and the pose at any moment between
  * them. Rotations are kept as quaternions so that two samples blend along the shortest arc, across the
- * ±180° yaw wrap too; they go in and come out as the YXZ Euler angles the packets and the solver use.
+ * ±180° yaw wrap too; a whole-body packet gives its quaternions directly, an old per-part packet its YXZ
+ * Euler angles, and a sample comes out as both.
  *
- * The wire format carries neither a sequence number nor a send time, so samples are ordered by arrival:
- * a push is never older than the previous one, and a ring is read in insertion order. Nothing is
- * allocated per packet or per frame.
+ * Samples are ordered by arrival: the old per-part packets carry no sequence number, and a whole-body
+ * packet that arrives after a newer one is dropped before it gets here, so a push is never older than the
+ * previous one and a ring is read in insertion order. Nothing is allocated per packet or per frame.
  */
 export class InterpolationBuffer {
   private readonly rings: Record<PosePart, SampleRing> = {
@@ -155,10 +162,22 @@ export class InterpolationBuffer {
     rightHand: new SampleRing()
   };
 
-  /** Keeps the part's pose as received at `receivedAt`, on the clock the frame loop samples with */
-  push(part: PosePart, receivedAt: number, pos: Readonly<Position>, rotEuler: Readonly<Rotation>) {
-    scratchEuler.set(rotEuler.x, rotEuler.y, rotEuler.z);
-    this.rings[part].push(receivedAt, pos, quatFrom.setFromEuler(scratchEuler));
+  /**
+   * Keeps the part's pose as received at `receivedAt`, on the clock the frame loop samples with. The
+   * rotation is `quat` when given, otherwise the YXZ Euler angles.
+   */
+  push(
+    part: PosePart,
+    receivedAt: number,
+    pos: Readonly<Position>,
+    rotEuler: Readonly<Rotation>,
+    quat?: Readonly<Quat>
+  ) {
+    if (!quat) {
+      scratchEuler.set(rotEuler.x, rotEuler.y, rotEuler.z);
+      quat = quatFrom.setFromEuler(scratchEuler);
+    }
+    this.rings[part].push(receivedAt, pos, quat);
   }
 
   /**
@@ -166,7 +185,7 @@ export class InterpolationBuffer {
    * newest one for a short while, or the only sample held. Returns false and writes nothing while the
    * part has no sample.
    */
-  sample(part: PosePart, renderTime: number, outPos: Position, outRotEuler: Rotation): boolean {
-    return this.rings[part].sample(renderTime, outPos, outRotEuler);
+  sample(part: PosePart, renderTime: number, outPos: Position, outRotEuler: Rotation, outQuat: Quat): boolean {
+    return this.rings[part].sample(renderTime, outPos, outRotEuler, outQuat);
   }
 }

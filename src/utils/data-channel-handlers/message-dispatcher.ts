@@ -54,9 +54,9 @@ export class DataChannelMessageDispatcher {
       return;
     }
 
-    // Check for avatar transform channels (pattern: #avatar-*)
+    // Check for the pose channels (pattern: #avatar-*: #avatar-pose and the old per-part channels)
     if (channelLabel.startsWith("#avatar-")) {
-      // Delegate avatar transform channels to AvatarSyncHelper
+      // Delegate the pose channels to AvatarSyncHelper, which tells the whole-body packets from the per-part ones
       this.context.avatarSyncHelper.handleRecvMessage(channelLabel, uint8Data);
       return;
     }
