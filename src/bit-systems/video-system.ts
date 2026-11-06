@@ -193,7 +193,7 @@ export function videoSystem(world: HubsWorld, audioSystem: AudioSystem) {
     } else {
       let shouldUpdateVideo = false;
       const autoPlay = NetworkedVideo.flags[eid] & VIDEO_FLAGS.AUTO_PLAY ? true : false;
-      const loop = NetworkedVideo.flags[eid] & VIDEO_FLAGS.AUTO_PLAY ? true : false;
+      const loop = NetworkedVideo.flags[eid] & VIDEO_FLAGS.LOOP ? true : false;
       if (MediaVideo.flags[eid] !== NetworkedVideo.flags[eid]) {
         MediaVideo.flags[eid] = NetworkedVideo.flags[eid];
       }
