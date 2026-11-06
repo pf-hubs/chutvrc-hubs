@@ -58,6 +58,7 @@ export class MediaSession {
   private pending = new Map<string, Partial<Record<string, PendingMediaRequest>>>();
 
   private stream: MediaStream | null = null;
+  private videoContentHints: Map<string, string> | null = null;
   private tracks: LocalTracks = {};
   private micWanted = false;
 
@@ -250,6 +251,11 @@ export class MediaSession {
     return this.stream;
   }
 
+  /** The content hints that came with the last local stream set, telling the camera track from the screen. */
+  get localVideoContentHints(): Map<string, string> | null {
+    return this.videoContentHints;
+  }
+
   /** The published local track of a kind. */
   localTrack(kind: LocalTrackKind): MediaStreamTrack | undefined {
     return this.tracks[kind];
@@ -293,6 +299,8 @@ export class MediaSession {
     videoContentHintByTrackId: Map<string, string> | null = null
   ): Promise<void> {
     if (this.adapter.connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    // Kept even when the stream cannot be applied yet, so an adapter that applies it later has them
+    this.videoContentHints = videoContentHintByTrackId;
     if (!this.driver.beforeLocalStreamApplied(stream)) return;
 
     const microphone = stream.getAudioTracks()[0];

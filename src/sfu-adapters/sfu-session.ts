@@ -6,8 +6,17 @@ import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
 import { BRIDGE_MESSAGE_RECEIVED, SfuAdapter } from "./sfu-adapter";
 import { SfuAdapterFactory } from "./adapter-factory";
 import { SfuConfig } from "./sfu-config";
-import { DataChannelBus } from "./data-channel-bus";
+import { DataChannelBus, RecordedDataChannelMessage } from "./data-channel-bus";
 import { MediaSession } from "./media-session";
+
+/** What a replaced adapter hands to its successor: the local media it published and the recording it was making. */
+interface CarriedState {
+  stream: MediaStream | null;
+  videoContentHints: Map<string, string> | null;
+  micEnabled: boolean;
+  recorded: RecordedDataChannelMessage[];
+  recording: boolean;
+}
 
 /**
  * The client's connection to the media server of the current room, for one role: the room's send-and-receive
@@ -41,25 +50,35 @@ export class SfuSession extends EventEmitter implements ISfuAdapter {
 
   /**
    * Joins the room described by the config. When the config is for another kind of media server than the
-   * current adapter, the adapter is disconnected and replaced first. A disconnect() still in flight is
-   * awaited, so a caller may call disconnect() and connect() back to back without awaiting either.
+   * current adapter, the adapter is disconnected and replaced first; the local stream, the microphone state
+   * and the recording of the replaced adapter are carried over to the new one. A disconnect() still in
+   * flight is awaited, so a caller may call disconnect() and connect() back to back without awaiting either.
    */
   async connect(config: SfuConfig): Promise<void> {
     if (this._disconnecting) await this._disconnecting.catch(() => {});
 
-    let replacing = false;
+    let carried: CarriedState | null = null;
     if (this._adapter && this._adapter.sfuId !== SfuAdapterFactory.sfuTypeOf(config.kind)) {
+      const previous = this._adapter;
       await this.disconnect().catch(error => console.error("Failed to disconnect the previous adapter:", error));
-      this._adapter.delegate = null;
+      // disconnect() unpublishes the local tracks but keeps the stream and the microphone wish
+      carried = {
+        stream: previous.media.localStream,
+        videoContentHints: previous.media.localVideoContentHints,
+        micEnabled: previous.media.micShouldBeEnabled,
+        recorded: previous.bus.takeRecording(),
+        recording: previous.bus.isRecording
+      };
+      previous.delegate = null;
       this._adapter = null;
-      replacing = true;
     }
 
     if (!this._adapter) {
       const adapter = SfuAdapterFactory.create(config.kind, this.connectionType);
       adapter.delegate = this;
       // A replacement joins a room that already knows this client, so it has to announce the avatar again
-      adapter.avatarSync.announceSelfOnSyncInit = replacing;
+      adapter.avatarSync.announceSelfOnSyncInit = carried !== null;
+      if (carried) adapter.bus.continueRecording(carried.recorded, carried.recording);
       this._adapter = adapter;
       const requests = this._requestsBeforeAdapter;
       this._requestsBeforeAdapter = [];
@@ -68,6 +87,12 @@ export class SfuSession extends EventEmitter implements ISfuAdapter {
 
     if (this._hubChannel) this._adapter.hubChannel = this._hubChannel;
     await this._adapter.connect(config);
+
+    // The new adapter publishes what the replaced one did, in the microphone state the user last chose
+    if (carried?.stream) {
+      await this._adapter.setLocalMediaStream(carried.stream, carried.videoContentHints);
+      this._adapter.enableMicrophone(carried.micEnabled);
+    }
   }
 
   /** Leaves the room; see SfuAdapter.disconnect() for what is closed and forgotten. The adapter is kept. */
