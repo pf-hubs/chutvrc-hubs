@@ -14,6 +14,7 @@ import {
   PreventAudioBoost,
   IgnoreSpaceBubble
 } from "../bit-components";
+import { inflateHoldable } from "../inflators/holdable";
 
 const tag2ecs = {
   isHoldable: Holdable,
@@ -59,7 +60,13 @@ AFRAME.registerComponent("tags", {
     }
     this.didUpdateOnce = true;
     Object.entries(this.data).forEach(([tagName, isSet]) => {
-      if (isSet) addComponent(APP.world, tag2ecs[tagName], this.el.eid);
+      if (!isSet) return;
+      if (tagName === "isHoldable") {
+        // The hold system grabs a Holdable only while its enabled flag is set; the inflator sets it
+        inflateHoldable(APP.world, this.el.eid);
+      } else {
+        addComponent(APP.world, tag2ecs[tagName], this.el.eid);
+      }
     });
   }
 });
