@@ -67,7 +67,8 @@ export function write(prop: any, eid: EntityID, value: any) {
   if (ArrayBuffer.isView(prop[eid])) {
     prop[eid].set(value);
   } else {
-    prop[eid] = prop[$isStringType] ? APP.getString(value) : value;
+    // A string property holds a string id; read() returns the string, so write() takes the string
+    prop[eid] = prop[$isStringType] ? APP.getSid(value) : value;
   }
 }
 

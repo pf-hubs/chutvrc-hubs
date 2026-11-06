@@ -92,6 +92,11 @@ function* loadSrc(
 
   swapObject3DComponent(world, eid, videoObj);
 
+  // The frame loop compares the networked source with this; the source is kept as the owner names it
+  MediaInfo.accessibleUrl[eid] = APP.getSid(src);
+  MediaInfo.contentType[eid] = APP.getSid(contentType);
+  MediaInfo.mediaType[eid] = mediaType;
+
   if ((NetworkedVideo.flags[eid] & VIDEO_FLAGS.PAUSED) === 0 || autoPlay) {
     video.play();
   }
@@ -193,7 +198,7 @@ export function videoSystem(world: HubsWorld, audioSystem: AudioSystem) {
     } else {
       let shouldUpdateVideo = false;
       const autoPlay = NetworkedVideo.flags[eid] & VIDEO_FLAGS.AUTO_PLAY ? true : false;
-      const loop = NetworkedVideo.flags[eid] & VIDEO_FLAGS.AUTO_PLAY ? true : false;
+      const loop = NetworkedVideo.flags[eid] & VIDEO_FLAGS.LOOP ? true : false;
       if (MediaVideo.flags[eid] !== NetworkedVideo.flags[eid]) {
         MediaVideo.flags[eid] = NetworkedVideo.flags[eid];
       }
