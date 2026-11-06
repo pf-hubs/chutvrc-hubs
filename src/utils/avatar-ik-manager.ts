@@ -1,5 +1,8 @@
 import { Object3D, Vector3 } from "three";
 import { InputTransform } from "../bit-systems/avatar-bones-system";
+import { applyToBones, readRestFrames } from "../avatar/ik/apply-to-bones";
+import { recalibrate as resetHeightCalibration } from "../avatar/ik/calibration";
+import { BoneWrites, createBoneWrites, createIkState, IkState, solveBody } from "../avatar/ik/solve-body";
 import { TrackedPose } from "../avatar/pose/tracked-pose";
 import { RigDescription } from "../avatar/rig/rig-description";
 import { Transform } from "../types/transform";
@@ -42,9 +45,16 @@ export class AvatarIkManager {
   private leftFootWorldInput: Transform;
   private rightFootWorldInput: Transform;
 
+  /** The new solver's state and output, created the first time the preference selects it */
+  private rig: RigDescription;
+  private ikState: IkState | undefined;
+  private boneWrites: BoneWrites | undefined;
+  private usesNewSolver: boolean | undefined;
+
   /** Takes the bones and the measurements of the rig as they were described when the model was loaded */
   constructor(rig: RigDescription, isNPC?: boolean) {
     const bone = (name: keyof RigDescription["bones"]) => rig.bones[name] ?? undefined;
+    this.rig = rig;
     const head = bone("head");
     const spine = bone("spine");
     this.hipsBone = bone("hips");
@@ -163,7 +173,31 @@ export class AvatarIkManager {
       this.animState = animState;
     }
 
-    this.updateAvatarBoneIk(this.poseInput);
+    const useNewSolver = !!APP.store.state.preferences.avatarIkV2;
+    if (useNewSolver !== this.usesNewSolver) {
+      this.usesNewSolver = useNewSolver;
+      console.log(`Avatar of ${clientId}: solving with the ${useNewSolver ? "new" : "old"} body solver`);
+    }
+    if (useNewSolver) this.solveWithNewSolver(pose);
+    else this.updateAvatarBoneIk(this.poseInput);
+  }
+
+  /** The new path: a pure solve over the rig description and the tracked pose, then one write to the bones */
+  private solveWithNewSolver(pose: TrackedPose) {
+    if (!this.rootBone || !this.hipsBone) return;
+    this.isInputReady = true;
+    if (this.rootBone.parent && !this.rootBone.parent.visible) this.rootBone.parent.visible = true;
+    if (!this.ikState || !this.boneWrites) {
+      this.ikState = createIkState(readRestFrames(this.rig));
+      this.boneWrites = createBoneWrites();
+    }
+    solveBody(this.rig, pose, this.ikState, this.boneWrites, { now: performance.now(), isSelf: this.isSelfAvatar });
+    applyToBones(this.rig, this.boneWrites);
+  }
+
+  /** Forgets the new solver's height calibration, so the next frame in VR takes it again */
+  recalibrate() {
+    if (this.ikState) resetHeightCalibration(this.ikState.calibration);
   }
 
   updateAvatarBoneIk(poseInput: InputTransform) {

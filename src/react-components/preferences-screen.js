@@ -498,6 +498,10 @@ const preferenceLabels = defineMessages({
     id: "preferences-screen.preference.show-rtc-debug-panel",
     defaultMessage: "Show RTC Panel"
   },
+  avatarIkV2: {
+    id: "preferences-screen.preference.avatar-ik-v2",
+    defaultMessage: "Use the new avatar body solver (experimental)"
+  },
   showAudioDebugPanel: {
     id: "preferences-screen.preference.show-audio-debug-panel",
     defaultMessage: "Show Audio Debug Panel"
@@ -1310,6 +1314,10 @@ class PreferencesScreen extends Component {
           },
           {
             key: "showRtcDebugPanel",
+            prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX
+          },
+          {
+            key: "avatarIkV2",
             prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX
           },
           {

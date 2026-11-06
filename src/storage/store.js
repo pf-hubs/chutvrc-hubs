@@ -151,6 +151,7 @@ export const SCHEMA = {
         disableAutoGainControl: { type: "bool", default: isFirefoxReality },
         locale: { type: "string", default: "browser" },
         showRtcDebugPanel: { type: "bool", default: false },
+        avatarIkV2: { type: "bool", default: false },
         showAudioDebugPanel: { type: "bool", default: false },
         enableAudioClipping: { type: "bool", default: false },
         audioClippingThreshold: { type: "number", default: 0.015 },
