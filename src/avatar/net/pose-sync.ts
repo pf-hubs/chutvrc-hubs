@@ -51,7 +51,7 @@ export class PoseSync {
   _sfu: SfuAdapter;
   /** Loads, replaces and removes the avatar models of this session's clients */
   readonly models: AvatarModelManager;
-  /** Reads the own rig, head and hands into the pose store once a frame; exists once the rig is in the scene */
+  /** Reads the own rig, head and hands into the pose store once a frame while the sender runs; exists once the rig is in the scene */
   localPoseSource: LocalPoseSource | undefined;
   /** Sends the own pose from the frame loop while the pose channels are open */
   readonly poseSender: PoseSender;
@@ -219,6 +219,8 @@ export class PoseSync {
         { rig: rig.object3D, head: head.object3D, leftHand: left.object3D, rightHand: right.object3D },
         AFRAME.scenes[0].renderer
       );
+      // The sender samples through the source each frame it runs, so a public speaking sender gets its pose too
+      this.poseSender.source = this.localPoseSource;
       this.poseSender.setClientId(this._sfu.clientId);
       return true;
     }

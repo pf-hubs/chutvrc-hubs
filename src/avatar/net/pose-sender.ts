@@ -1,5 +1,6 @@
 import { SfuAdapter } from "../../sfu-adapters/sfu-adapter";
 import { RecordedDataChannelAvatarPose } from "../../sfu-adapters/data-channel-bus";
+import { LocalPoseSource } from "../pose/local-pose-source";
 import { PoseStore } from "../pose/pose-store";
 import { TrackedPart } from "../pose/tracked-pose";
 import { BODY_BYTES, BodyPose, encodeBody, POSE_CHANNEL } from "./pose-codec-v1";
@@ -28,13 +29,17 @@ export function tickPoseSenders(now: number) {
 /**
  * Sends the own pose over the #avatar-pose channel, the whole body in one packet, driven by the frame
  * loop. Every tick that passes the rate gate sends, whether the body moved or not: the packet is small,
- * the channel loses packets, and a receiver blends between the packets it gets.
+ * the channel loses packets, and a receiver blends between the packets it gets. The sender also samples
+ * the pose it sends, so each session that sends (the room's under the own client id, a public speaking
+ * sender under its own) keeps its own entry of the store current.
  */
 export class PoseSender {
   private clientId = "";
   private encodedClientId: Uint8Array | undefined;
   private packet: Uint8Array | undefined;
   private lastSentAt = -Infinity;
+  /** Reads the own rig, head and hands into the pose this sender sends; set once the rig is in the scene */
+  source: LocalPoseSource | undefined;
 
   constructor(private readonly sfu: SfuAdapter, private readonly store: PoseStore) {}
 
@@ -55,8 +60,10 @@ export class PoseSender {
     this.lastSentAt = -Infinity;
   }
 
-  /** Sends when at least SEND_INTERVAL_MS have passed since the last frame-driven send */
+  /** Samples the own pose, and sends when at least SEND_INTERVAL_MS have passed since the last frame-driven send */
   tick(now: number) {
+    // Every frame, not only when sending: the own avatar is solved from this frame's devices
+    this.source?.sample(now);
     if (now - this.lastSentAt < SEND_INTERVAL_MS) return;
     this.lastSentAt = now;
     this.send();
