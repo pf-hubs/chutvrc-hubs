@@ -60,7 +60,7 @@
       "./test/unit/**"
     ],
     "require": [
-      "@babel/register",
+      "./scripts/babel-register.js",
       "esm"
     ]
   },
