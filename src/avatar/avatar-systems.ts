@@ -11,6 +11,10 @@ import { tickPoseSenders } from "./net/pose-sender";
  */
 export function avatarSystemsTick(world: HubsWorld, t: number) {
   tickPoseSenders(t);
+  // The room's sender starts once its pose channel is open; until then, or if it never opens, the own
+  // pose is read here, so the own avatar follows the devices all the same
+  const roomSync = APP.sfu.avatarSync;
+  if (roomSync && !roomSync.poseSender.isRunning) roomSync.localPoseSource?.sample(t);
   APP.avatarPoses.sample(t);
   avatarIkSystem(world, APP.avatarPoses);
 }

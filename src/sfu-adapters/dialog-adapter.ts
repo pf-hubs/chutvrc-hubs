@@ -8,7 +8,7 @@ import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { DialogConfig, SfuConfig, TurnConfig, withDialogHost } from "./sfu-config";
-import { channelSpec, dataChannelLabels } from "./data-channel-bus";
+import { ChannelSpec, channelSpec, dataChannelLabels } from "./data-channel-bus";
 import { LocalTrackKind } from "./media-session";
 import {
   ChannelHandlerRegistry,
@@ -57,6 +57,25 @@ const SCREEN_SHARING_SIMULCAST_ENCODINGS = [
   { dtx: true, maxBitrate: 6000000 }
 ];
 
+// The reliable messages kept for one channel while it is not open yet; the oldest are dropped beyond this
+const PENDING_DATA_CAP = 8;
+
+/**
+ * Calls back once the data channel under a DataProducer or DataConsumer is open, at once if it already is.
+ * The SDK creates the channel before it creates the object around it, and the object only forwards an
+ * "open" event that comes after that, so a channel that opened in between is found by its ready state.
+ */
+function whenDataChannelOpen(
+  channel: { readyState: RTCDataChannelState; once(event: "open", listener: () => void): void },
+  callback: () => void
+): void {
+  if (channel.readyState === "open") {
+    callback();
+  } else {
+    channel.once("open", callback);
+  }
+}
+
 export class DialogAdapter extends SfuAdapter<DialogConfig> {
   private _micProducer: any;
   private _cameraProducer: any;
@@ -64,6 +83,8 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
   private _consumers: Map<string, any>;
   private _dataProducers: Map<string, any>;
   private _dataConsumers: Map<string, any>;
+  // Reliable messages sent while their channel was not open, by label; sent in order once it opens
+  private _pendingData: Map<string, Uint8Array[]> = new Map();
   private _blockedClients: Map<string, boolean>;
   private _useDataChannel: boolean;
   private _consumerStats: Record<string, any>;
@@ -925,9 +946,8 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
         });
 
         this._dataProducers.set(label, dataProducer);
-        if (!this._clientId.includes("PS-") || this._roomId === "public_speaking") {
-          this._poseSync.handleSyncInit(label);
-        }
+        // Nothing sent before the channel is open arrives, so the pose sync is told only then
+        whenDataChannelOpen(dataProducer, () => this.handleDataProducerOpen(label, dataProducer));
       })
     );
 
@@ -1085,6 +1105,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     this._consumers.clear();
     this._dataConsumers.clear();
     this._dataProducers.clear();
+    this._pendingData.clear();
   }
 
   kick(clientId: string): Promise<void> {
@@ -1113,8 +1134,50 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     });
   }
 
-  protected sendData(label: string, data: Uint8Array): void {
-    this._dataProducers?.get(label)?.send(data);
+  /**
+   * Sends on an open channel only; sending on a channel that is still opening throws. A pose packet is
+   * dropped meanwhile, as the next one follows within a frame; a reliable message waits for the channel.
+   */
+  protected sendData(label: string, data: Uint8Array, spec: ChannelSpec): void {
+    const dataProducer = this._dataProducers.get(label);
+    if (dataProducer?.readyState === "open") {
+      this.flushPendingData(label, dataProducer);
+      dataProducer.send(data);
+      return;
+    }
+    if (!spec.reliable) return;
+    let pending = this._pendingData.get(label);
+    if (!pending) {
+      pending = [];
+      this._pendingData.set(label, pending);
+    }
+    // A copy, as the caller may reuse its buffer
+    pending.push(data.slice());
+    if (pending.length > PENDING_DATA_CAP) pending.shift();
+  }
+
+  /** The channel of a label is open: what waited for it is sent, then the pose sync may use it */
+  private handleDataProducerOpen(label: string, dataProducer: any): void {
+    // A producer replaced by a later one, or forgotten on a disconnect, before it opened is not the label's channel
+    if (this._dataProducers.get(label) !== dataProducer) return;
+    this.flushPendingData(label, dataProducer);
+    if (!this._clientId.includes("PS-") || this._roomId === "public_speaking") {
+      this._poseSync.handleSyncInit(label);
+    }
+  }
+
+  /** Sends the messages that waited for a label's channel, oldest first */
+  private flushPendingData(label: string, dataProducer: any): void {
+    const pending = this._pendingData.get(label);
+    if (!pending) return;
+    this._pendingData.delete(label);
+    for (const data of pending) {
+      try {
+        dataProducer.send(data);
+      } catch (error) {
+        console.error(error);
+      }
+    }
   }
 
   emitRTCEvent(level: string, tag: string, msgFunc: () => string): void {
