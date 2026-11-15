@@ -962,7 +962,11 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     );
 
     // TODO: move to other appropriate place
+    // A speaking session reaches the audience rooms only through the listeners' relays, and never learns who
+    // joins them, so it keeps announcing its avatar every second besides the pose sync's slower repeat
     if (this && this._clientId.includes("PS-") && this._roomId === "public_speaking") {
+      // A stream applied again comes here again; the repeat started before is replaced, not left running
+      if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
       this._sendSelfAvatarSrcIntervalId = setInterval(() => this._poseSync.sendSelfAvatarSrc(), 1000);
     }
   }
