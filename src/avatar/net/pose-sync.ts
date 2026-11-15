@@ -1,5 +1,6 @@
 import { AElement } from "aframe";
 import { SfuAdapter } from "../../sfu-adapters/sfu-adapter";
+import { encodeAvatarAnnouncement, parseAvatarAnnouncement } from "./avatar-announcement";
 import { POSE_PARTS, PosePart } from "./interpolation-buffer";
 import { decodePart } from "./pose-codec-v0";
 import { decodeBody, isOlderSeq, POSE_CHANNEL } from "./pose-codec-v1";
@@ -195,14 +196,18 @@ export class PoseSync {
   }
 
   /**
-   * An announcement, "clientId|avatarId"; a later build may append fields, which are ignored. Every client
-   * repeats its announcement, so one that names the avatar the client announced last is ignored, also when
-   * that avatar failed to load and the default one stands in: loading it again would fail again.
+   * An announcement, "clientId|avatarId" with an optional standing eye height as a third field
+   * (avatar-announcement.ts); fields a later build appends are ignored. The eye height is kept for the
+   * client whatever else happens to the message, so a change of the eye height alone takes effect without
+   * loading the model again. Every client repeats its announcement, so one that names the avatar the client
+   * announced last loads nothing, also when that avatar failed to load and the default one stands in:
+   * loading it again would fail again.
    */
   private handleAvatarIdMessage(message: string) {
-    const [clientId, avatarId] = message.split("|");
+    const { clientId, avatarId, eyeHeight } = parseAvatarAnnouncement(message);
     // A message that names no client or no avatar has nothing to load; the own client's model is the entry's to load
     if (!clientId || !avatarId || clientId === this._sfu.clientId) return;
+    APP.avatarPoses.setAnnouncedEyeHeight(clientId, eyeHeight);
 
     // A client whose model is loading is skipped; a change of avatar meanwhile comes with its next announcement
     if (this.models.isLoading(clientId)) return;
@@ -261,9 +266,26 @@ export class PoseSync {
     await this.models.replaceAvatarModel(avatarId, clientId);
   };
 
+  /** Announces the own avatar, with the own standing eye height while the body calibration sets one */
   sendSelfAvatarSrc(avatarId?: string) {
-    this._sfu.broadcast("#avatarId", this._sfu.clientId + "|" + (avatarId || window.APP.store.state.profile.avatarId));
+    const clientId = this._sfu.clientId;
+    this._sfu.broadcast(
+      "#avatarId",
+      encodeAvatarAnnouncement(
+        clientId,
+        avatarId || window.APP.store.state.profile.avatarId,
+        APP.avatarPoses.announcedEyeHeightOf(clientId)
+      )
+    );
     this.sendSelfAvatarTransform(false);
+  }
+
+  /**
+   * Something the announcement carries has changed, such as the own eye height: the peers are told now and
+   * once more a little later, if this session announces the own avatar at all
+   */
+  announceSelfChanged() {
+    if (this._announceIntervalId !== undefined) this.announceSelfNowAndAgain();
   }
 
   /**

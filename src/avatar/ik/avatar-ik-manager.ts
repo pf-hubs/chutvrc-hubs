@@ -10,6 +10,8 @@ import {
   SolverKind,
   solverKindOf
 } from "./solve-body";
+import { rigEyeHeight } from "./shared/head";
+import { RestFrames } from "./shared/rig-frames";
 import { TrackedPose } from "../pose/tracked-pose";
 import { RigDescription } from "../rig/rig-description";
 import { Transform } from "../../types/transform";
@@ -67,6 +69,8 @@ export class AvatarIkManager {
    * calls for, and their output; created the first time the preference selects the new solver
    */
   private rig: RigDescription;
+  /** The model's rest pose in root space, read once when first needed */
+  private restFrames: RestFrames | undefined;
   private ikState: IkState | undefined;
   private boneWrites: BoneWrites | undefined;
   private usesNewSolver: boolean | undefined;
@@ -218,11 +222,25 @@ export class AvatarIkManager {
     this.isInputReady = true;
     if (this.rootBone.parent && !this.rootBone.parent.visible) this.rootBone.parent.visible = true;
     if (!this.ikState || !this.boneWrites) {
-      this.ikState = createIkState(readRestFrames(this.rig));
+      this.ikState = createIkState(this.restFramesOf());
       this.boneWrites = createBoneWrites();
     }
     solveBody(this.rig, pose, this.ikState, this.boneWrites, { now: performance.now(), isSelf: this.isSelfAvatar });
     applyToBones(this.rig, this.boneWrites);
+  }
+
+  private restFramesOf(): RestFrames {
+    if (!this.restFrames) this.restFrames = readRestFrames(this.rig);
+    return this.restFrames;
+  }
+
+  /**
+   * The height of the model's eyes over the floor in its rest pose at its own size, in metres; 0 when the
+   * model has no head to measure. The body calibration and the VR solver's ratio are taken against it.
+   */
+  modelEyeHeight(): number {
+    const head = this.restFramesOf().head;
+    return head ? rigEyeHeight(this.rig, head) : 0;
   }
 
   /** Forgets the new solver's height calibration, so the next frame in VR takes it again */
