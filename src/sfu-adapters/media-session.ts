@@ -63,7 +63,7 @@ export class MediaSession {
   private stream: MediaStream | null = null;
   private videoContentHints: Map<string, string> | null = null;
   private tracks: LocalTracks = {};
-  private micWanted = false;
+  private micWanted: boolean;
 
   private publicSpeakerAudioSources: Record<string, CrossRoomStreamerAudioSource> = {};
 
@@ -71,6 +71,9 @@ export class MediaSession {
     this.adapter = adapter;
     this.driver = driver;
     this.options = options;
+    // The room's own session starts with the microphone off until the user asks for it. A send-only session
+    // (a public speaker's sender or agent) has no microphone switch: it sends the stream it is given
+    this.micWanted = adapter.connectionType === SFU_CONNECTION_TYPE.SEND;
   }
 
   // ----- Remote streams -----
