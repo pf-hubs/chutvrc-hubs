@@ -1,8 +1,8 @@
 import { Matrix4, Object3D, Quaternion, Vector3 } from "three";
 import { BODY_BONE_NAMES, BONE_NAMES, BoneName, boneRecord } from "../rig/bone-names";
 import { RigDescription } from "../rig/rig-description";
-import { RestFrame, RestFrames } from "./rig-frames";
-import { BoneWrites, isPositionBone } from "./solve-body";
+import { BoneWrites, isPositionBone } from "./shared/bone-writes";
+import { RestFrame, RestFrames } from "./shared/rig-frames";
 
 /**
  * The only module of the solver that touches the scene objects: it reads the rest pose of the bone

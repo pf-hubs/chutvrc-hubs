@@ -1,7 +1,15 @@
 import { Object3D, Vector3 } from "three";
 import { applyToBones, readRestFrames } from "./apply-to-bones";
 import { recalibrate as resetHeightCalibration } from "./calibration";
-import { BoneWrites, createBoneWrites, createIkState, IkState, solveBody } from "./solve-body";
+import {
+  BoneWrites,
+  createBoneWrites,
+  createIkState,
+  IkState,
+  solveBody,
+  SolverKind,
+  solverKindOf
+} from "./solve-body";
 import { TrackedPose } from "../pose/tracked-pose";
 import { RigDescription } from "../rig/rig-description";
 import { Transform } from "../../types/transform";
@@ -54,11 +62,15 @@ export class AvatarIkManager {
   private leftFootWorldInput: Transform;
   private rightFootWorldInput: Transform;
 
-  /** The new solver's state and output, created the first time the preference selects it */
+  /**
+   * The new solvers' state, one for the avatar whichever of the VR, screen and chatbot solvers its pose
+   * calls for, and their output; created the first time the preference selects the new solver
+   */
   private rig: RigDescription;
   private ikState: IkState | undefined;
   private boneWrites: BoneWrites | undefined;
   private usesNewSolver: boolean | undefined;
+  private newSolverKind: SolverKind | undefined;
 
   /** Takes the bones and the measurements of the rig as they were described when the model was loaded */
   constructor(rig: RigDescription, isNPC?: boolean) {
@@ -187,13 +199,22 @@ export class AvatarIkManager {
       this.usesNewSolver = useNewSolver;
       console.log(`Avatar of ${clientId}: solving with the ${useNewSolver ? "new" : "old"} body solver`);
     }
-    if (useNewSolver) this.solveWithNewSolver(pose);
+    if (useNewSolver) this.solveWithNewSolver(pose, clientId);
     else this.updateAvatarBoneIk(this.poseInput);
   }
 
-  /** The new path: a pure solve over the rig description and the tracked pose, then one write to the bones */
-  private solveWithNewSolver(pose: TrackedPose) {
+  /**
+   * The new path: a pure solve over the rig description and the tracked pose, then one write to the bones.
+   * solveBody picks the VR, screen or chatbot solver from the pose each frame and starts the feet and hands
+   * of the solver the avatar enters afresh when its client moves between VR and a screen.
+   */
+  private solveWithNewSolver(pose: TrackedPose, clientId: string) {
     if (!this.rootBone || !this.hipsBone) return;
+    const kind = solverKindOf(pose);
+    if (kind !== this.newSolverKind) {
+      this.newSolverKind = kind;
+      console.log(`Avatar of ${clientId}: solving with the new ${kind} body solver`);
+    }
     this.isInputReady = true;
     if (this.rootBone.parent && !this.rootBone.parent.visible) this.rootBone.parent.visible = true;
     if (!this.ikState || !this.boneWrites) {

@@ -1,5 +1,5 @@
 import { Quaternion, Vector3 } from "three";
-import { BONE_NAMES, BoneName, boneRecord } from "../rig/bone-names";
+import { BONE_NAMES, BoneName, boneRecord } from "../../rig/bone-names";
 
 /**
  * Where a bone sits in the rig's root space when the model is in its rest pose. Root space is the frame
