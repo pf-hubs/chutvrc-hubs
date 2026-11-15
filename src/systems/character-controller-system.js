@@ -11,6 +11,7 @@ import {
   affixToWorldUp
 } from "../utils/three-utils";
 import { getCurrentPlayerHeight } from "../utils/get-current-player-height";
+import { walkingSpeedFollowsRigScale } from "../avatar/calibration/apply-calibration";
 import qsTruthy from "../utils/qs_truthy";
 import { releaseOccupiedWaypoint } from "../bit-systems/waypoint";
 import { shouldUseNewLoader } from "../utils/bit-utils";
@@ -282,6 +283,8 @@ export class CharacterControllerSystem {
       const navMeshExists = NAV_ZONE in this.scene.systems.nav.pathfinder.zones;
       if (!this.isMotionDisabled) {
         const playerScale = v.setFromMatrixColumn(this.avatarPOV.object3D.matrixWorld, 1).length();
+        // A player the body calibration fits to the avatar walks at the avatar's scale
+        const speedScale = walkingSpeedFollowsRigScale() ? playerScale : Math.sqrt(playerScale);
         const triedToMove = this.relativeMotion.lengthSq() > 0.000001;
 
         if (triedToMove) {
@@ -290,12 +293,7 @@ export class CharacterControllerSystem {
             snapRotatedPOV,
             this.fly || !navMeshExists,
             this.relativeMotion.multiplyScalar(
-              ((userinput.get(paths.actions.boost) ? 2 : 1) *
-                speedModifier *
-                BASE_SPEED *
-                Math.sqrt(playerScale) *
-                dt) /
-                1000
+              ((userinput.get(paths.actions.boost) ? 2 : 1) * speedModifier * BASE_SPEED * speedScale * dt) / 1000
             ),
             displacementToDesiredPOV
           );

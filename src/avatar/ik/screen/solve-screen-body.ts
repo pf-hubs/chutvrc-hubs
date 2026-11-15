@@ -23,8 +23,8 @@ import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
 /**
  * The screen solver, for a pose without a presenting headset: a desktop, a phone, a tablet or a bot. It
  * reads the head's orientation and the rig only. The hips rest at their rest height under the rig, the
- * arms hang at the sides, the feet stand on the floor, and the model keeps its own size; there is no
- * height calibration.
+ * arms hang at the sides, the feet stand on the floor, and the model keeps its own size whatever height
+ * its sender announces.
  */
 
 /** A screen user's arms hang at the sides, slightly forward and bent, in fractions of the arm's length */

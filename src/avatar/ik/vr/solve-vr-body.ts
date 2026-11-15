@@ -2,7 +2,6 @@ import { Quaternion, Vector3 } from "three";
 import { TrackedPart, TrackedPose } from "../../pose/tracked-pose";
 import { RigDescription } from "../../rig/rig-description";
 import { AvatarAnimState } from "../../../types/avatar-types";
-import { Calibration, calibrateHeight, scaleHeight } from "../calibration";
 import { wrapAngle, updateBodyYaw } from "../shared/body-yaw";
 import {
   BodyHeading,
@@ -16,16 +15,21 @@ import {
   writeSolvedRotations
 } from "../shared/body-frame";
 import { BoneWrites } from "../shared/bone-writes";
-import { eyeOffsetInRootSpace, headTarget, rigEyeHeight, SELF_BACK_OFFSET, trackedQuaternion } from "../shared/head";
-import { IkState, Side, SolveFrame } from "../shared/ik-state";
+import { eyeOffsetInRootSpace, headTarget, SELF_BACK_OFFSET, trackedQuaternion } from "../shared/head";
+import { IkState, resetSolverState, Side, SolveFrame } from "../shared/ik-state";
 import { ARM_BONES, restArm, smoothHandTarget, solveArmTo, solvePlantedLeg } from "../shared/limbs";
 import { followAncestor, localPositionOf, RestFrames, SolvedFrames } from "../shared/rig-frames";
 import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
 
 /**
  * The VR solver, for a pose whose sender's headset is presenting: the eyes on the headset, the hands on
- * the controllers, the hips hung from the head and the legs reaching planted feet. The tracked heights are
- * brought into the model's proportions by the height calibration.
+ * the controllers, the hips hung from the head and the legs reaching planted feet.
+ *
+ * The model is drawn at a size given with the frame, the ratio of the sender's announced standing eye
+ * height to the eye height of the model this observer loaded (1 when the sender announces none). The
+ * tracked head and controllers, in room metres in the rig's space, are divided by the ratio on all three
+ * axes into the model's own proportions, the body is solved there, and the root is scaled by the ratio, so
+ * the drawn eyes and hands land on the real headset and controllers and the soles on the floor.
  */
 
 /** The old solver's gap between the headset and the head bone, used when the model has no head to measure */
@@ -57,9 +61,15 @@ function handCorrection(rig: RigDescription, side: Side): Quaternion {
   return rig.isFlippedY ? HAND_CORRECTION_FLIPPED[side] : HAND_CORRECTION_UNFLIPPED;
 }
 
-/** The controller's position in the model's proportions */
-function controllerTarget(hand: TrackedPart, calibration: Calibration, out: Vector3): Vector3 {
-  return out.set(hand.pos.x, scaleHeight(calibration, hand.pos.y), hand.pos.z);
+/** A ratio from the frame that can scale the model: a positive finite number, otherwise 1 */
+function ratioOf(frame: SolveFrame): number {
+  const ratio = frame.modelRatio;
+  return typeof ratio === "number" && Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+}
+
+/** The controller's position in the model's proportions: divided by the ratio on all three axes */
+function controllerTarget(hand: TrackedPart, ratio: number, out: Vector3): Vector3 {
+  return out.set(hand.pos.x, hand.pos.y, hand.pos.z).divideScalar(ratio);
 }
 
 /** Turns the hand bone to the controller's orientation */
@@ -105,7 +115,7 @@ function solveArm(
 
   if (rig.isHalfBody) {
     // The hands hang from the spine without arms: placed and turned from the controllers, without smoothing
-    controllerTarget(input, state.calibration, solved.position[name]);
+    controllerTarget(input, state.modelRatio, solved.position[name]);
     turnWithController(rig, solved, input, side);
     localPositionOf(rest, solved, name, out.position[name]);
     out.hasPosition[name] = true;
@@ -120,17 +130,18 @@ function solveArm(
     return;
   }
 
-  smoothHandTarget(state.vr.hands[side], controllerTarget(input, state.calibration, target), deltaSeconds);
+  smoothHandTarget(state.vr.hands[side], controllerTarget(input, state.modelRatio, target), deltaSeconds);
   solveArmTo(rig, solved, side, arm, target, heading);
   turnWithController(rig, solved, input, side);
 }
 
 /**
- * Solves one avatar in VR for one frame. The root takes the rig transform as it is. The body's heading
- * trails the head's yaw; the spine distributes the head's turn, roll included, and the head lands on the
- * headset's orientation; the hips are placed so the eyes land on the headset, in the model's proportions
- * once the height is calibrated; the legs reach the planted feet and the arms the smoothed controllers.
- * Bones the model lacks are skipped. Nothing is allocated per frame.
+ * Solves one avatar in VR for one frame. The root takes the rig transform as it is and the ratio as its
+ * scale. The body's heading trails the head's yaw; the spine distributes the head's turn, roll included,
+ * and the head lands on the headset's orientation; the hips are placed so the eyes land on the headset in
+ * the model's proportions; the legs reach the planted feet and the arms the smoothed controllers. When the
+ * ratio changes, the planted feet and the smoothed hands start afresh, since they are kept in the model's
+ * proportions. Bones the model lacks are skipped. Nothing is allocated per frame.
  */
 export function solveVrBody(
   rig: RigDescription,
@@ -145,13 +156,18 @@ export function solveVrBody(
   const solved = state.solved;
   const hips = rest.hips!;
 
+  const ratio = ratioOf(frame);
+  if (ratio !== state.modelRatio) {
+    resetSolverState(state, "vr");
+    state.modelRatio = ratio;
+  }
   writeRoot(pose, out);
+  out.rootScale = ratio;
   const bodyYaw = updateBodyYaw(state.bodyYaw, pose.head.rot.y, deltaSeconds);
   setBodyHeading(rig, bodyYaw, heading);
 
   // The headset in the model's proportions
-  if (rest.head) calibrateHeight(state.calibration, pose.head.pos.y, rigEyeHeight(rig, rest.head));
-  headsetPosition.set(pose.head.pos.x, scaleHeight(state.calibration, pose.head.pos.y), pose.head.pos.z);
+  headsetPosition.set(pose.head.pos.x, pose.head.pos.y, pose.head.pos.z).divideScalar(ratio);
 
   // The hips and the chain above them
   solved.quaternion.hips.copy(hips.quaternion).premultiply(heading.bodyDelta);
