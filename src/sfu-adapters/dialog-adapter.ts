@@ -429,7 +429,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
         // DataChannel implementation
         case "newDataConsumer": {
           if (this._connectionType === SFU_CONNECTION_TYPE.SEND) break;
-          const { dataProducerId, id, label, protocol, sctpStreamParameters /* , peerId */ } = request.data;
+          const { dataProducerId, id, label, protocol, sctpStreamParameters, peerId } = request.data;
 
           try {
             const dataConsumer = await this._recvTransport.consumeData({
@@ -437,7 +437,9 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
               dataProducerId,
               label,
               protocol,
-              sctpStreamParameters
+              sctpStreamParameters,
+              // Read when the consumer closes, so that a peer that publishes no media is forgotten as well
+              appData: { peerId }
             });
 
             dataConsumer.on("message", (data: ArrayBuffer) => {
