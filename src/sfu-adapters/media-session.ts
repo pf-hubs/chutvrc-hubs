@@ -383,6 +383,14 @@ export class MediaSession {
     return this.driver.micEnabled();
   }
 
+  /**
+   * Takes over the microphone request of the session this one replaces, before anything is published, so the
+   * adapter publishes the microphone in that state.
+   */
+  continueMicrophoneRequest(enabled: boolean): void {
+    this.micWanted = enabled;
+  }
+
   /** Records whether the microphone should be on, then applies it to the published microphone, if there is one. */
   enableMicrophone(enabled: boolean): void {
     if (this.adapter.connectionType === SFU_CONNECTION_TYPE.RECV) return;
