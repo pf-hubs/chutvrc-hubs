@@ -1,5 +1,5 @@
 import { AElement } from "aframe";
-import { CanvasTexture, DoubleSide, Mesh, MeshBasicMaterial, PlaneGeometry } from "three";
+import { CanvasTexture, DoubleSide, Mesh, MeshBasicMaterial, PlaneGeometry, sRGBEncoding } from "three";
 import { createIntl, createIntlCache, IntlShape } from "react-intl";
 import { getLocale, getMessages } from "../../utils/i18n";
 import { BodyPosture } from "./body-calibration";
@@ -43,6 +43,7 @@ class CapturePrompt {
   private canvas: HTMLCanvasElement | null = null;
   private texture: CanvasTexture | null = null;
   private text = "";
+  private shown = false;
   private intl: IntlShape | null = null;
   private intlLocale = "";
   private readonly intlCache = createIntlCache();
@@ -55,11 +56,14 @@ class CapturePrompt {
     );
     // Placed straight in front of the eyes when it appears, not drifting there from where it was last shown
     (el.components["follow-in-fov"] as unknown as { reset?: () => void } | undefined)?.reset?.();
-    el.object3D.visible = true;
+    el.setAttribute("visible", "true");
+    this.shown = true;
   }
 
   hide() {
-    if (this.el) this.el.object3D.visible = false;
+    if (!this.el || !this.shown) return;
+    this.el.setAttribute("visible", "false");
+    this.shown = false;
   }
 
   /** The texts in the language the page shows, the English ones while it shows English */
@@ -80,6 +84,7 @@ class CapturePrompt {
     canvas.width = CANVAS_WIDTH;
     canvas.height = CANVAS_HEIGHT;
     const texture = new CanvasTexture(canvas);
+    texture.encoding = sRGBEncoding;
     const material = new MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, side: DoubleSide });
     const mesh = new Mesh(new PlaneGeometry(PROMPT_WIDTH, PROMPT_HEIGHT), material);
     // Drawn over the room, so a wall or an avatar close by does not hide it
@@ -87,7 +92,7 @@ class CapturePrompt {
 
     const el = document.createElement("a-entity") as AElement;
     el.setAttribute("follow-in-fov", `target: #avatar-pov-node; offset: 0 0 -${PROMPT_DISTANCE}; angle: 0`);
-    el.object3D.visible = false;
+    el.setAttribute("visible", "false");
     el.object3D.add(mesh);
     scene.appendChild(el);
 

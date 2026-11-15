@@ -69,17 +69,6 @@ type CalibrationInputs = {
   modelEyeHeight: number;
 };
 
-function sameInputs(a: CalibrationInputs | null, b: CalibrationInputs): boolean {
-  return (
-    !!a &&
-    a.heightCm === b.heightCm &&
-    a.posture === b.posture &&
-    a.fit === b.fit &&
-    a.capturedHeadHeight === b.capturedHeadHeight &&
-    a.modelEyeHeight === b.modelEyeHeight
-  );
-}
-
 export class BodyCalibrationController {
   private readonly capture = new VrHeightCapture();
   private readonly baseRigScale = avatarScaleParameter();
@@ -92,10 +81,14 @@ export class BodyCalibrationController {
   private appliedOffsetY = 0;
   /** Whether this controller set the rig's scale, so it puts the scale back when it stops applying */
   private scalesRig = false;
-  /** The headset's captured height in real metres for this session; null before a capture or after a time-out */
+  /**
+   * The headset's captured height in real metres for this session; null before the first steady capture.
+   * A capture that times out leaves it as it was: the entered height alone on the first capture, the
+   * previous capture on a repeated one.
+   */
   private capturedHeadHeight: number | null = null;
-  /** The posture the capture was taken in; a capture in another posture does not count */
-  private capturedPosture: BodyPosture | null = null;
+  /** The posture the captures of this session are taken in; a capture in another posture does not count */
+  private capturePosture: BodyPosture | null = null;
   private captureRequested = false;
   /** The own model's eye height, kept while a new model loads so the fit does not jump in between */
   private modelEyeHeight = 0;
@@ -141,10 +134,9 @@ export class BodyCalibrationController {
 
     if (session !== this.session) {
       // A new VR session: its reference space is the WebXR manager's own until an offset is given, and the
-      // headset is captured afresh
+      // headset is captured afresh (forgetting the session forgets the posture, which starts a capture)
       this.forgetSession();
       this.session = session;
-      this.captureRequested = true;
     }
     if (!this.baseSpace) {
       this.baseSpace = xr.getReferenceSpace();
@@ -152,35 +144,49 @@ export class BodyCalibrationController {
     }
 
     const posture = parseBodyPosture(preferences.bodyPosture);
-    if (this.capturedPosture !== null && this.capturedPosture !== posture) this.captureRequested = true;
+    if (posture !== this.capturePosture) {
+      // The session's first frame, or the posture changed: a capture in the other posture does not count
+      this.capturePosture = posture;
+      this.capturedHeadHeight = null;
+      this.captureRequested = true;
+    }
     if (this.captureRequested) {
       this.captureRequested = false;
-      this.capturedPosture = posture;
-      this.capturedHeadHeight = null;
       this.capture.start(posture);
     }
     if (this.capture.isRunning) {
       const captured = this.capture.step(now / 1000, this.readHeadset(xr));
-      if (captured !== undefined) {
+      if (captured !== undefined && captured !== null) {
         this.capturedHeadHeight = captured;
-        if (captured === null) console.warn("Body calibration: the headset was not steady; using the entered height");
-        else console.log(`Body calibration: captured the headset at ${captured.toFixed(3)} m`);
+        console.log(`Body calibration: captured the headset at ${captured.toFixed(3)} m`);
+      } else if (captured === null) {
+        console.warn("Body calibration: the headset was not steady for a second; the capture is not taken");
       }
     }
 
     const modelEyeHeight = ownModelEyeHeight();
     if (modelEyeHeight > 0) this.modelEyeHeight = modelEyeHeight;
-    const inputs: CalibrationInputs = {
-      heightCm,
-      posture,
-      fit: parseBodyFit(preferences.bodyFit),
-      capturedHeadHeight: this.capturedHeadHeight,
-      modelEyeHeight: this.modelEyeHeight
-    };
-    if (!sameInputs(this.inputs, inputs) || !this.calibration) {
-      this.inputs = inputs;
-      this.calibration = deriveBodyCalibration(inputs);
-      console.log("Body calibration:", { ...inputs, ...this.calibration });
+    const fit = parseBodyFit(preferences.bodyFit);
+    const inputs = this.inputs;
+    if (
+      !this.calibration ||
+      !inputs ||
+      inputs.heightCm !== heightCm ||
+      inputs.posture !== posture ||
+      inputs.fit !== fit ||
+      inputs.capturedHeadHeight !== this.capturedHeadHeight ||
+      inputs.modelEyeHeight !== this.modelEyeHeight
+    ) {
+      const changed = {
+        heightCm,
+        posture,
+        fit,
+        capturedHeadHeight: this.capturedHeadHeight,
+        modelEyeHeight: this.modelEyeHeight
+      };
+      this.inputs = changed;
+      this.calibration = deriveBodyCalibration(changed);
+      console.log("Body calibration:", { ...changed, ...this.calibration });
     }
 
     this.applyRigScale(this.baseRigScale * this.calibration.rigScale);
@@ -250,6 +256,8 @@ export class BodyCalibrationController {
 
   /** Takes everything back: the rig's scale, the reference spaces, the announced eye height and the prompt */
   private stop(xr: WebGLRenderer["xr"] | undefined) {
+    // A capture cut short starts again when the calibration applies again
+    if (this.capture.isRunning) this.capturePosture = null;
     this.capture.cancel();
     this.captureRequested = false;
     if (this.scalesRig) {
@@ -277,7 +285,7 @@ export class BodyCalibrationController {
     this.offsetSpace = null;
     this.appliedOffsetY = 0;
     this.capturedHeadHeight = null;
-    this.capturedPosture = null;
+    this.capturePosture = null;
   }
 }
 
