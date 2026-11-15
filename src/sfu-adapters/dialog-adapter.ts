@@ -972,10 +972,16 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
   }
 
   private async produceMicrophone(track: MediaStreamTrack): Promise<void> {
+    // mediasoup-client cannot create a paused producer: a new producer sends whatever its track carries, and
+    // counts as paused only when the track is disabled. The room's microphone is set to the requested state
+    // before it is produced: one asked to be off never sends and is paused right after, here and on the
+    // server; one asked to be on sends even when the pause of an earlier producer left the track disabled.
+    // A send-only session has no microphone switch and sends the track as it is given
+    const followsRequest = this._connectionType !== SFU_CONNECTION_TYPE.SEND;
+    if (followsRequest) track.enabled = this.media.micShouldBeEnabled;
     // stopTracks = false because otherwise the track will end during a temporary disconnect
     this._micProducer = await this._sendTransport.produce({
       track,
-      pause: !this.media.micShouldBeEnabled,
       stopTracks: false,
       codecOptions: { opusStereo: false, opusDtx: true },
       zeroRtpOnPause: true,
@@ -986,6 +992,14 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
       this.emitRTCEvent("info", "RTC", () => `Mic transport closed`);
       this._micProducer = null;
     });
+
+    // The request may have changed while the producer was being created. The server's producer starts unpaused
+    if (!this.media.micShouldBeEnabled) {
+      this._micProducer.pause();
+      this._protoo.request("pauseProducer", { producerId: this._micProducer.id });
+    } else if (followsRequest && this._micProducer.paused) {
+      this._micProducer.resume();
+    }
 
     this.emit("mic-state-changed", { enabled: this.isMicEnabled });
   }
@@ -1076,7 +1090,8 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
 
   protected setMicEnabled(enabled: boolean): boolean {
     if (!this._micProducer) {
-      console.error("Tried to toggle mic but there's no producer.");
+      // The media session keeps the request, and produceMicrophone() applies it
+      debug("No microphone producer yet; the microphone state is applied when it is created");
       return false;
     }
 

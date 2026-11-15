@@ -386,15 +386,10 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
 
       const audioTrack = localMediaStream.getAudioTracks()[0];
       if (audioTrack) {
-        // publishTrack returns LocalTrackPublication
-        this._micPublication = await this._room!.localParticipant.publishTrack(audioTrack, {
-          name: "microphone",
-          simulcast: false
-        });
+        // In the state last asked for: off at the first entry, as the user left it on a later connect
+        await this.publishMicrophoneTrack(audioTrack);
         this.media.registerLocalTrack("microphone", audioTrack);
-
-        // Start muted by default
-        this.enableMicrophone(false);
+        this.emit("mic-state-changed", { enabled: this.isMicEnabled });
       }
 
       this._initializeDataChannels();
@@ -494,25 +489,22 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     }
   }
 
-  protected setMicEnabled(enabled: boolean): boolean {
-    if (!this._room?.localParticipant) return false;
-
+  protected async setMicEnabled(enabled: boolean): Promise<boolean> {
     // The mic track is published manually via publishTrack() (so we can wrap the
     // stream for eval chirp injection and control getUserMedia ourselves), which
     // gives it Source.Unknown. localParticipant.setMicrophoneEnabled() only acts
     // on a Source.Microphone track, so it silently no-ops here and the mic never
     // actually mutes — a LiveKit-only bug (Dialog pauses its producer directly).
-    // Mute/unmute the real published track instead.
+    // Mute/unmute the real published track instead. Without a publication the
+    // media session keeps the request and the microphone is published in it;
+    // LiveKit's managed microphone would be a second one that the mute does not reach.
     const track = this._micPublication?.track;
-    if (track) {
-      if (enabled) {
-        track.unmute();
-      } else {
-        track.mute();
-      }
+    if (!track) return false;
+    // The SDK mutes and unmutes behind a lock, so the state changes only once this settles
+    if (enabled) {
+      await track.unmute();
     } else {
-      // No manual publication yet — fall back to LiveKit's managed mic.
-      this._room.localParticipant.setMicrophoneEnabled(enabled);
+      await track.mute();
     }
     return true;
   }
@@ -521,8 +513,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     // Reflect the real published-track mute state — setMicrophoneEnabled() does
     // not own our manually-published track (see setMicEnabled).
     const track = this._micPublication?.track;
-    if (track) return !track.isMuted;
-    return this._room?.localParticipant.isMicrophoneEnabled ?? false;
+    return track ? !track.isMuted : null;
   }
 
   private async publishMicrophone(track: MediaStreamTrack): Promise<void> {
@@ -534,12 +525,25 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
       track.enabled = !micTrack.isMuted;
       await micTrack.replaceTrack(track);
     } else {
-      this._micPublication = await this._room!.localParticipant.publishTrack(track, {
-        name: "microphone"
-      });
+      await this.publishMicrophoneTrack(track);
     }
 
     this.emit("mic-state-changed", { enabled: this.isMicEnabled });
+  }
+
+  /**
+   * Publishes a microphone track in the state last asked for. A microphone asked to be off is muted before it
+   * is published, so it never sends; LiveKit would otherwise enable the track as it publishes it.
+   */
+  private async publishMicrophoneTrack(track: MediaStreamTrack): Promise<void> {
+    const microphone = new LocalAudioTrack(track, undefined, true);
+    if (!this.media.micShouldBeEnabled) await microphone.mute();
+    this._micPublication = await this._room!.localParticipant.publishTrack(microphone, {
+      name: "microphone",
+      simulcast: false
+    });
+    // The request may have changed while the microphone was being published
+    await this.setMicEnabled(this.media.micShouldBeEnabled);
   }
 
   private async publishCamera(track: MediaStreamTrack): Promise<void> {

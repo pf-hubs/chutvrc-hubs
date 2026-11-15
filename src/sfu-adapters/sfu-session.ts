@@ -51,8 +51,10 @@ export class SfuSession extends EventEmitter implements ISfuAdapter {
   /**
    * Joins the room described by the config. When the config is for another kind of media server than the
    * current adapter, the adapter is disconnected and replaced first; the local stream, the microphone state
-   * and the recording of the replaced adapter are carried over to the new one. A disconnect() still in
-   * flight is awaited, so a caller may call disconnect() and connect() back to back without awaiting either.
+   * and the recording of the replaced adapter are carried over to the new one. After every connect, also when
+   * the adapter is kept, the local stream is published in the room and the microphone request applied. A
+   * disconnect() still in flight is awaited, so a caller may call disconnect() and connect() back to back
+   * without awaiting either.
    */
   async connect(config: SfuConfig): Promise<void> {
     if (this._disconnecting) await this._disconnecting.catch(() => {});
@@ -74,25 +76,39 @@ export class SfuSession extends EventEmitter implements ISfuAdapter {
     }
 
     if (!this._adapter) {
-      const adapter = SfuAdapterFactory.create(config.kind, this.connectionType);
-      adapter.delegate = this;
+      const created = SfuAdapterFactory.create(config.kind, this.connectionType);
+      created.delegate = this;
       // A replacement joins a room that already knows this client, so it has to announce the avatar again
-      adapter.avatarSync.announceSelfOnSyncInit = carried !== null;
-      if (carried) adapter.bus.continueRecording(carried.recorded, carried.recording);
-      this._adapter = adapter;
+      created.avatarSync.announceSelfOnSyncInit = carried !== null;
+      if (carried) {
+        created.bus.continueRecording(carried.recorded, carried.recording);
+        // The microphone is published in the state the user last chose
+        created.media.continueMicrophoneRequest(carried.micEnabled);
+      }
+      this._adapter = created;
       const requests = this._requestsBeforeAdapter;
       this._requestsBeforeAdapter = [];
-      requests.forEach(request => request(adapter));
+      requests.forEach(request => request(created));
     }
 
-    if (this._hubChannel) this._adapter.hubChannel = this._hubChannel;
-    await this._adapter.connect(config);
+    const adapter = this._adapter;
+    const media = adapter.media;
+    // The stream to publish in the room: the replaced adapter's, or the one this adapter published before. It is
+    // taken before the connect, since LiveKit puts a microphone of its own in its place as it connects
+    const stream = carried ? carried.stream : media.localStream;
+    const videoContentHints = carried ? carried.videoContentHints : media.localVideoContentHints;
 
-    // The new adapter publishes what the replaced one did, in the microphone state the user last chose
-    if (carried?.stream) {
-      await this._adapter.setLocalMediaStream(carried.stream, carried.videoContentHints);
-      this._adapter.enableMicrophone(carried.micEnabled);
+    if (this._hubChannel) adapter.hubChannel = this._hubChannel;
+    await adapter.connect(config);
+
+    // Dialog publishes the stream it kept as it joins, so the stream is applied only when the adapter has left
+    // another stream, or no microphone, in its place. A microphone already published is swapped, not published again
+    if (stream && adapter.isConnected) {
+      const published = media.localStream === stream && media.localTrack("microphone") === stream.getAudioTracks()[0];
+      if (!published) await adapter.setLocalMediaStream(stream, videoContentHints);
     }
+    // The adapter keeps the request across a connect and publishes in it; this applies it and reports the state
+    media.applyMicrophone();
   }
 
   /** Leaves the room; see SfuAdapter.disconnect() for what is closed and forgotten. The adapter is kept. */
