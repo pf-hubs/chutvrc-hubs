@@ -771,6 +771,7 @@ async function runBotMode(scene, entryManager) {
     render: noop,
     shadowMap: {},
     vr: { isPresenting: alwaysFalse },
+    xr: { enabled: false, isPresenting: false },
     setSize: noop
   };
 
