@@ -201,8 +201,8 @@ export class PoseSync {
    */
   private handleAvatarIdMessage(message: string) {
     const [clientId, avatarId] = message.split("|");
-    // The own client's model is the entry's to load
-    if (!clientId || clientId === this._sfu.clientId) return;
+    // A message that names no client or no avatar has nothing to load; the own client's model is the entry's to load
+    if (!clientId || !avatarId || clientId === this._sfu.clientId) return;
 
     // A client whose model is loading is skipped; a change of avatar meanwhile comes with its next announcement
     if (this.models.isLoading(clientId)) return;
