@@ -165,8 +165,8 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
    *    the local tracks are unpublished but not stopped (the microphone stream belongs to the media devices manager)
    * 2. the requests waiting for a remote stream are rejected, and the remote streams and public speaker audio forgotten
    * 3. the relay queue is emptied
-   * 4. the avatar sync stops sending, and every remote avatar's entity and model are removed; the next
-   *    connection announces the own avatar again, since the room has to send its avatars anew
+   * 4. the avatar sync stops sending and announcing, and every remote avatar's entity and model are
+   *    removed; the next connection announces the own avatar again, since the room has to send its avatars anew
    * 5. the public speaker list is emptied
    * 6. the channel handlers are told, and the hub channel's token handler removed
    * The adapter can connect() again afterwards.
@@ -179,7 +179,6 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
     if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
     this._poseSync.stopSyncing();
     this._poseSync.handleOnAllRemoteClientsLeave();
-    this._poseSync.announceSelfOnSyncInit = true;
     this._publicSpeakerClientIdsInRoom.length = 0;
     this.cleanupDispatcher();
     this._cleanupTokenHandler();

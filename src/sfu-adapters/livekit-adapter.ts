@@ -292,6 +292,8 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
       if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
         this._poseSync.sendSelfAvatarTransform(false);
       }
+      // The participant has to learn the own avatar
+      this._poseSync.handlePeerJoined();
 
       this._setupParticipantEventListeners(participant);
       this.emit("stream_updated", participant.identity, "audio");

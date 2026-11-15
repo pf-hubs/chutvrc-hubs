@@ -455,6 +455,13 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
             // resume this DataConsumer.
             accept();
 
+            // The peer is heard from now on, so this client announces itself, and a peer that did not know it
+            // answers. A peer that does not hear this client yet gets the second announcement a second later,
+            // or a repeat. The announcement at newPeer can come before the new peer hears anyone
+            if (label === "#avatarId") {
+              whenDataChannelOpen(dataConsumer, () => this._poseSync.handlePeerJoined());
+            }
+
             // Notify of an stream update event
             // this.emit("stream_updated", peerId, kind);
           } catch (err) {
@@ -474,6 +481,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
 
       switch (notification.method) {
         case "newPeer": {
+          this._poseSync.handlePeerJoined();
           break;
         }
 

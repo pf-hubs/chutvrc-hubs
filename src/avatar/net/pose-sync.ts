@@ -17,6 +17,15 @@ import { AvatarAnimState, isValidAvatarAnimState } from "../../types/avatar-type
  */
 const SEQ_RESTART_AFTER_MS = 2000;
 
+/**
+ * After an event that calls for the own announcement, it is sent again this long after the last such
+ * event: a peer whose channel from this client was still opening lost the first one, and has it open by then
+ */
+const ANNOUNCE_AGAIN_AFTER_MS = 1000;
+
+/** How often the own avatar is announced again, for a client that missed every announcement so far */
+const ANNOUNCE_REPEAT_MS = 5000;
+
 /** The part of a tracked pose that one of the old per-part channels carries */
 function partOf(channel: string): PosePart | undefined {
   switch (channel) {
@@ -56,7 +65,16 @@ export class PoseSync {
   /** Sends the own pose from the frame loop while the pose channels are open */
   readonly poseSender: PoseSender;
   _getSelfAvatarIntervalId: NodeJS.Timer | undefined;
-  /** Set after the room was left: the next sync init sends the own avatar id, so the others send theirs back. */
+  /** Repeats the own announcement; set while this session announces the own avatar, from its #avatarId sync init on */
+  private _announceIntervalId: number | undefined;
+  /** The second announcement after an event, while it is due */
+  private _announceAgainTimeoutId: number | undefined;
+  /** The avatar id each remote client last announced, so that a repeated announcement is ignored */
+  private readonly _announcedAvatarIds = new Map<string, string>();
+  /**
+   * No longer read: the own avatar is announced on every #avatarId sync init. Kept while the session
+   * still sets it on a replacement adapter.
+   */
   announceSelfOnSyncInit = false;
 
   constructor(sfu: SfuAdapter) {
@@ -76,37 +94,22 @@ export class PoseSync {
     // #avatar-pose and the four old per-part channels: any of them opening starts the sender
     if (channel.includes("#avatar-")) {
       this.handleTransformSyncInit();
-    } else if (channel === "#avatarId" && this.announceSelfOnSyncInit) {
-      this.announceSelfOnSyncInit = false;
-      // The room forgot this client while it was away; a second later the channel has had time to open
-      window.setTimeout(() => this.sendSelfAvatarSrc(), 1000);
+    } else if (channel === "#avatarId") {
+      this.handleAvatarIdSyncInit();
     }
+  }
+
+  /**
+   * A peer joined, or a peer's announcement channel to this client opened: the peer may not know the own
+   * avatar yet. Only a session that announces the own avatar at all answers.
+   */
+  handlePeerJoined() {
+    if (this._announceIntervalId !== undefined) this.announceSelfNowAndAgain();
   }
 
   handleRecvMessage(channel: string, data: Uint8Array) {
     if (channel === "#avatarId") {
-      let [clientId, avatarId] = this._textDecoder.decode(data).split("|");
-
-      // Skip if this client's avatar is already being loaded (prevents race condition)
-      if (this.models.isLoading(clientId)) return;
-
-      const knownAvatarId = this.models.avatarIdOf(clientId);
-      if (knownAvatarId !== undefined) {
-        // if avatar id of this client is already recorded
-        if (knownAvatarId === avatarId) return; // if avatar is not changed, ignore it
-      } else {
-        // if avatar id of this client is not recorded, that means this client is new to this room, so send my avatar id & src to the client
-        this.sendSelfAvatarSrc();
-        // Also send my avatar transform to the new client without check if the transform is updated
-        this.sendSelfAvatarTransform(false);
-      }
-
-      // if avatar id of this client is already recorded but with different avatar id (existing client but avatar changed),
-      // or avatar id of this client is not recorded (new client to this room),
-      // then load the client's avatar's model
-      if (clientId !== this._sfu.clientId) {
-        this.replaceAvatarModel(avatarId, clientId);
-      }
+      this.handleAvatarIdMessage(this._textDecoder.decode(data));
     }
 
     // Old builds send the VR flag and the animation state on their own channels; a whole-body packet carries both
@@ -191,15 +194,41 @@ export class PoseSync {
     }
   }
 
+  /**
+   * An announcement, "clientId|avatarId"; a later build may append fields, which are ignored. Every client
+   * repeats its announcement, so one that names the avatar the client announced last is ignored, also when
+   * that avatar failed to load and the default one stands in: loading it again would fail again.
+   */
+  private handleAvatarIdMessage(message: string) {
+    const [clientId, avatarId] = message.split("|");
+    // The own client's model is the entry's to load
+    if (!clientId || clientId === this._sfu.clientId) return;
+
+    // A client whose model is loading is skipped; a change of avatar meanwhile comes with its next announcement
+    if (this.models.isLoading(clientId)) return;
+
+    const knownAvatarId = this._announcedAvatarIds.get(clientId);
+    if (knownAvatarId === avatarId) return;
+    // A client new to this one may not know the own avatar either, so it gets the own announcement back
+    if (knownAvatarId === undefined) this.announceSelfNowAndAgain();
+    this._announcedAvatarIds.set(clientId, avatarId);
+    this.replaceAvatarModel(avatarId, clientId);
+  }
+
   handleOnClientLeave(clientId: string) {
     this.models.removeClientAvatar(clientId);
+    this._announcedAvatarIds.delete(clientId);
     this._poseClientIds.delete(clientId);
     APP.avatarPoses.delete(clientId);
   }
 
   /** Forgets every remote client and removes its avatar entity and model. The own avatar stays. */
   handleOnAllRemoteClientsLeave() {
-    const clientIds = new Set<string>([...this.models.clientIds(), ...this._poseClientIds]);
+    const clientIds = new Set<string>([
+      ...this.models.clientIds(),
+      ...this._announcedAvatarIds.keys(),
+      ...this._poseClientIds
+    ]);
     clientIds.delete(this._sfu.clientId);
     clientIds.forEach(clientId => this.handleOnClientLeave(clientId));
   }
@@ -245,6 +274,41 @@ export class PoseSync {
     this.poseSender.sendAll();
   }
 
+  /**
+   * The announcement channel can be sent on: this is the first connection, or the room forgot this client
+   * while it was away, so the own avatar is announced. Nothing asks for an announcement that was lost, so
+   * it is also repeated from now on, for a peer that missed every one.
+   */
+  private handleAvatarIdSyncInit() {
+    this.announceSelfNowAndAgain();
+    if (this._announceIntervalId === undefined) {
+      this._announceIntervalId = window.setInterval(() => this.announceSelf(), ANNOUNCE_REPEAT_MS);
+    }
+  }
+
+  /** Announces the own avatar now, and again ANNOUNCE_AGAIN_AFTER_MS after the last call */
+  private announceSelfNowAndAgain() {
+    this.announceSelf();
+    if (this._announceAgainTimeoutId !== undefined) window.clearTimeout(this._announceAgainTimeoutId);
+    this._announceAgainTimeoutId = window.setTimeout(() => {
+      this._announceAgainTimeoutId = undefined;
+      this.announceSelf();
+    }, ANNOUNCE_AGAIN_AFTER_MS);
+  }
+
+  /** Announces the own avatar once the user has entered: the others do not draw a client still in the lobby */
+  private announceSelf() {
+    if (!APP.scene?.is("entered")) return;
+    this.sendSelfAvatarSrc();
+  }
+
+  private stopAnnouncing() {
+    if (this._announceIntervalId !== undefined) window.clearInterval(this._announceIntervalId);
+    this._announceIntervalId = undefined;
+    if (this._announceAgainTimeoutId !== undefined) window.clearTimeout(this._announceAgainTimeoutId);
+    this._announceAgainTimeoutId = undefined;
+  }
+
   private handleTransformSyncInit() {
     // The rig and controllers may not be in the scene yet when the channel opens
     if (!this.localPoseSource) this.waitForSelfAvatar();
@@ -276,7 +340,8 @@ export class PoseSync {
 
   stopSyncing() {
     this.stopWaitingForSelfAvatar();
-    // The next pose sync init starts the sender again
+    // The next #avatarId sync init announces the own avatar again, and the next pose sync init starts the sender
+    this.stopAnnouncing();
     this.poseSender.stop();
   }
 }
