@@ -566,6 +566,8 @@ export default class SceneEntryManager {
 
     const connect = async () => {
       await APP.sfu.setLocalMediaStream(this.mediaDevicesManager.mediaStream);
+      // A bot skips the entry that switches the microphone on, and its microphone starts off
+      APP.sfu.enableMicrophone(true);
       audioEl.play();
     };
     if (APP.sfu.isConnected) {
