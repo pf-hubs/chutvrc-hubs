@@ -44,7 +44,9 @@ export class LocalPoseSource {
     // The head always has a pose; a controller is shown only while its device reports one
     pose.tracked =
       TRACKED_HEAD | (leftHand.visible ? TRACKED_LEFT_HAND : 0) | (rightHand.visible ? TRACKED_RIGHT_HAND : 0);
-    pose.isVR = this.renderer.xr.enabled && this.renderer.xr.isPresenting;
+    // A stand-in renderer, such as a bot's, may have no WebXR manager: its pose is then not in VR
+    const xr: WebGLRenderer["xr"] | undefined = this.renderer.xr;
+    pose.isVR = !!xr && xr.enabled && xr.isPresenting;
     pose.receivedAt = now;
   }
 }

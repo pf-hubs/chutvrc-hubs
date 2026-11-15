@@ -209,7 +209,8 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
       // @ts-ignore
       this._connector.connect();
     } else {
-      if (!this._clientId.includes("PS-"))
+      // A later connect uses the stream Sora was connected with before, with the tracks swapped into it
+      if (!this._clientId.includes("PS-") && !this.media.localStream)
         this.media.rememberLocalStream(await navigator.mediaDevices.getUserMedia({ audio: true, video: false }));
 
       const connectSfuWithLocalMediaStream = () => {

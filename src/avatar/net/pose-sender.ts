@@ -60,6 +60,11 @@ export class PoseSender {
     this.lastSentAt = -Infinity;
   }
 
+  /** Whether the frame loop ticks this sender */
+  get isRunning(): boolean {
+    return runningSenders.has(this);
+  }
+
   /** Samples the own pose, and sends when at least SEND_INTERVAL_MS have passed since the last frame-driven send */
   tick(now: number) {
     // Every frame, not only when sending: the own avatar is solved from this frame's devices

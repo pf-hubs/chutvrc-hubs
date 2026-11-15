@@ -152,6 +152,12 @@ export const SCHEMA = {
         locale: { type: "string", default: "browser" },
         showRtcDebugPanel: { type: "bool", default: false },
         avatarIkV2: { type: "bool", default: false },
+        // The body calibration the new solver takes in VR (avatar/calibration/body-calibration.ts): the
+        // player's height in centimetres, 0 until entered; "standing" or "sitting"; and "avatarToPlayer" or
+        // "playerToAvatar", how a difference in height between player and avatar is resolved
+        bodyHeightCm: { type: "number", default: 0 },
+        bodyPosture: { type: "string", default: "standing" },
+        bodyFit: { type: "string", default: "avatarToPlayer" },
         showAudioDebugPanel: { type: "bool", default: false },
         enableAudioClipping: { type: "bool", default: false },
         audioClippingThreshold: { type: "number", default: 0.015 },

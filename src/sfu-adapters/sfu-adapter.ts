@@ -165,8 +165,8 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
    *    the local tracks are unpublished but not stopped (the microphone stream belongs to the media devices manager)
    * 2. the requests waiting for a remote stream are rejected, and the remote streams and public speaker audio forgotten
    * 3. the relay queue is emptied
-   * 4. the avatar sync stops sending, and every remote avatar's entity and model are removed; the next
-   *    connection announces the own avatar again, since the room has to send its avatars anew
+   * 4. the avatar sync stops sending and announcing, and every remote avatar's entity and model are
+   *    removed; the next connection announces the own avatar again, since the room has to send its avatars anew
    * 5. the public speaker list is emptied
    * 6. the channel handlers are told, and the hub channel's token handler removed
    * The adapter can connect() again afterwards.
@@ -179,7 +179,6 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
     if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
     this._poseSync.stopSyncing();
     this._poseSync.handleOnAllRemoteClientsLeave();
-    this._poseSync.announceSelfOnSyncInit = true;
     this._publicSpeakerClientIdsInRoom.length = 0;
     this.cleanupDispatcher();
     this._cleanupTokenHandler();
@@ -241,10 +240,14 @@ export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends 
   /** Removes the publication of a kind, if any. */
   protected abstract unpublishTrack(kind: LocalTrackKind): Promise<void>;
 
-  /** Applies the microphone state in the SDK. Returns false when there was nothing to apply it to. */
-  protected abstract setMicEnabled(enabled: boolean): boolean;
+  /**
+   * Applies the microphone state in the SDK, settling once the SDK has applied it. Returns false when there was
+   * nothing to apply it to; the media session keeps the request, and the adapter applies it when it publishes
+   * a microphone.
+   */
+  protected abstract setMicEnabled(enabled: boolean): boolean | Promise<boolean>;
 
-  /** The microphone state as the SDK sees it. */
+  /** The microphone state as the SDK sees it, or null while there is no microphone published. */
   protected abstract micEnabled(): boolean | null;
 
   /** The local tracks of a media kind for getMediaStream of the own client. By default the published ones. */

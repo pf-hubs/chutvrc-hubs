@@ -8,7 +8,7 @@ import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { DialogConfig, SfuConfig, TurnConfig, withDialogHost } from "./sfu-config";
-import { channelSpec, dataChannelLabels } from "./data-channel-bus";
+import { ChannelSpec, channelSpec, dataChannelLabels } from "./data-channel-bus";
 import { LocalTrackKind } from "./media-session";
 import {
   ChannelHandlerRegistry,
@@ -57,6 +57,25 @@ const SCREEN_SHARING_SIMULCAST_ENCODINGS = [
   { dtx: true, maxBitrate: 6000000 }
 ];
 
+// The reliable messages kept for one channel while it is not open yet; the oldest are dropped beyond this
+const PENDING_DATA_CAP = 8;
+
+/**
+ * Calls back once the data channel under a DataProducer or DataConsumer is open, at once if it already is.
+ * The SDK creates the channel before it creates the object around it, and the object only forwards an
+ * "open" event that comes after that, so a channel that opened in between is found by its ready state.
+ */
+function whenDataChannelOpen(
+  channel: { readyState: RTCDataChannelState; once(event: "open", listener: () => void): void },
+  callback: () => void
+): void {
+  if (channel.readyState === "open") {
+    callback();
+  } else {
+    channel.once("open", callback);
+  }
+}
+
 export class DialogAdapter extends SfuAdapter<DialogConfig> {
   private _micProducer: any;
   private _cameraProducer: any;
@@ -64,6 +83,8 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
   private _consumers: Map<string, any>;
   private _dataProducers: Map<string, any>;
   private _dataConsumers: Map<string, any>;
+  // Reliable messages sent while their channel was not open, by label; sent in order once it opens
+  private _pendingData: Map<string, Uint8Array[]> = new Map();
   private _blockedClients: Map<string, boolean>;
   private _useDataChannel: boolean;
   private _consumerStats: Record<string, any>;
@@ -408,7 +429,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
         // DataChannel implementation
         case "newDataConsumer": {
           if (this._connectionType === SFU_CONNECTION_TYPE.SEND) break;
-          const { dataProducerId, id, label, protocol, sctpStreamParameters /* , peerId */ } = request.data;
+          const { dataProducerId, id, label, protocol, sctpStreamParameters, peerId } = request.data;
 
           try {
             const dataConsumer = await this._recvTransport.consumeData({
@@ -416,7 +437,9 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
               dataProducerId,
               label,
               protocol,
-              sctpStreamParameters
+              sctpStreamParameters,
+              // Read when the consumer closes, so that a peer that publishes no media is forgotten as well
+              appData: { peerId }
             });
 
             dataConsumer.on("message", (data: ArrayBuffer) => {
@@ -433,6 +456,13 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
             // We are ready. Answer the protoo request so the server will
             // resume this DataConsumer.
             accept();
+
+            // The peer is heard from now on, so this client announces itself, and a peer that did not know it
+            // answers. A peer that does not hear this client yet gets the second announcement a second later,
+            // or a repeat. The announcement at newPeer can come before the new peer hears anyone
+            if (label === "#avatarId") {
+              whenDataChannelOpen(dataConsumer, () => this._poseSync.handlePeerJoined());
+            }
 
             // Notify of an stream update event
             // this.emit("stream_updated", peerId, kind);
@@ -453,6 +483,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
 
       switch (notification.method) {
         case "newPeer": {
+          this._poseSync.handlePeerJoined();
           break;
         }
 
@@ -925,23 +956,32 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
         });
 
         this._dataProducers.set(label, dataProducer);
-        if (!this._clientId.includes("PS-") || this._roomId === "public_speaking") {
-          this._poseSync.handleSyncInit(label);
-        }
+        // Nothing sent before the channel is open arrives, so the pose sync is told only then
+        whenDataChannelOpen(dataProducer, () => this.handleDataProducerOpen(label, dataProducer));
       })
     );
 
     // TODO: move to other appropriate place
+    // A speaking session reaches the audience rooms only through the listeners' relays, and never learns who
+    // joins them, so it keeps announcing its avatar every second besides the pose sync's slower repeat
     if (this && this._clientId.includes("PS-") && this._roomId === "public_speaking") {
+      // A stream applied again comes here again; the repeat started before is replaced, not left running
+      if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
       this._sendSelfAvatarSrcIntervalId = setInterval(() => this._poseSync.sendSelfAvatarSrc(), 1000);
     }
   }
 
   private async produceMicrophone(track: MediaStreamTrack): Promise<void> {
+    // mediasoup-client cannot create a paused producer: a new producer sends whatever its track carries, and
+    // counts as paused only when the track is disabled. The room's microphone is set to the requested state
+    // before it is produced: one asked to be off never sends and is paused right after, here and on the
+    // server; one asked to be on sends even when the pause of an earlier producer left the track disabled.
+    // A send-only session has no microphone switch and sends the track as it is given
+    const followsRequest = this._connectionType !== SFU_CONNECTION_TYPE.SEND;
+    if (followsRequest) track.enabled = this.media.micShouldBeEnabled;
     // stopTracks = false because otherwise the track will end during a temporary disconnect
     this._micProducer = await this._sendTransport.produce({
       track,
-      pause: !this.media.micShouldBeEnabled,
       stopTracks: false,
       codecOptions: { opusStereo: false, opusDtx: true },
       zeroRtpOnPause: true,
@@ -952,6 +992,14 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
       this.emitRTCEvent("info", "RTC", () => `Mic transport closed`);
       this._micProducer = null;
     });
+
+    // The request may have changed while the producer was being created. The server's producer starts unpaused
+    if (!this.media.micShouldBeEnabled) {
+      this._micProducer.pause();
+      this._protoo.request("pauseProducer", { producerId: this._micProducer.id });
+    } else if (followsRequest && this._micProducer.paused) {
+      this._micProducer.resume();
+    }
 
     this.emit("mic-state-changed", { enabled: this.isMicEnabled });
   }
@@ -1042,7 +1090,8 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
 
   protected setMicEnabled(enabled: boolean): boolean {
     if (!this._micProducer) {
-      console.error("Tried to toggle mic but there's no producer.");
+      // The media session keeps the request, and produceMicrophone() applies it
+      debug("No microphone producer yet; the microphone state is applied when it is created");
       return false;
     }
 
@@ -1085,6 +1134,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     this._consumers.clear();
     this._dataConsumers.clear();
     this._dataProducers.clear();
+    this._pendingData.clear();
   }
 
   kick(clientId: string): Promise<void> {
@@ -1113,8 +1163,50 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
     });
   }
 
-  protected sendData(label: string, data: Uint8Array): void {
-    this._dataProducers?.get(label)?.send(data);
+  /**
+   * Sends on an open channel only; sending on a channel that is still opening throws. A pose packet is
+   * dropped meanwhile, as the next one follows within a frame; a reliable message waits for the channel.
+   */
+  protected sendData(label: string, data: Uint8Array, spec: ChannelSpec): void {
+    const dataProducer = this._dataProducers.get(label);
+    if (dataProducer?.readyState === "open") {
+      this.flushPendingData(label, dataProducer);
+      dataProducer.send(data);
+      return;
+    }
+    if (!spec.reliable) return;
+    let pending = this._pendingData.get(label);
+    if (!pending) {
+      pending = [];
+      this._pendingData.set(label, pending);
+    }
+    // A copy, as the caller may reuse its buffer
+    pending.push(data.slice());
+    if (pending.length > PENDING_DATA_CAP) pending.shift();
+  }
+
+  /** The channel of a label is open: what waited for it is sent, then the pose sync may use it */
+  private handleDataProducerOpen(label: string, dataProducer: any): void {
+    // A producer replaced by a later one, or forgotten on a disconnect, before it opened is not the label's channel
+    if (this._dataProducers.get(label) !== dataProducer) return;
+    this.flushPendingData(label, dataProducer);
+    if (!this._clientId.includes("PS-") || this._roomId === "public_speaking") {
+      this._poseSync.handleSyncInit(label);
+    }
+  }
+
+  /** Sends the messages that waited for a label's channel, oldest first */
+  private flushPendingData(label: string, dataProducer: any): void {
+    const pending = this._pendingData.get(label);
+    if (!pending) return;
+    this._pendingData.delete(label);
+    for (const data of pending) {
+      try {
+        dataProducer.send(data);
+      } catch (error) {
+        console.error(error);
+      }
+    }
   }
 
   emitRTCEvent(level: string, tag: string, msgFunc: () => string): void {

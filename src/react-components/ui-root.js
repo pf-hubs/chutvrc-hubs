@@ -48,6 +48,8 @@ import { ToolbarButton } from "./input/ToolbarButton";
 import { RoomEntryModal } from "./room/RoomEntryModal";
 import { EnterOnDeviceModal } from "./room/EnterOnDeviceModal";
 import { MicSetupModalContainer } from "./room/MicSetupModalContainer";
+import { BodyCalibrationModal } from "./room/BodyCalibrationModal";
+import { isCalibratedHeight } from "../avatar/calibration/body-calibration";
 import { InvitePopoverContainer } from "./room/InvitePopoverContainer";
 import { MoreMenuPopoverButton, CompactMoreMenuButton, MoreMenuContextProvider } from "./room/MoreMenuPopover";
 import { ChatSidebarContainer } from "./room/ChatSidebarContainer";
@@ -576,7 +578,36 @@ class UIRoot extends Component {
     });
   };
 
+  /**
+   * Whether entering in VR first needs the body calibration: the new avatar body solver is on and the
+   * player's height has not been entered
+   */
+  needsBodyCalibration = () => {
+    const { avatarIkV2, bodyHeightCm } = this.props.store.state.preferences;
+    return !!avatarIkV2 && !isCalibratedHeight(bodyHeightCm);
+  };
+
   performDirectEntryFlow = async enterInVR => {
+    // The body calibration is a required step between choosing VR and the microphone setup. The entry is
+    // not marked as in VR until it is saved, so going back from it and joining in 2D stays in 2D.
+    if (enterInVR && this.needsBodyCalibration()) {
+      this.pushHistoryState("entry_step", "body");
+      return;
+    }
+    await this.continueDirectEntryFlow(enterInVR);
+  };
+
+  onBodyCalibrationSaved = async ({ heightCm, posture, fit }) => {
+    this.props.store.update({ preferences: { bodyHeightCm: heightCm, bodyPosture: posture, bodyFit: fit } });
+    if (isLockedDownDemoRoom()) {
+      // The locked-down demo room enters a headset straight away, without the microphone setup
+      this.setState({ enterInVR: true }, this.onAudioReadyButton);
+      return;
+    }
+    await this.continueDirectEntryFlow(true);
+  };
+
+  continueDirectEntryFlow = async enterInVR => {
     this.setState({ enterInVR, waitingOnAudio: true });
 
     const hasGrantedMic = (await grantedMicLabels()).length > 0;
@@ -847,6 +878,10 @@ class UIRoot extends Component {
           onJoinRoom={() => {
             if (isLockedDownDemo) {
               if (this.props.forcedVREntryType?.startsWith("vr")) {
+                if (this.needsBodyCalibration()) {
+                  this.pushHistoryState("entry_step", "body");
+                  return;
+                }
                 this.setState({ enterInVR: true }, this.onAudioReadyButton);
                 return;
               }
@@ -919,6 +954,19 @@ class UIRoot extends Component {
           this.setState({ linkCode: null, linkCodeCancel: null });
           this.props.history.goBack();
         }}
+      />
+    );
+  };
+
+  renderBodyCalibrationPanel = () => {
+    const { bodyHeightCm, bodyPosture, bodyFit } = this.props.store.state.preferences;
+    return (
+      <BodyCalibrationModal
+        heightCm={bodyHeightCm}
+        posture={bodyPosture}
+        fit={bodyFit}
+        onSave={this.onBodyCalibrationSaved}
+        onBack={() => this.props.history.goBack()}
       />
     );
   };
@@ -1078,6 +1126,9 @@ class UIRoot extends Component {
         <>
           <StateRoute stateKey="entry_step" stateValue="device" history={this.props.history}>
             {this.renderDevicePanel()}
+          </StateRoute>
+          <StateRoute stateKey="entry_step" stateValue="body" history={this.props.history}>
+            {this.renderBodyCalibrationPanel()}
           </StateRoute>
           <StateRoute stateKey="entry_step" stateValue="audio" history={this.props.history}>
             {this.renderAudioSetupPanel()}
