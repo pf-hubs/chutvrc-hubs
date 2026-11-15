@@ -17,9 +17,12 @@ export interface MediaDriver {
   replaceTrack(kind: LocalTrackKind, track: MediaStreamTrack): Promise<void>;
   /** Removes the publication of the kind, if any. */
   unpublishTrack(kind: LocalTrackKind): Promise<void>;
-  /** Applies the microphone state in the SDK. Returns false when there was nothing to apply it to. */
-  setMicEnabled(enabled: boolean): boolean;
-  /** The microphone state as the SDK sees it. */
+  /**
+   * Applies the microphone state in the SDK, settling once the SDK has applied it. Returns false when there was
+   * nothing to apply it to.
+   */
+  setMicEnabled(enabled: boolean): boolean | Promise<boolean>;
+  /** The microphone state as the SDK sees it, or null while there is no microphone published. */
   micEnabled(): boolean | null;
   /** The local tracks of a kind for getMediaStream of the own client. */
   localTracks(kind: string): MediaStreamTrack[];
@@ -363,24 +366,40 @@ export class MediaSession {
 
   // ----- Microphone -----
 
-  /** Whether the microphone was last asked to be on. */
+  /**
+   * Whether the microphone was last asked to be on. The request is kept while there is no microphone published
+   * to apply it to, and the adapter applies it when it publishes one.
+   */
   get micShouldBeEnabled(): boolean {
     return this.micWanted;
   }
 
+  /** The microphone state as the SDK sees it, or null while there is no microphone published. */
   get isMicEnabled(): boolean | null {
     if (this.adapter.connectionType === SFU_CONNECTION_TYPE.RECV) return false;
     return this.driver.micEnabled();
   }
 
+  /** Records whether the microphone should be on, then applies it to the published microphone, if there is one. */
   enableMicrophone(enabled: boolean): void {
     if (this.adapter.connectionType === SFU_CONNECTION_TYPE.RECV) return;
-    if (!this.driver.setMicEnabled(enabled)) return;
     this.micWanted = enabled;
-    this.adapter.emit("mic-state-changed", { enabled });
+    this.applyMicrophone();
   }
 
+  /**
+   * Applies the request to the published microphone and, once the SDK has applied it, emits mic-state-changed
+   * with the state the microphone is in; while there is no microphone, with the request.
+   */
+  applyMicrophone(): void {
+    if (this.adapter.connectionType === SFU_CONNECTION_TYPE.RECV) return;
+    Promise.resolve(this.driver.setMicEnabled(this.micWanted))
+      .catch(error => console.error("Failed to apply the microphone state:", error))
+      .then(() => this.adapter.emit("mic-state-changed", { enabled: this.isMicEnabled ?? this.micWanted }));
+  }
+
+  /** Switches the microphone off when it is on and on when it is off; while there is none, flips the request. */
   toggleMicrophone(): void {
-    this.enableMicrophone(!this.micWanted);
+    this.enableMicrophone(!(this.isMicEnabled ?? this.micWanted));
   }
 }
