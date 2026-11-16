@@ -227,6 +227,14 @@ function makePose({
   return pose;
 }
 
+/**
+ * The pose that finds where the upper arms stand: the controllers on the headset, well within reach. A
+ * controller beyond the arm's length turns the shoulder toward it and moves the upper arm with it.
+ */
+function armProbePose(base) {
+  return makePose({ ...base, left: base.head, right: base.head });
+}
+
 function solve(fixture, pose, state = createIkState(fixture.frames), now = 1000, isSelf = false, modelRatio) {
   solveBody(fixture.rig, pose, state, fixture.writes, { now, isSelf, modelRatio });
   applyToBones(fixture.rig, fixture.writes);
@@ -348,7 +356,7 @@ test("reachable targets in front, above, behind and anywhere: hand within 1 mm, 
       for (const side of ["left", "right"]) {
         const base = { ...setup, head: standingHead(fixture) };
         // The shoulder does not depend on the hand targets: find it once for this setup
-        const probePose = makePose(base);
+        const probePose = armProbePose(base);
         const probeState = solve(fixture, probePose, undefined, 1000, setup.isSelf);
         const shoulder = worldToRig(probePose, worldPosition(fixture, `${side}UpperArm`));
         const { forward, right } = bodyAxes(probeState);
@@ -425,6 +433,7 @@ test("unreachable targets, a target on the shoulder, a pole along the arm: finit
   const random = mulberry32(0x5eed0204);
   let worstStraight = 0;
   let worstOffLine = 0;
+  let worstFurther = -Infinity;
   let worstPoleAlong = 0;
   let worstLength = 0;
   let finite = true;
@@ -432,7 +441,7 @@ test("unreachable targets, a target on the shoulder, a pole along the arm: finit
     for (const setup of SETUPS) {
       for (const side of ["left", "right"]) {
         const base = { ...setup, head: standingHead(fixture) };
-        const probePose = makePose(base);
+        const probePose = armProbePose(base);
         const probeState = solve(fixture, probePose, undefined, 1000, setup.isSelf);
         const shoulderWorld = worldPosition(fixture, `${side}UpperArm`);
         const shoulder = worldToRig(probePose, shoulderWorld);
@@ -444,7 +453,8 @@ test("unreachable targets, a target on the shoulder, a pole along the arm: finit
           if (!allFinite(fixture)) finite = false;
         };
 
-        // Out of reach: the arm points straight at the target
+        // Out of reach: the shoulder turns toward the target and the arm points straight at it from where
+        // the shoulder carries the upper arm, the hand no further from the target than the arm alone gets it
         for (let i = 0; i < 20; i++) {
           const direction = new Vector3().copy(randomDirection(random));
           const target = shoulder.clone().addScaledVector(direction, uniform(random, 1.01, 3) * reach);
@@ -452,14 +462,18 @@ test("unreachable targets, a target on the shoulder, a pole along the arm: finit
           solve(fixture, pose, undefined, 1000, setup.isSelf);
           const hand = worldPosition(fixture, `${side}Hand`);
           const elbow = worldPosition(fixture, `${side}LowerArm`);
-          const worldDirection = rigToWorld(pose, target).sub(shoulderWorld).normalize();
-          const expected = shoulderWorld.clone().addScaledVector(worldDirection, reach);
+          const upperArm = worldPosition(fixture, `${side}UpperArm`);
+          const targetWorld = rigToWorld(pose, target);
+          const worldDirection = targetWorld.clone().sub(upperArm).normalize();
+          const expected = upperArm.clone().addScaledVector(worldDirection, reach);
           worstStraight = Math.max(worstStraight, hand.distanceTo(expected));
-          const offset = elbow.clone().sub(shoulderWorld);
+          const offset = elbow.clone().sub(upperArm);
           worstOffLine = Math.max(
             worstOffLine,
             offset.addScaledVector(worldDirection, -offset.dot(worldDirection)).length()
           );
+          const armAlone = targetWorld.distanceTo(shoulderWorld) - reach;
+          worstFurther = Math.max(worstFurther, hand.distanceTo(targetWorld) - armAlone);
           check();
         }
 
@@ -488,7 +502,8 @@ test("unreachable targets, a target on the shoulder, a pole along the arm: finit
   }
   t.log(
     `unreachable: hand off the straight arm max ${(worstStraight * 1000).toExponential(2)} mm, ` +
-      `elbow off the line max ${(worstOffLine * 1000).toExponential(2)} mm`
+      `elbow off the line max ${(worstOffLine * 1000).toExponential(2)} mm, hand closer to the target than ` +
+      `the arm alone by at least ${(-worstFurther * 1000).toFixed(1)} mm`
   );
   t.log(
     `pole along the arm: hand error max ${(worstPoleAlong * 1000).toExponential(2)} mm; ` +
@@ -497,6 +512,7 @@ test("unreachable targets, a target on the shoulder, a pole along the arm: finit
   t.true(finite, "no NaN");
   t.true(worstStraight < HAND_LIMIT_M, "an unreachable target gets the straight arm pointing at it");
   t.true(worstOffLine < 1e-6, "the straight arm has its elbow on the line");
+  t.true(worstFurther < 1e-9, "the shoulder never takes the hand further from the target");
   t.true(worstPoleAlong < HAND_LIMIT_M, "a pole along the arm still reaches the target");
   t.true(worstLength < LENGTH_TOLERANCE, "bone lengths kept");
 });
@@ -907,11 +923,15 @@ test("VR at ratios 0.8, 1.0 and 1.25: hands on the unscaled controllers, soles o
       for (const setup of [...SETUPS, ...SETUPS.map(s => ({ ...s, headRot: [0, s.headRot[1], 0], level: true }))]) {
         // A player whose standing eye height is the model's times the ratio, standing upright in the room
         const base = { ...setup, head: [0.05, fixture.eyeHeight * ratio, -0.02] };
-        const probePose = makePose(base);
+        const probePose = armProbePose(base);
         const probeState = solve(fixture, probePose, undefined, 1000, setup.isSelf, ratio);
         t.is(probeState.modelRatio, ratio, "the state keeps the ratio");
+        const shoulders = {
+          left: worldToRig(probePose, worldPosition(fixture, "leftUpperArm")),
+          right: worldToRig(probePose, worldPosition(fixture, "rightUpperArm"))
+        };
         for (const side of ["left", "right"]) {
-          const shoulder = worldToRig(probePose, worldPosition(fixture, `${side}UpperArm`));
+          const shoulder = shoulders[side];
           const arm = fixture.arms[side];
           // The drawn arm is the model's at the ratio; the controllers are where the player holds them
           const reach = (arm.upper + arm.lower) * ratio;
@@ -1264,7 +1284,7 @@ test.failing("known failure: a bone that has to turn exactly half a turn can get
   for (const fixture of FULL_RIGS.slice(1, 3)) {
     for (const side of ["left", "right"]) {
       const base = { head: standingHead(fixture) };
-      solve(fixture, makePose(base));
+      solve(fixture, armProbePose(base));
       const shoulder = worldPosition(fixture, `${side}UpperArm`);
       const fold = Math.abs(fixture.arms[side].upper - fixture.arms[side].lower);
       for (let i = 0; i < 300; i++) {
