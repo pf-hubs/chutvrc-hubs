@@ -438,7 +438,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
               label,
               protocol,
               sctpStreamParameters,
-              // Read when the consumer closes, so that a peer that publishes no media is forgotten as well
+              // The peer the channel comes from
               appData: { peerId }
             });
 
@@ -490,6 +490,10 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
         case "peerClosed": {
           const { peerId } = notification.data;
           this.media.removePeer(peerId);
+          // The peer has left, whether or not it published media. A closing consumer or data consumer alone does
+          // not forget it: a peer closes its producers when it stops a camera or publishes its microphone anew,
+          // and forgetting it then removed its model, which the next announcement loaded again
+          this._poseSync.handleOnClientLeave(peerId, "peer closed");
 
           break;
         }
@@ -504,8 +508,6 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
             info(`consumerClosed event received without related consumer: ${consumerId}`);
             break;
           }
-
-          this._poseSync.handleOnClientLeave(consumer.appData.peerId);
 
           consumer.close();
           this.removeConsumer(consumer.id);
@@ -527,8 +529,6 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
             info(`dataConsumerClosed event received without related dataConsumer: ${dataConsumerId}`);
             break;
           }
-
-          this._poseSync.handleOnClientLeave(dataConsumer.appData.peerId);
 
           dataConsumer.close();
           this.removeDataConsumer(dataConsumer.id);

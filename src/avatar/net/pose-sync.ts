@@ -1,6 +1,7 @@
 import { AElement } from "aframe";
 import { SfuAdapter } from "../../sfu-adapters/sfu-adapter";
 import { encodeAvatarAnnouncement, parseAvatarAnnouncement } from "./avatar-announcement";
+import { AnnouncedAvatars } from "./announced-avatars";
 import { POSE_PARTS, PosePart } from "./interpolation-buffer";
 import { decodePart } from "./pose-codec-v0";
 import { decodeBody, isOlderSeq, POSE_CHANNEL } from "./pose-codec-v1";
@@ -26,6 +27,11 @@ const ANNOUNCE_AGAIN_AFTER_MS = 1000;
 
 /** How often the own avatar is announced again, for a client that missed every announcement so far */
 const ANNOUNCE_REPEAT_MS = 5000;
+
+/** Whether the user has entered the room; a client still in the lobby neither announces its avatar nor sends its pose */
+function hasEntered(): boolean {
+  return !!APP.scene?.is("entered");
+}
 
 /** The part of a tracked pose that one of the old per-part channels carries */
 function partOf(channel: string): PosePart | undefined {
@@ -70,8 +76,8 @@ export class PoseSync {
   private _announceIntervalId: number | undefined;
   /** The second announcement after an event, while it is due */
   private _announceAgainTimeoutId: number | undefined;
-  /** The avatar id each remote client last announced, so that a repeated announcement is ignored */
-  private readonly _announcedAvatarIds = new Map<string, string>();
+  /** The avatar id each remote client last announced, so a repeat is ignored, and the hidden clients */
+  private readonly _announced = new AnnouncedAvatars();
   /**
    * No longer read: the own avatar is announced on every #avatarId sync init. Kept while the session
    * still sets it on a replacement adapter.
@@ -83,7 +89,9 @@ export class PoseSync {
     // Only the room session's avatars are solved and shown. A public speaking session receives the same
     // channels and loads the models too, but the frame loop never read its entities: they stay unbound
     this.models = new AvatarModelManager(APP.world, APP.avatarPoses, () => APP.sfu.avatarSync === this);
-    this.poseSender = new PoseSender(sfu, APP.avatarPoses);
+    // Like the announcement, the pose goes out only once the user has entered: the others do not draw a
+    // client still in the lobby. The sender is started when the channel opens and sends from entry on
+    this.poseSender = new PoseSender(sfu, APP.avatarPoses, hasEntered);
   }
 
   /** The avatar entity of each client; the name tag and the media session read it */
@@ -116,14 +124,18 @@ export class PoseSync {
     // Old builds send the VR flag and the animation state on their own channels; a whole-body packet carries both
     if (channel === "#isVR") {
       let [clientId, isVR] = this._textDecoder.decode(data).split("|");
-      this._poseClientIds.add(clientId);
-      APP.avatarPoses.setVrMode(clientId, isVR === "1");
+      if (!this._announced.isHidden(clientId)) {
+        this._poseClientIds.add(clientId);
+        APP.avatarPoses.setVrMode(clientId, isVR === "1");
+      }
     }
 
     if (channel === "#avatarAnimState") {
       let [clientId, animStateStr] = this._textDecoder.decode(data).split("|");
       const animState = parseInt(animStateStr);
-      if (isValidAvatarAnimState(animState)) {
+      if (this._announced.isHidden(clientId)) {
+        // A hidden client's pose is not drawn
+      } else if (isValidAvatarAnimState(animState)) {
         this._poseClientIds.add(clientId);
         this.switchAnimState(clientId, animState);
       } else {
@@ -142,7 +154,7 @@ export class PoseSync {
       // The pose is not written here: the store keeps the packet and writes the part a short time later,
       // blended between packets, once a frame before the solver reads it. The own pose is the local
       // sampler's, so a packet of it that found its way back is not kept over it
-      if (part && clientId !== this._sfu.clientId) {
+      if (part && clientId !== this._sfu.clientId && !this._announced.isHidden(clientId)) {
         APP.avatarPoses.pushRemotePart(clientId, part, performance.now(), received);
         // An old build does not say which parts its devices track; all are taken as tracked, as the solver assumed
         APP.avatarPoses.getOrCreate(clientId).tracked = TRACKED_ALL;
@@ -169,8 +181,9 @@ export class PoseSync {
     if (isValidAvatarAnimState(header.animState)) body.animState = header.animState;
     this._poseClientIds.add(clientId);
 
-    // The own pose is the local sampler's, so a packet of it that found its way back is not kept over it
-    if (clientId !== this._sfu.clientId) {
+    // The own pose is the local sampler's, so a packet of it that found its way back is not kept over it.
+    // A hidden client's pose is not drawn
+    if (clientId !== this._sfu.clientId && !this._announced.isHidden(clientId)) {
       const pose = APP.avatarPoses.getOrCreate(clientId);
       const now = performance.now();
       // The channel is unordered: a packet that arrives after a newer one would move the avatar back
@@ -201,7 +214,7 @@ export class PoseSync {
    * client whatever else happens to the message, so a change of the eye height alone takes effect without
    * loading the model again. Every client repeats its announcement, so one that names the avatar the client
    * announced last loads nothing, also when that avatar failed to load and the default one stands in:
-   * loading it again would fail again.
+   * loading it again would fail again. A hidden client's announcement is recorded but loads nothing.
    */
   private handleAvatarIdMessage(message: string) {
     const { clientId, avatarId, eyeHeight } = parseAvatarAnnouncement(message);
@@ -212,17 +225,45 @@ export class PoseSync {
     // A client whose model is loading is skipped; a change of avatar meanwhile comes with its next announcement
     if (this.models.isLoading(clientId)) return;
 
-    const knownAvatarId = this._announcedAvatarIds.get(clientId);
-    if (knownAvatarId === avatarId) return;
+    const previousAvatarId = this._announced.avatarIdOf(clientId);
+    const { isNewClient, load } = this._announced.receive(clientId, avatarId);
     // A client new to this one may not know the own avatar either, so it gets the own announcement back
-    if (knownAvatarId === undefined) this.announceSelfNowAndAgain();
-    this._announcedAvatarIds.set(clientId, avatarId);
+    if (isNewClient) this.announceSelfNowAndAgain();
+    if (load) {
+      this.loadRemoteAvatar(avatarId, clientId, isNewClient ? "new client" : `changed from ${previousAvatarId}`);
+    }
+  }
+
+  /** Loads a remote client's model, with the reason in the log, so that a reload can be told apart later */
+  private loadRemoteAvatar(avatarId: string, clientId: string, reason: string) {
+    console.log(`Avatar of ${clientId} loading ${avatarId}: ${reason}`);
     this.replaceAvatarModel(avatarId, clientId);
   }
 
-  handleOnClientLeave(clientId: string) {
+  /**
+   * The user hid (blocked) the client: its model is removed and its poses are no longer drawn until it is
+   * shown again. Its announcements are still recorded, so the avatar it named last is known then.
+   */
+  hideClient(clientId: string) {
+    if (clientId === this._sfu.clientId) return;
+    this._announced.hide(clientId);
     this.models.removeClientAvatar(clientId);
-    this._announcedAvatarIds.delete(clientId);
+  }
+
+  /** The user shows the client again: the avatar it announced last is loaded now, without waiting for its repeat */
+  showClient(clientId: string) {
+    const avatarId = this._announced.show(clientId);
+    if (avatarId && clientId !== this._sfu.clientId) this.loadRemoteAvatar(avatarId, clientId, "shown again");
+  }
+
+  /**
+   * Forgets the client and removes its model: only for a client that has left, since its next announcement
+   * loads the model anew. The reason goes to the log.
+   */
+  handleOnClientLeave(clientId: string, reason: string) {
+    console.log(`Avatar of ${clientId} forgotten: ${reason}`);
+    this.models.removeClientAvatar(clientId);
+    this._announced.forget(clientId);
     this._poseClientIds.delete(clientId);
     APP.avatarPoses.delete(clientId);
   }
@@ -231,11 +272,11 @@ export class PoseSync {
   handleOnAllRemoteClientsLeave() {
     const clientIds = new Set<string>([
       ...this.models.clientIds(),
-      ...this._announcedAvatarIds.keys(),
+      ...this._announced.clientIds(),
       ...this._poseClientIds
     ]);
     clientIds.delete(this._sfu.clientId);
-    clientIds.forEach(clientId => this.handleOnClientLeave(clientId));
+    clientIds.forEach(clientId => this.handleOnClientLeave(clientId, "session left"));
   }
 
   initSelfAvatarTransform() {
@@ -320,7 +361,7 @@ export class PoseSync {
 
   /** Announces the own avatar once the user has entered: the others do not draw a client still in the lobby */
   private announceSelf() {
-    if (!APP.scene?.is("entered")) return;
+    if (!hasEntered()) return;
     this.sendSelfAvatarSrc();
   }
 
@@ -334,7 +375,7 @@ export class PoseSync {
   private handleTransformSyncInit() {
     // The rig and controllers may not be in the scene yet when the channel opens
     if (!this.localPoseSource) this.waitForSelfAvatar();
-    // Sending begins with the next frame in which the own pose has been sampled
+    // Sending begins with the next frame in which the own pose has been sampled and the user has entered
     this.poseSender.start();
   }
 

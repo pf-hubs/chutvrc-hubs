@@ -41,7 +41,15 @@ export class PoseSender {
   /** Reads the own rig, head and hands into the pose this sender sends; set once the rig is in the scene */
   source: LocalPoseSource | undefined;
 
-  constructor(private readonly sfu: SfuAdapter, private readonly store: PoseStore) {}
+  /**
+   * `mayPublish` is asked before every send: while it says no, as for a client still in the lobby, nothing
+   * is sent, but the pose is still sampled. Sending starts with the first frame it says yes.
+   */
+  constructor(
+    private readonly sfu: SfuAdapter,
+    private readonly store: PoseStore,
+    private readonly mayPublish: () => boolean = () => true
+  ) {}
 
   /** The client whose pose is read from the store and sent, known on every connect; the packet is sized for its id */
   setClientId(clientId: string) {
@@ -69,14 +77,14 @@ export class PoseSender {
   tick(now: number) {
     // Every frame, not only when sending: the own avatar is solved from this frame's devices
     this.source?.sample(now);
-    if (now - this.lastSentAt < SEND_INTERVAL_MS) return;
+    if (now - this.lastSentAt < SEND_INTERVAL_MS || !this.mayPublish()) return;
     this.lastSentAt = now;
     this.send();
   }
 
   /** Sends the pose now, outside the frame gate: for a client that has not seen this avatar yet */
   sendAll() {
-    this.send();
+    if (this.mayPublish()) this.send();
   }
 
   private send() {
