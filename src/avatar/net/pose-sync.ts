@@ -218,10 +218,19 @@ export class PoseSync {
     // A client whose model is loading is skipped; a change of avatar meanwhile comes with its next announcement
     if (this.models.isLoading(clientId)) return;
 
+    const previousAvatarId = this._announced.avatarIdOf(clientId);
     const { isNewClient, load } = this._announced.receive(clientId, avatarId);
     // A client new to this one may not know the own avatar either, so it gets the own announcement back
     if (isNewClient) this.announceSelfNowAndAgain();
-    if (load) this.replaceAvatarModel(avatarId, clientId);
+    if (load) {
+      this.loadRemoteAvatar(avatarId, clientId, isNewClient ? "new client" : `changed from ${previousAvatarId}`);
+    }
+  }
+
+  /** Loads a remote client's model, with the reason in the log, so that a reload can be told apart later */
+  private loadRemoteAvatar(avatarId: string, clientId: string, reason: string) {
+    console.log(`Avatar of ${clientId} loading ${avatarId}: ${reason}`);
+    this.replaceAvatarModel(avatarId, clientId);
   }
 
   /**
@@ -237,10 +246,15 @@ export class PoseSync {
   /** The user shows the client again: the avatar it announced last is loaded now, without waiting for its repeat */
   showClient(clientId: string) {
     const avatarId = this._announced.show(clientId);
-    if (avatarId && clientId !== this._sfu.clientId) this.replaceAvatarModel(avatarId, clientId);
+    if (avatarId && clientId !== this._sfu.clientId) this.loadRemoteAvatar(avatarId, clientId, "shown again");
   }
 
-  handleOnClientLeave(clientId: string) {
+  /**
+   * Forgets the client and removes its model: only for a client that has left, since its next announcement
+   * loads the model anew. The reason goes to the log.
+   */
+  handleOnClientLeave(clientId: string, reason: string) {
+    console.log(`Avatar of ${clientId} forgotten: ${reason}`);
     this.models.removeClientAvatar(clientId);
     this._announced.forget(clientId);
     this._poseClientIds.delete(clientId);
@@ -255,7 +269,7 @@ export class PoseSync {
       ...this._poseClientIds
     ]);
     clientIds.delete(this._sfu.clientId);
-    clientIds.forEach(clientId => this.handleOnClientLeave(clientId));
+    clientIds.forEach(clientId => this.handleOnClientLeave(clientId, "session left"));
   }
 
   initSelfAvatarTransform() {

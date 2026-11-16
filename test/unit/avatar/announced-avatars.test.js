@@ -61,3 +61,11 @@ test("a hidden client that leaves stays hidden when it comes back, also for anot
   const replacement = new AnnouncedAvatars(hidden);
   t.false(replacement.receive("a", "avatar1").load);
 });
+
+test("an unchanged avatar loads again only after its client was forgotten", t => {
+  const announced = new AnnouncedAvatars(new Set());
+  announced.receive("a", "avatar1");
+  for (let repeat = 0; repeat < 5; repeat++) t.false(announced.receive("a", "avatar1").load);
+  announced.forget("a");
+  t.deepEqual(announced.receive("a", "avatar1"), { isNewClient: true, load: true });
+});

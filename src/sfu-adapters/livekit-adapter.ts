@@ -357,7 +357,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     this.media.removePublicSpeakerAudio(clientId);
 
     // Notify avatar sync helper (which should clean all its maps)
-    this._poseSync.handleOnClientLeave(clientId);
+    this._poseSync.handleOnClientLeave(clientId, "participant disconnected");
 
     // Hide laser pointer when public speaker disconnects
     if (clientId.includes("PS") && this._laserPointerHandler) {

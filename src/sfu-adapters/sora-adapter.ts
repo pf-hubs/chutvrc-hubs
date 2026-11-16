@@ -155,7 +155,7 @@ export class SoraAdapter extends SfuAdapter<SoraConfig> {
           this.emit("stream_updated", event.client_id, "video");
         }
         if (event.event_type === "connection.destroyed" && event.client_id) {
-          this._poseSync.handleOnClientLeave(event.client_id);
+          this._poseSync.handleOnClientLeave(event.client_id, "connection destroyed");
           console.log("Connection destroyed: " + event.client_id);
         }
       }
