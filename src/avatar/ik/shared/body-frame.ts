@@ -31,6 +31,7 @@ const CHAIN_FOLLOWERS: readonly BoneName[] = [
   "leftUpperLeg",
   "rightUpperLeg"
 ];
+const SHOULDERS: readonly BoneName[] = ["leftShoulder", "rightShoulder"];
 
 const UP = new Vector3(0, 1, 0);
 const euler = new Euler();
@@ -93,9 +94,18 @@ export function setBodyHeading(rig: RigDescription, bodyYaw: number, out: BodyHe
   return out;
 }
 
-/** Places the spine, the head, the shoulders and the hip joints where the placed hips and the turned chain carry them */
+/**
+ * Places the spine, the head, the shoulders and the hip joints where the placed hips and the turned chain
+ * carry them. The shoulders are marked solved, so the orientation the chain gives them is written every
+ * frame: the VR solver may turn a shoulder toward a far hand target, and a bone written once keeps that
+ * turn until it is written again.
+ */
 export function followChain(rest: RestFrames, solved: SolvedFrames) {
   for (const name of CHAIN_FOLLOWERS) followAncestor(rest, solved, name);
+  for (const name of SHOULDERS) {
+    const frame = rest[name];
+    if (frame && frame.ancestor && rest[frame.ancestor]) solved.solved[name] = true;
+  }
 }
 
 /** Writes the placed hips as the local position of their bone */
