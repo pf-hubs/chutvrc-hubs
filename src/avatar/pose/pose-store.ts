@@ -24,6 +24,8 @@ export class PoseStore {
   private readonly poses = new Map<string, TrackedPose>();
   private readonly clientIdByEid = new Map<number, string>();
   private readonly buffers = new Map<string, InterpolationBuffer>();
+  /** Each client's standing eye height in room metres, as it announced it; absent while it announces none */
+  private readonly announcedEyeHeights = new Map<string, number>();
   /**
    * How far behind its newest packet a remote pose is shown, in milliseconds. The delay is what lets a
    * pose be blended between two received packets instead of jumping to each: it should cover the usual
@@ -51,10 +53,29 @@ export class PoseStore {
     return pose;
   }
 
-  /** Forgets the client's pose and packets; an entity still bound to the client is left alone until the next packet */
+  /**
+   * Forgets the client's pose, packets and announced eye height; an entity still bound to the client is left
+   * alone until the next packet
+   */
   delete(clientId: string) {
     this.poses.delete(clientId);
     this.buffers.delete(clientId);
+    this.announcedEyeHeights.delete(clientId);
+  }
+
+  /**
+   * Keeps the standing eye height the client announced with its avatar, in room metres, or forgets it when
+   * the announcement carries none. The own client's is set by the body calibration (apply-calibration.ts).
+   * The VR solver draws the client's model at this height over the model's own eye height.
+   */
+  setAnnouncedEyeHeight(clientId: string, eyeHeight: number | undefined) {
+    if (eyeHeight === undefined) this.announcedEyeHeights.delete(clientId);
+    else this.announcedEyeHeights.set(clientId, eyeHeight);
+  }
+
+  /** The client's announced standing eye height in room metres; undefined while it announces none */
+  announcedEyeHeightOf(clientId: string): number | undefined {
+    return this.announcedEyeHeights.get(clientId);
   }
 
   /** From now on the avatar entity shows this client's pose */

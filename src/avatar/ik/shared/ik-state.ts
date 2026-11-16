@@ -1,5 +1,4 @@
 import { Vector3 } from "three";
-import { Calibration, createCalibration } from "../calibration";
 import { BodyYawState, createBodyYawState } from "./body-yaw";
 import { createFootPlacement, FootPlacement } from "./feet";
 import { createSolvedFrames, RestFrames, SolvedFrames } from "./rig-frames";
@@ -25,15 +24,19 @@ export type ScreenSolverState = { feet: Record<Side, FootPlacement> };
 export type NpcSolverState = { hands: Record<Side, SmoothedTarget> };
 
 /**
- * What the solvers keep between frames for one avatar. The rest pose, the scratch solved frames, the
- * height calibration, the body's heading and the clock are shared, so a client that moves between VR and
- * a screen keeps its heading and its calibration; each solver's own part is reset when the avatar enters
- * that solver (see solve-body.ts).
+ * What the solvers keep between frames for one avatar. The rest pose, the scratch solved frames, the body's
+ * heading and the clock are shared, so a client that moves between VR and a screen keeps its heading; each
+ * solver's own part is reset when the avatar enters that solver (see solve-body.ts).
  */
 export type IkState = {
   frames: RestFrames;
   solved: SolvedFrames;
-  calibration: Calibration;
+  /**
+   * The size the model was drawn at in the last frame over its own size: the VR solver's ratio, the sender's
+   * announced eye height over the model's (SolveFrame.modelRatio); 1 for the screen and chatbot solvers.
+   * The root bone is scaled by it, so a position in root space is this many room metres per model metre.
+   */
+  modelRatio: number;
   bodyYaw: BodyYawState;
   /** When the last frame was solved, in milliseconds; 0 before the first */
   lastNow: number;
@@ -44,8 +47,13 @@ export type IkState = {
   npc: NpcSolverState;
 };
 
-/** What a frame adds to the pose: its time, and whether the avatar is the own one */
-export type SolveFrame = { now: number; isSelf: boolean };
+/**
+ * What a frame adds to the pose: its time, whether the avatar is the own one, and for the VR solver the size
+ * to draw the model at over its own size (the sender's announced standing eye height over the eye height of
+ * the model this observer loaded, within 0.3 to 2.0; see modelRatioOf in calibration/body-calibration.ts).
+ * A ratio that is missing or not a positive number is taken as 1, the model's own size.
+ */
+export type SolveFrame = { now: number; isSelf: boolean; modelRatio?: number };
 
 function createFeet(): Record<Side, FootPlacement> {
   return { left: createFootPlacement(), right: createFootPlacement() };
@@ -59,7 +67,7 @@ export function createIkState(frames: RestFrames): IkState {
   return {
     frames,
     solved: createSolvedFrames(),
-    calibration: createCalibration(),
+    modelRatio: 1,
     bodyYaw: createBodyYawState(),
     lastNow: 0,
     solver: null,

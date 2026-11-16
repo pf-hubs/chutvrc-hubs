@@ -20,10 +20,30 @@ function copyObject(from: Object3D, to: TrackedPart) {
   copyQuat(from.quaternion, to.quat);
 }
 
+/** Copies a child of the rig as copyObject does, its position multiplied by the rig's scale */
+function copyRigChild(from: Object3D, to: TrackedPart, rigScale: number) {
+  copyObject(from, to);
+  to.pos.x *= rigScale;
+  to.pos.y *= rigScale;
+  to.pos.z *= rigScale;
+}
+
+/** Whether the own head and hands are sent in room units: while the new body solver is on */
+function sendsInRoomUnits(): boolean {
+  return !!APP.store?.state.preferences.avatarIkV2;
+}
+
 /**
  * Reads the own rig, head and hands into the own pose once a frame, right before the solver runs, so
  * the own avatar follows this frame's camera and controllers. The local position and rotation of each
  * object are copied, as the timer sampler did; the solver never reads the scene objects themselves.
+ *
+ * The head and hands are children of the rig, placed by the headset and controllers in real metres, any
+ * tracking offset of the body calibration included (it is applied to the XR reference space). With the new
+ * body solver on, their positions are multiplied by the rig's scale, so the pose is in room units, as the
+ * room sees the camera and the controllers: any receiver, old or new, draws the hands where they are, also
+ * for a rig the body calibration or the avatar_scale address parameter scales. The own avatar is solved
+ * from the same values. With the new solver off, the positions are sent as they are, as before.
  */
 export class LocalPoseSource {
   constructor(
@@ -37,10 +57,12 @@ export class LocalPoseSource {
   sample(now: number) {
     const pose = this.store.getOrCreate(this.clientId);
     const { rig, head, leftHand, rightHand } = this.objects;
+    // The rig is scaled uniformly; its own position is in the room already
+    const rigScale = sendsInRoomUnits() ? rig.scale.y : 1;
     copyObject(rig, pose.rig);
-    copyObject(head, pose.head);
-    copyObject(leftHand, pose.leftHand);
-    copyObject(rightHand, pose.rightHand);
+    copyRigChild(head, pose.head, rigScale);
+    copyRigChild(leftHand, pose.leftHand, rigScale);
+    copyRigChild(rightHand, pose.rightHand, rigScale);
     // The head always has a pose; a controller is shown only while its device reports one
     pose.tracked =
       TRACKED_HEAD | (leftHand.visible ? TRACKED_LEFT_HAND : 0) | (rightHand.visible ? TRACKED_RIGHT_HAND : 0);

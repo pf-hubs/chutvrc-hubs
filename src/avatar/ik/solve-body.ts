@@ -32,10 +32,11 @@ export function solverKindOf(pose: TrackedPose): SolverKind {
 
 /**
  * Solves one avatar for one frame with the solver its pose calls for. The avatar keeps one state across
- * the solvers: the body's heading, the height calibration and the clock carry over, while the planted
- * feet and the smoothed hands of the solver it enters start afresh, so a client that moves between VR and
- * a screen does not continue from where its feet and hands were when it last left that solver. Nothing is
- * allocated per frame.
+ * the solvers: the body's heading and the clock carry over, while the planted feet and the smoothed hands
+ * of the solver it enters start afresh, so a client that moves between VR and a screen does not continue
+ * from where its feet and hands were when it last left that solver. Only the VR solver draws the model at
+ * another size than its own (frame.modelRatio); the screen and chatbot solvers draw it at its own size, and
+ * a root the VR solver scaled is brought back by their bone writes. Nothing is allocated per frame.
  */
 export function solveBody(rig: RigDescription, pose: TrackedPose, state: IkState, out: BoneWrites, frame: SolveFrame) {
   const kind = solverKindOf(pose);
@@ -48,9 +49,11 @@ export function solveBody(rig: RigDescription, pose: TrackedPose, state: IkState
       solveVrBody(rig, pose, state, out, frame);
       break;
     case "screen":
+      state.modelRatio = 1;
       solveScreenBody(rig, pose, state, out, frame);
       break;
     case "npc":
+      state.modelRatio = 1;
       solveNpcBody(rig, pose, state, out, frame);
       break;
   }

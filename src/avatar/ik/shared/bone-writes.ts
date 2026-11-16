@@ -16,6 +16,11 @@ export type BoneWrites = {
   hasPosition: Record<PositionBoneName, boolean>;
   /** The hands of an upper-body model are hidden while they have no controller to follow */
   handsHidden: boolean;
+  /**
+   * The root's uniform scale over its rest scale: the size the model is drawn at over its own size. Only the
+   * VR solver draws a model at another size; every frame starts at 1.
+   */
+  rootScale: number;
 };
 
 export function createBoneWrites(): BoneWrites {
@@ -26,7 +31,8 @@ export function createBoneWrites(): BoneWrites {
     hasRotation: bodyBoneRecord(false),
     position: { root: new Vector3(), hips: new Vector3(), leftHand: new Vector3(), rightHand: new Vector3() },
     hasPosition: { root: false, hips: false, leftHand: false, rightHand: false },
-    handsHidden: false
+    handsHidden: false,
+    rootScale: 1
   };
 }
 
@@ -37,4 +43,5 @@ export function clearBoneWrites(out: BoneWrites) {
   out.hasPosition.leftHand = false;
   out.hasPosition.rightHand = false;
   out.handsHidden = false;
+  out.rootScale = 1;
 }

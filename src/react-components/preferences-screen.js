@@ -34,6 +34,8 @@ import {
   MIN_BODY_HEIGHT_CM,
   UNCALIBRATED_BODY_HEIGHT_CM
 } from "../avatar/calibration/body-calibration";
+import { bodyCalibration } from "../avatar/calibration/apply-calibration";
+import { Button } from "./input/Button";
 
 export const CLIPPING_THRESHOLD_MIN = 0.0;
 export const CLIPPING_THRESHOLD_MAX = 0.1;
@@ -520,6 +522,10 @@ const preferenceLabels = defineMessages({
     id: "preferences-screen.preference.body-fit",
     defaultMessage: "Fit"
   },
+  bodyCaptureAgain: {
+    id: "preferences-screen.preference.body-capture-again",
+    defaultMessage: "Capture the headset's height again"
+  },
   showAudioDebugPanel: {
     id: "preferences-screen.preference.show-audio-debug-panel",
     defaultMessage: "Show Audio Debug Panel"
@@ -786,6 +792,48 @@ function BodyHeightPreference({ store }) {
 BodyHeightPreference.propTypes = {
   store: PropTypes.object
 };
+
+/** How often the "capture again" item checks whether a capture can be started */
+const BODY_CAPTURE_POLL_MS = 500;
+
+/**
+ * Starts a new capture of the headset's height (avatar/calibration/vr-capture.ts): the prompt appears in
+ * the headset and the calibration takes the new height once the headset is steady. Only while in VR with
+ * the new solver on and a height saved; a VR entry captures on its own, so this is for a player who stood
+ * or sat badly the first time.
+ */
+function BodyCaptureAgainPreference() {
+  const intl = useIntl();
+  const [canCapture, setCanCapture] = useState(bodyCalibration.canCapture);
+  useEffect(() => {
+    const id = setInterval(() => setCanCapture(bodyCalibration.canCapture), BODY_CAPTURE_POLL_MS);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <ListItem>
+      <div className={styles.row}>
+        <CheckboxPlaceholder />
+        <span className={classNames(styles.preferenceLabel, { [styles.disabled]: !canCapture })}>
+          {intl.formatMessage(preferenceLabels.bodyCaptureAgain)}
+          {!canCapture && (
+            <>
+              {" "}
+              <FormattedMessage id="preferences-screen.body-capture-again.in-vr-only" defaultMessage="(in VR only)" />
+            </>
+          )}
+        </span>
+        <div className={styles.rowRight}>
+          <Button preset="primary" sm disabled={!canCapture} onClick={() => bodyCalibration.requestCapture()}>
+            <FormattedMessage id="preferences-screen.body-capture-again.button" defaultMessage="Capture" />
+          </Button>
+        </div>
+        <div className={styles.rowRight}>
+          <ResetToDefaultButtonPlaceholder />
+        </div>
+      </div>
+    </ListItem>
+  );
+}
 
 const CATEGORY_AUDIO = 0;
 const CATEGORY_CONTROLS = 1;
@@ -1462,8 +1510,12 @@ class PreferencesScreen extends Component {
                 })
               }
             ]
+          },
+          {
+            key: "bodyCaptureAgain",
+            prefType: PREFERENCE_LIST_ITEM_TYPE.CUSTOM_COMPONENT,
+            componentType: BodyCaptureAgainPreference
           }
-          // Capturing the headset's height again joins these items once the capture in VR exists
         ]
       ],
       [

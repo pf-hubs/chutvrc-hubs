@@ -607,6 +607,29 @@ class UIRoot extends Component {
     await this.continueDirectEntryFlow(true);
   };
 
+  /**
+   * The in-room "Enter VR" control. A player who entered on the screen and turned the new solver on has not
+   * saved a height yet; the calibration form comes first then, and the headset is entered when it is saved.
+   */
+  enterVRFromRoom = () => {
+    if (!this.needsBodyCalibration()) {
+      exit2DInterstitialAndEnterVR(true);
+      return;
+    }
+    const { bodyHeightCm, bodyPosture, bodyFit } = this.props.store.state.preferences;
+    this.showNonHistoriedDialog(BodyCalibrationModal, {
+      heightCm: bodyHeightCm,
+      posture: bodyPosture,
+      fit: bodyFit,
+      onBack: this.closeDialog,
+      onSave: ({ heightCm, posture, fit }) => {
+        this.props.store.update({ preferences: { bodyHeightCm: heightCm, bodyPosture: posture, bodyFit: fit } });
+        this.setState({ dialog: null });
+        exit2DInterstitialAndEnterVR(true);
+      }
+    });
+  };
+
   continueDirectEntryFlow = async enterInVR => {
     this.setState({ enterInVR, waitingOnAudio: true });
 
@@ -1718,7 +1741,7 @@ class UIRoot extends Component {
                         icon={<VRIcon />}
                         preset="accept"
                         label={<FormattedMessage id="toolbar.enter-vr-button" defaultMessage="Enter VR" />}
-                        onClick={() => exit2DInterstitialAndEnterVR(true)}
+                        onClick={this.enterVRFromRoom}
                       />
                     )}
                     {
@@ -1734,7 +1757,7 @@ class UIRoot extends Component {
                         icon={<VRIcon />}
                         preset="accept"
                         label={<FormattedMessage id="toolbar.enter-vr-button" defaultMessage="Enter VR" />}
-                        onClick={() => exit2DInterstitialAndEnterVR(true)}
+                        onClick={this.enterVRFromRoom}
                       />
                     )}
                     {entered && (

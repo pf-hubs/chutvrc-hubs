@@ -56,7 +56,7 @@ export function eyeOffsetInRootSpace(
     .applyQuaternion(headDelta);
 }
 
-/** The height of the model's eyes over the floor in the rest pose, the height the headset is calibrated against */
+/** The height of the model's eyes over the floor in the rest pose; the VR solver's ratio is taken against it */
 export function rigEyeHeight(rig: RigDescription, headRest: RestFrame): number {
   if (!rig.eyeOffsetFromHead) return headRest.position.y + FALLBACK_EYE_UP;
   return headRest.position.y + restOffset.copy(rig.eyeOffsetFromHead).applyQuaternion(headRest.quaternion).y;

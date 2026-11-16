@@ -1,6 +1,6 @@
 import { Object3D, Vector3 } from "three";
-import { applyToBones, readRestFrames } from "./apply-to-bones";
-import { recalibrate as resetHeightCalibration } from "./calibration";
+import { applyToBones, readRestFrames, resetRootScale } from "./apply-to-bones";
+import { modelRatioOf } from "../calibration/body-calibration";
 import {
   BoneWrites,
   createBoneWrites,
@@ -10,6 +10,8 @@ import {
   SolverKind,
   solverKindOf
 } from "./solve-body";
+import { rigEyeHeight } from "./shared/head";
+import { RestFrames } from "./shared/rig-frames";
 import { TrackedPose } from "../pose/tracked-pose";
 import { RigDescription } from "../rig/rig-description";
 import { Transform } from "../../types/transform";
@@ -67,6 +69,10 @@ export class AvatarIkManager {
    * calls for, and their output; created the first time the preference selects the new solver
    */
   private rig: RigDescription;
+  /** The model's rest pose in root space, read once when first needed */
+  private restFrames: RestFrames | undefined;
+  /** The model's eye height at its own size, measured once when first needed */
+  private eyeHeight: number | undefined;
   private ikState: IkState | undefined;
   private boneWrites: BoneWrites | undefined;
   private usesNewSolver: boolean | undefined;
@@ -198,6 +204,8 @@ export class AvatarIkManager {
     if (useNewSolver !== this.usesNewSolver) {
       this.usesNewSolver = useNewSolver;
       console.log(`Avatar of ${clientId}: solving with the ${useNewSolver ? "new" : "old"} body solver`);
+      // The old solver draws the model at its own size
+      if (!useNewSolver) resetRootScale(this.rig);
     }
     if (useNewSolver) this.solveWithNewSolver(pose, clientId);
     else this.updateAvatarBoneIk(this.poseInput);
@@ -206,7 +214,10 @@ export class AvatarIkManager {
   /**
    * The new path: a pure solve over the rig description and the tracked pose, then one write to the bones.
    * solveBody picks the VR, screen or chatbot solver from the pose each frame and starts the feet and hands
-   * of the solver the avatar enters afresh when its client moves between VR and a screen.
+   * of the solver the avatar enters afresh when its client moves between VR and a screen. The VR solver
+   * draws the model at the client's announced standing eye height over this model's eye height (1 when the
+   * client announces none, as an old build or a player without the body calibration does), so every
+   * observer of the same model draws it at the same size; the solver state keeps it as `modelRatio`.
    */
   private solveWithNewSolver(pose: TrackedPose, clientId: string) {
     if (!this.rootBone || !this.hipsBone) return;
@@ -218,16 +229,33 @@ export class AvatarIkManager {
     this.isInputReady = true;
     if (this.rootBone.parent && !this.rootBone.parent.visible) this.rootBone.parent.visible = true;
     if (!this.ikState || !this.boneWrites) {
-      this.ikState = createIkState(readRestFrames(this.rig));
+      this.ikState = createIkState(this.restFramesOf());
       this.boneWrites = createBoneWrites();
     }
-    solveBody(this.rig, pose, this.ikState, this.boneWrites, { now: performance.now(), isSelf: this.isSelfAvatar });
+    const modelRatio = modelRatioOf(APP.avatarPoses.announcedEyeHeightOf(clientId) ?? 0, this.modelEyeHeight());
+    solveBody(this.rig, pose, this.ikState, this.boneWrites, {
+      now: performance.now(),
+      isSelf: this.isSelfAvatar,
+      modelRatio
+    });
     applyToBones(this.rig, this.boneWrites);
   }
 
-  /** Forgets the new solver's height calibration, so the next frame in VR takes it again */
-  recalibrate() {
-    if (this.ikState) resetHeightCalibration(this.ikState.calibration);
+  private restFramesOf(): RestFrames {
+    if (!this.restFrames) this.restFrames = readRestFrames(this.rig);
+    return this.restFrames;
+  }
+
+  /**
+   * The height of the model's eyes over the floor in its rest pose at its own size, in metres; 0 when the
+   * model has no head to measure. The body calibration and the VR solver's ratio are taken against it.
+   */
+  modelEyeHeight(): number {
+    if (this.eyeHeight === undefined) {
+      const head = this.restFramesOf().head;
+      this.eyeHeight = head ? rigEyeHeight(this.rig, head) : 0;
+    }
+    return this.eyeHeight;
   }
 
   updateAvatarBoneIk(poseInput: InputTransform) {

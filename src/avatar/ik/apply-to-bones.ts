@@ -16,6 +16,32 @@ const localMatrix = new Matrix4();
 const scale = new Vector3();
 
 /**
+ * The scale each root had before a solver first wrote to it, so a model drawn at another size goes back to
+ * its own. Recorded the first time the root's bones are written; no solver had changed it before then.
+ */
+const restRootScales = new WeakMap<Object3D, Vector3>();
+
+function restRootScaleOf(root: Object3D): Vector3 {
+  let rest = restRootScales.get(root);
+  if (!rest) {
+    rest = root.scale.clone();
+    restRootScales.set(root, rest);
+  }
+  return rest;
+}
+
+/** Sets the root's scale to its rest scale times `factor`; returns whether it changed */
+function setRootScale(root: Object3D, factor: number): boolean {
+  const rest = restRootScaleOf(root);
+  const x = rest.x * factor;
+  const y = rest.y * factor;
+  const z = rest.z * factor;
+  if (root.scale.x === x && root.scale.y === y && root.scale.z === z) return false;
+  root.scale.set(x, y, z);
+  return true;
+}
+
+/**
  * Measures where each named bone sits in root space in the model's rest pose. The named bones take the
  * rest transform recorded when the model was loaded, since a solver may have posed them since; the
  * unnamed objects between them, which no solver moves, take their current transform. A bone that does
@@ -95,14 +121,19 @@ function setHandVisibility(hand: Object3D | null, hidden: boolean) {
   hand.updateMatrix();
 }
 
-/** Writes each solved rotation and position to its bone once, then updates the world matrices below the root once */
+/**
+ * Writes each solved rotation and position to its bone once, and the root's scale, then updates the world
+ * matrices below the root once. A root scaled by the VR solver scales the whole model about the rig's
+ * position, so the bones' world positions, which the name tag and the probes read, are where it is drawn.
+ */
 export function applyToBones(rig: RigDescription, writes: BoneWrites) {
   const root = rig.bones.root;
   if (!root) return;
+  const rootScaled = setRootScale(root, writes.rootScale);
   for (const name of BODY_BONE_NAMES) {
     const bone = rig.bones[name];
     if (!bone) continue;
-    let changed = false;
+    let changed = name === "root" && rootScaled;
     if (writes.hasRotation[name]) {
       bone.quaternion.copy(writes.rotation[name]);
       changed = true;
@@ -120,5 +151,13 @@ export function applyToBones(rig: RigDescription, writes: BoneWrites) {
     if (writes.hasPosition.leftHand) setHandVisibility(rig.bones.leftHand, false);
     if (writes.hasPosition.rightHand) setHandVisibility(rig.bones.rightHand, false);
   }
+  root.updateWorldMatrix(false, true);
+}
+
+/** Brings the root back to its own size, for a model that the old solver poses from now on */
+export function resetRootScale(rig: RigDescription) {
+  const root = rig.bones.root;
+  if (!root || !restRootScales.has(root) || !setRootScale(root, 1)) return;
+  root.updateMatrix();
   root.updateWorldMatrix(false, true);
 }
