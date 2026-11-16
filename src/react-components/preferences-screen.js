@@ -800,7 +800,9 @@ const BODY_CAPTURE_POLL_MS = 500;
  * Starts a new capture of the headset's height (avatar/calibration/vr-capture.ts): the prompt appears in
  * the headset and the calibration takes the new height once the headset is steady. Only while in VR with
  * the new solver on and a height saved; a VR entry captures on its own, so this is for a player who stood
- * or sat badly the first time.
+ * or sat badly the first time. This screen cannot be opened in VR, so outside VR the item says where the
+ * same request is in VR: the "Capture height again" button in the in-world menu below the player's view
+ * (components/body-capture-button.js).
  */
 function BodyCaptureAgainPreference() {
   const intl = useIntl();
@@ -818,7 +820,10 @@ function BodyCaptureAgainPreference() {
           {!canCapture && (
             <>
               {" "}
-              <FormattedMessage id="preferences-screen.body-capture-again.in-vr-only" defaultMessage="(in VR only)" />
+              <FormattedMessage
+                id="preferences-screen.body-capture-again.in-vr-menu"
+                defaultMessage='(in VR: look down and choose "Capture height again" in the menu)'
+              />
             </>
           )}
         </span>

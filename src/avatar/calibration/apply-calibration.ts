@@ -113,7 +113,16 @@ export class BodyCalibrationController {
     return this.session !== null && this.calibration !== null;
   }
 
-  /** Captures the headset's height again, from the next frame, if it can be captured now */
+  /** Whether a capture is under way or starts on the next frame */
+  get isCapturing(): boolean {
+    return this.captureRequested || this.capture.isRunning;
+  }
+
+  /**
+   * Captures the headset's height again, from the next frame, if it can be captured now. Asked for from the
+   * in-world menu in VR (components/body-capture-button.js); the last capture stays applied until the new
+   * one is taken, and stays if the new one times out.
+   */
   requestCapture() {
     if (this.canCapture) this.captureRequested = true;
   }

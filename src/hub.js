@@ -67,6 +67,7 @@ import "./components/bone-mute-state-indicator";
 import "./components/bone-visibility";
 import "./components/fader";
 import "./components/in-world-hud";
+import "./components/body-capture-button";
 import "./components/emoji";
 import "./components/emoji-hud";
 import "./components/virtual-gamepad-controls";
