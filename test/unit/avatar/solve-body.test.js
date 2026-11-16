@@ -21,8 +21,13 @@ import { isFiniteQuat, isFiniteXyz, summarize } from "./_stats";
  *
  * Hand targets are smoothed over frames (45 ms) except on a state's first frame, which snaps. The reach
  * tests therefore solve each target with a fresh state, in one frame; one test follows a persistent state
- * over frames until the hand converges. In VR the first frame with the headset over 0.5 m sets a height
- * scale and hand targets are taken as (x, y / scale, z): errors are measured against that scaled target.
+ * over frames until the hand converges.
+ *
+ * In VR the model is drawn at the ratio the frame gives (the sender's announced eye height over the model's;
+ * 1 when the frame gives none): the tracked head and controllers are divided by it on all three axes, solved,
+ * and the root is scaled by it, so the hands are measured against the controllers as they are, at any ratio.
+ * The first-frame height scale of earlier builds is gone: a frame without a ratio is solved at the model's
+ * own size, whatever the headset's height.
  */
 
 const HAND_LIMIT_M = 0.001;
@@ -222,8 +227,8 @@ function makePose({
   return pose;
 }
 
-function solve(fixture, pose, state = createIkState(fixture.frames), now = 1000, isSelf = false) {
-  solveBody(fixture.rig, pose, state, fixture.writes, { now, isSelf });
+function solve(fixture, pose, state = createIkState(fixture.frames), now = 1000, isSelf = false, modelRatio) {
+  solveBody(fixture.rig, pose, state, fixture.writes, { now, isSelf, modelRatio });
   applyToBones(fixture.rig, fixture.writes);
   return state;
 }
@@ -272,12 +277,12 @@ function poleSideCosine(rootWorld, jointWorld, endWorld, poleWorld) {
   return offset.normalize().dot(pole.normalize());
 }
 
-/** The largest relative change of a distance between consecutive named joints */
-function boneLengthError(fixture) {
+/** The largest relative change of a distance between consecutive named joints, for a model drawn at `ratio` */
+function boneLengthError(fixture, ratio = 1) {
   let worst = 0;
   for (const [a, b, restLength] of fixture.pairs) {
     const length = worldPosition(fixture, a).distanceTo(worldPosition(fixture, b));
-    worst = Math.max(worst, Math.abs(length - restLength) / restLength);
+    worst = Math.max(worst, Math.abs(length - restLength * ratio) / (restLength * ratio));
   }
   return worst;
 }
@@ -301,10 +306,6 @@ function allFinite(fixture) {
 
 function standingHead(fixture) {
   return [0, fixture.eyeHeight, 0];
-}
-
-function heightScaleOf(state) {
-  return state.calibration.heightScale === null ? 1 : state.calibration.heightScale;
 }
 
 test("the synthetic rigs map to the expected bones", t => {
@@ -380,12 +381,7 @@ test("reachable targets in front, above, behind and anywhere: hand within 1 mm, 
           const pose = makePose({ ...base, [handKey]: target.position.toArray() });
           const state = solve(fixture, pose, undefined, 1000, setup.isSelf);
           solves++;
-          const scale = heightScaleOf(state);
-          const expected = rigToWorld(pose, {
-            x: target.position.x,
-            y: target.position.y / scale,
-            z: target.position.z
-          });
+          const expected = rigToWorld(pose, target.position);
           const hand = worldPosition(fixture, `${side}Hand`);
           const error = hand.distanceTo(expected);
           errors.push(error);
@@ -766,31 +762,6 @@ test("hand smoothing: the first frame snaps, later frames converge, a teleport s
   t.true(teleport < HAND_LIMIT_M, "a teleport is followed at once");
 });
 
-test("calibration: a taller user's hands are reached in the model's proportions", t => {
-  for (const fixture of FULL_RIGS) {
-    const userScale = 1.15;
-    const pose = makePose({
-      head: [0, fixture.eyeHeight * userScale, 0],
-      left: [-0.35, 1.3, -0.3],
-      right: [0.3, 1.5, -0.25]
-    });
-    const state = solve(fixture, pose);
-    const scale = heightScaleOf(state);
-    let worst = 0;
-    for (const [side, key] of [
-      ["left", "leftHand"],
-      ["right", "rightHand"]
-    ]) {
-      const target = pose[key].pos;
-      const expected = rigToWorld(pose, { x: target.x, y: target.y / scale, z: target.z });
-      worst = Math.max(worst, worldPosition(fixture, `${side}Hand`).distanceTo(expected));
-    }
-    t.log(`${fixture.name}: height scale ${scale.toFixed(6)}, hand error ${(worst * 1000).toExponential(2)} mm`);
-    t.true(Math.abs(scale - userScale) < 1e-9, "the scale is the headset height over the eye height");
-    t.true(worst < HAND_LIMIT_M, "hand error under 1 mm against the scaled target");
-  }
-});
-
 test("desktop: the arms hang at the sides; an upper body's hands are hidden; in VR they follow", t => {
   for (const fixture of FULL_RIGS) {
     const pose = makePose({ head: standingHead(fixture), isVR: false, rigYaw: 1.1 });
@@ -828,8 +799,7 @@ test("desktop: the arms hang at the sides; an upper body's hands are hidden; in 
     ["right", "rightHand"]
   ]) {
     const target = pose[key].pos;
-    const expected = rigToWorld(pose, { x: target.x, y: target.y / heightScaleOf(state), z: target.z });
-    worst = Math.max(worst, worldPosition(half, `${side}Hand`).distanceTo(expected));
+    worst = Math.max(worst, worldPosition(half, `${side}Hand`).distanceTo(rigToWorld(pose, target)));
   }
   t.log(`upper body in VR: hand error ${(worst * 1000).toExponential(2)} mm`);
   t.true(worst < HAND_LIMIT_M);
@@ -893,6 +863,225 @@ test("no NaN and bone lengths kept over thousands of random poses on every rig",
     t.true(worstLength < LENGTH_TOLERANCE, `${fixture.name}: bone lengths kept`);
   }
   t.log(`${total} frames in all`);
+});
+
+/** The VR solver's lowering of the body below the headset, in the model's units (solve-vr-body.ts); copied, not exported */
+const STANDING_KNEE_SLACK = 0.03;
+/** The own avatar's step back from the camera, in the model's units (shared/head.ts); copied, not exported */
+const SELF_BACK_OFFSET = 0.1;
+const RATIOS = [0.8, 1.0, 1.25];
+
+/** The midpoint of the eye bones in the world */
+function eyesWorld(fixture) {
+  return worldPosition(fixture, "leftEye").add(worldPosition(fixture, "rightEye")).multiplyScalar(0.5);
+}
+
+/** How far each sole is over the floor (the rig's height): the ankle's height less its rest height at the ratio */
+function soleClearances(fixture, pose, ratio) {
+  return ["left", "right"].map(
+    side => worldPosition(fixture, `${side}Foot`).y - pose.rig.pos.y - fixture.rest[`${side}Foot`].position.y * ratio
+  );
+}
+
+function handsOff(fixture, pose) {
+  return Math.max(
+    worldPosition(fixture, "leftHand").distanceTo(rigToWorld(pose, pose.leftHand.pos)),
+    worldPosition(fixture, "rightHand").distanceTo(rigToWorld(pose, pose.rightHand.pos))
+  );
+}
+
+test("VR at ratios 0.8, 1.0 and 1.25: hands on the unscaled controllers, soles on the floor, eyes on the headset", t => {
+  const random = mulberry32(0x5eed0301);
+  for (const ratio of RATIOS) {
+    const handErrors = [];
+    let worstSole = 0;
+    let lowestSole = Infinity;
+    let worstEye = 0;
+    let worstLength = 0;
+    let worstRootScale = 0;
+    let finite = true;
+    for (const fixture of FULL_RIGS) {
+      // The setups as they are, and with the head level: a head pitched or rolled far straightens the legs a
+      // little (the hips rise to keep the eyes on the headset), at any ratio, so the soles are held to the
+      // floor with a level head and only kept from going under it otherwise
+      for (const setup of [...SETUPS, ...SETUPS.map(s => ({ ...s, headRot: [0, s.headRot[1], 0], level: true }))]) {
+        // A player whose standing eye height is the model's times the ratio, standing upright in the room
+        const base = { ...setup, head: [0.05, fixture.eyeHeight * ratio, -0.02] };
+        const probePose = makePose(base);
+        const probeState = solve(fixture, probePose, undefined, 1000, setup.isSelf, ratio);
+        t.is(probeState.modelRatio, ratio, "the state keeps the ratio");
+        for (const side of ["left", "right"]) {
+          const shoulder = worldToRig(probePose, worldPosition(fixture, `${side}UpperArm`));
+          const arm = fixture.arms[side];
+          // The drawn arm is the model's at the ratio; the controllers are where the player holds them
+          const reach = (arm.upper + arm.lower) * ratio;
+          for (let i = 0; i < 40; i++) {
+            const direction = new Vector3().copy(randomDirection(random));
+            const target = shoulder.clone().addScaledVector(direction, uniform(random, 0.1, 0.98) * reach);
+            const pose = makePose({ ...base, [side]: target.toArray() });
+            const state = solve(fixture, pose, undefined, 1000, setup.isSelf, ratio);
+            handErrors.push(worldPosition(fixture, `${side}Hand`).distanceTo(rigToWorld(pose, target)));
+
+            // The eyes: on the headset but for the knee slack below it and, for the own avatar, the step back
+            const forward = bodyAxes(state).forward.applyAxisAngle(UP, pose.rig.rot.y);
+            const expectedEyes = rigToWorld(pose, pose.head.pos);
+            expectedEyes.y -= STANDING_KNEE_SLACK * ratio;
+            if (setup.isSelf) expectedEyes.addScaledVector(forward, -SELF_BACK_OFFSET * ratio);
+            worstEye = Math.max(worstEye, eyesWorld(fixture).distanceTo(expectedEyes));
+            for (const clearance of soleClearances(fixture, pose, ratio)) {
+              if (setup.level || setup.headRot[0] === 0) worstSole = Math.max(worstSole, Math.abs(clearance));
+              lowestSole = Math.min(lowestSole, clearance);
+            }
+            worstLength = Math.max(worstLength, boneLengthError(fixture, ratio));
+            worstRootScale = Math.max(worstRootScale, Math.abs(fixture.objects.root.scale.x - ratio));
+            if (!allFinite(fixture)) finite = false;
+          }
+        }
+      }
+    }
+    const summary = summarize(handErrors);
+    t.log(
+      `ratio ${ratio}: ${handErrors.length} solves, hand error max ${(summary.max * 1000).toExponential(2)} mm; ` +
+        `eyes off the headset max ${(worstEye * 1000).toExponential(2)} mm beyond the slack; soles off the floor ` +
+        `max ${(worstSole * 1000).toExponential(2)} mm with the head level, lowest sole ` +
+        `${(lowestSole * 1000).toExponential(2)} mm; bone length change ${worstLength.toExponential(2)}`
+    );
+    t.true(summary.max < HAND_LIMIT_M, `ratio ${ratio}: hand error under 1 mm against the unscaled controller`);
+    t.true(worstEye < HAND_LIMIT_M, `ratio ${ratio}: eyes on the headset`);
+    t.true(worstSole < HAND_LIMIT_M, `ratio ${ratio}: soles on the floor`);
+    t.true(lowestSole > -HAND_LIMIT_M, `ratio ${ratio}: no sole under the floor`);
+    t.true(worstLength < LENGTH_TOLERANCE, `ratio ${ratio}: the model keeps its proportions at the ratio`);
+    t.true(worstRootScale < 1e-12, `ratio ${ratio}: the root is scaled by the ratio`);
+    t.true(finite, `ratio ${ratio}: no NaN`);
+  }
+});
+
+test("VR crouch at ratios 0.8 and 1.25: feet stay planted on the floor, the hands stay on the controllers", t => {
+  for (const ratio of [0.8, 1.25]) {
+    for (const fixture of FULL_RIGS) {
+      const state = createIkState(fixture.frames);
+      let now = 1000;
+      let worstSole = 0;
+      let worstHand = 0;
+      let planted = null;
+      let worstSlide = 0;
+      for (let frame = 0; frame <= 40; frame++) {
+        const depth = Math.min(frame / 20, 1) * 0.3;
+        const eye = fixture.eyeHeight * ratio * (1 - depth);
+        // The controllers move down with the body; the smoothing lags them, so they are checked once held
+        const left = [-0.3 * ratio, eye - 0.5 * ratio, -0.25 * ratio];
+        const right = [0.3 * ratio, eye - 0.45 * ratio, -0.2 * ratio];
+        const pose = makePose({ rigPos: [1, 0.3, -2], rigYaw: 0.7, head: [0, eye, 0], left, right });
+        solve(fixture, pose, state, now, false, ratio);
+        now += 1000 / 60;
+        for (const clearance of soleClearances(fixture, pose, ratio)) {
+          worstSole = Math.max(worstSole, Math.abs(clearance));
+        }
+        const feet = ["left", "right"].map(side => worldPosition(fixture, `${side}Foot`));
+        if (!planted) planted = feet.map(foot => foot.clone());
+        feet.forEach((foot, i) => (worstSlide = Math.max(worstSlide, foot.distanceTo(planted[i]))));
+        if (frame >= 35) worstHand = Math.max(worstHand, handsOff(fixture, pose));
+      }
+      t.log(
+        `ratio ${ratio}, ${fixture.name}: soles off the floor max ${(worstSole * 1000).toExponential(2)} mm, feet ` +
+          `slid ${(worstSlide * 1000).toExponential(2)} mm, hands off ${(worstHand * 1000).toExponential(2)} mm`
+      );
+      t.true(worstSole < HAND_LIMIT_M, `ratio ${ratio}, ${fixture.name}: soles on the floor`);
+      t.true(worstSlide < HAND_LIMIT_M, `ratio ${ratio}, ${fixture.name}: feet stay planted`);
+      t.true(worstHand < HAND_LIMIT_M, `ratio ${ratio}, ${fixture.name}: hands on the held controllers`);
+    }
+  }
+});
+
+test("a ratio that is missing or not a positive number is 1: the same writes as ratio 1", t => {
+  const fixture = FULL_RIGS[1];
+  const pose = makePose({ head: [0, 1.9, 0], left: [-0.3, 1.2, -0.3], right: [0.25, 1.4, -0.2] });
+  const reference = new Map();
+  solve(fixture, pose, undefined, 1000, false, 1);
+  for (const name of BODY_BONE_NAMES) {
+    if (fixture.writes.hasRotation[name]) reference.set(name, fixture.writes.rotation[name].clone());
+  }
+  const hips = fixture.writes.position.hips.clone();
+  for (const ratio of [undefined, NaN, 0, -1.2, Infinity]) {
+    const state = solve(fixture, pose, undefined, 1000, false, ratio);
+    let same = fixture.writes.position.hips.equals(hips) && fixture.writes.rootScale === 1;
+    for (const [name, q] of reference) same = same && fixture.writes.rotation[name].equals(q);
+    t.true(same, `ratio ${ratio}: the writes of ratio 1`);
+    t.is(state.modelRatio, 1, `ratio ${ratio}: the state keeps 1`);
+    t.is(fixture.objects.root.scale.x, 1, `ratio ${ratio}: the root at its own size`);
+  }
+});
+
+test("a change of ratio replants the feet on the floor and puts the hands on the controllers at once", t => {
+  for (const fixture of FULL_RIGS) {
+    const state = createIkState(fixture.frames);
+    let now = 1000;
+    let worstSole = 0;
+    let worstHand = 0;
+    for (let frame = 0; frame < 30; frame++) {
+      const ratio = frame < 15 ? 1 : 1.2;
+      const pose = makePose({
+        rigPos: [0.5, 0, 0.5],
+        head: [0, fixture.eyeHeight * 1.1, 0],
+        left: [-0.3, 1.1, -0.3],
+        right: [0.3, 1.2, -0.25]
+      });
+      solve(fixture, pose, state, now, false, ratio);
+      now += 1000 / 60;
+      if (frame >= 15) {
+        for (const clearance of soleClearances(fixture, pose, ratio)) {
+          worstSole = Math.max(worstSole, Math.abs(clearance));
+        }
+        worstHand = Math.max(worstHand, handsOff(fixture, pose));
+      }
+    }
+    t.true(worstSole < HAND_LIMIT_M, `${fixture.name}: soles on the floor after the change`);
+    t.true(worstHand < HAND_LIMIT_M, `${fixture.name}: hands on the controllers from the change on`);
+  }
+});
+
+test("the screen and chatbot solvers draw the model at its own size and reset a root the VR solver scaled", t => {
+  for (const fixture of FULL_RIGS) {
+    const state = createIkState(fixture.frames);
+    solve(fixture, makePose({ head: [0, fixture.eyeHeight * 1.25, 0] }), state, 1000, false, 1.25);
+    t.is(fixture.objects.root.scale.x, 1.25, `${fixture.name}: scaled in VR`);
+    // The same client on a screen: the announced ratio is still given, the screen solver ignores it
+    const pose = makePose({ head: standingHead(fixture), isVR: false, rigPos: [2, 0, 1] });
+    solve(fixture, pose, state, 1100, false, 1.25);
+    t.is(state.modelRatio, 1, `${fixture.name}: the state's ratio is 1 on a screen`);
+    t.true(fixture.objects.root.scale.equals(new Vector3(1, 1, 1)), `${fixture.name}: root scale reset`);
+    t.true(boneLengthError(fixture) < LENGTH_TOLERANCE, `${fixture.name}: own size`);
+    const soles = soleClearances(fixture, pose, 1);
+    t.true(Math.max(...soles.map(Math.abs)) < HAND_LIMIT_M, `${fixture.name}: soles on the floor on a screen`);
+    t.true(allFinite(fixture), `${fixture.name}: no NaN on the change`);
+  }
+  // The chatbot's avatar never takes a ratio either
+  const fixture = FULL_RIGS[0];
+  const state = createIkState(fixture.frames);
+  solve(fixture, makePose({ head: [0, 2, 0] }), state, 1000, false, 1.25);
+  solve(fixture, makePose({ head: standingHead(fixture), isNPC: true, isVR: false }), state, 1100, false, 1.25);
+  t.is(state.modelRatio, 1);
+  t.true(fixture.objects.root.scale.equals(new Vector3(1, 1, 1)), "chatbot: root scale reset");
+});
+
+test("no NaN and proportions kept over random poses with random ratios, VR and screen mixed", t => {
+  const random = mulberry32(0x5eed0302);
+  for (const fixture of [...FULL_RIGS, HALF_BODY_RIG, MISSING_RIG, MINIMAL_RIG]) {
+    const state = createIkState(fixture.frames);
+    let now = 1000;
+    let nonFinite = 0;
+    let worstLength = 0;
+    for (let frame = 0; frame < 300; frame++) {
+      now += uniform(random, 1, 100);
+      const pose = randomStressPose(random);
+      const ratio = random() < 0.2 ? 1 : uniform(random, 0.3, 2);
+      solve(fixture, pose, state, now, random() < 0.3, ratio);
+      if (!allFinite(fixture)) nonFinite++;
+      worstLength = Math.max(worstLength, boneLengthError(fixture, state.modelRatio));
+    }
+    t.is(nonFinite, 0, `${fixture.name}: no NaN`);
+    t.true(worstLength < LENGTH_TOLERANCE, `${fixture.name}: proportions kept (${worstLength.toExponential(2)})`);
+  }
 });
 
 /**
