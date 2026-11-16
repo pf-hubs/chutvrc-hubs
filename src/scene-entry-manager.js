@@ -216,10 +216,13 @@ export default class SceneEntryManager {
   _setupBlocking = () => {
     document.body.addEventListener("blocked", ev => {
       NAF.connection.entities.removeEntitiesOfClient(ev.detail.clientId);
+      // The avatar model and pose come over the media server, not as networked entities
+      APP.sfu.avatarSync?.hideClient(ev.detail.clientId);
     });
 
     document.body.addEventListener("unblocked", ev => {
       NAF.connection.entities.completeSync(ev.detail.clientId, true);
+      APP.sfu.avatarSync?.showClient(ev.detail.clientId);
     });
   };
 

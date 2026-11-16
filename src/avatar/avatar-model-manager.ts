@@ -110,6 +110,8 @@ export class AvatarModelManager {
   private readonly avatarIdByClientId = new Map<string, string>();
   /** The clients whose avatar is being loaded, so one client is never loaded twice at once */
   private readonly loadingClientIds = new Set<string>();
+  /** The load in flight for each client; one that is no longer here when it ends was discarded */
+  private readonly loadByClientId = new Map<string, object>();
   /** The models this manager loaded, by avatar entity, so their resources are freed with the entity */
   private readonly loadedModelByEid = new Map<number, Object3D>();
 
@@ -142,28 +144,37 @@ export class AvatarModelManager {
     if (avatarId === this.avatarIdByClientId.get(clientId)) return;
     if (this.loadingClientIds.has(clientId)) return;
     this.loadingClientIds.add(clientId);
+    const load = {};
+    this.loadByClientId.set(clientId, load);
+    const isCurrent = () => this.loadByClientId.get(clientId) === load;
 
     // The old avatar goes first; the client's pose stays and the new entity is bound to it
     this.removeAvatar(this.avatarEidByClientId.get(clientId));
     this.avatarEidByClientId.delete(clientId);
 
     try {
-      await this.loadAvatarModel(avatarId, clientId);
-      this.avatarIdByClientId.set(clientId, avatarId);
+      await this.loadAvatarModel(avatarId, clientId, isCurrent);
+      if (isCurrent()) this.avatarIdByClientId.set(clientId, avatarId);
     } catch (error) {
-      console.error(`Failed to load avatar ${avatarId} for client ${clientId}:`, error);
-      await this.loadFallbackAvatar(clientId);
+      if (isCurrent()) {
+        console.error(`Failed to load avatar ${avatarId} for client ${clientId}:`, error);
+        await this.loadFallbackAvatar(clientId, isCurrent);
+      }
     } finally {
-      this.loadingClientIds.delete(clientId);
+      if (isCurrent()) {
+        this.loadingClientIds.delete(clientId);
+        this.loadByClientId.delete(clientId);
+      }
     }
   }
 
-  /** Removes the client's avatar and forgets the client */
+  /** Removes the client's avatar and forgets the client; a load for it still in flight is discarded when it ends */
   removeClientAvatar(clientId: string) {
     this.removeAvatar(this.avatarEidByClientId.get(clientId));
     this.avatarIdByClientId.delete(clientId);
     this.avatarEidByClientId.delete(clientId);
     this.loadingClientIds.delete(clientId);
+    this.loadByClientId.delete(clientId);
   }
 
   /** Removes the avatar entity with its model and frees the model's resources */
@@ -177,11 +188,18 @@ export class AvatarModelManager {
     }
   }
 
-  /** Loads the model, describes its rig, creates its entities and shows it; false when it has no known bone */
-  private async loadAvatarModel(avatarId: string, clientId: string): Promise<boolean> {
+  /**
+   * Loads the model, describes its rig, creates its entities and shows it; false when it has no known bone,
+   * or when the load is no longer current (the client was removed meanwhile) and the model is dropped
+   */
+  private async loadAvatarModel(avatarId: string, clientId: string, isCurrent: () => boolean): Promise<boolean> {
     const avatarSrc = await getAvatarSrc(avatarId);
     const gltf = await loadModel(avatarSrc);
     const model: Object3D = gltf.scene;
+    if (!isCurrent()) {
+      disposeModel(model);
+      return false;
+    }
     model.traverse(object => {
       object.frustumCulled = false;
     });
@@ -203,11 +221,11 @@ export class AvatarModelManager {
     return true;
   }
 
-  private async loadFallbackAvatar(clientId: string): Promise<void> {
+  private async loadFallbackAvatar(clientId: string, isCurrent: () => boolean): Promise<void> {
     console.warn(`Loading fallback avatar for client ${clientId}`);
     try {
-      await this.loadAvatarModel(FALLBACK_AVATAR_ID, clientId);
-      this.avatarIdByClientId.set(clientId, FALLBACK_AVATAR_ID);
+      await this.loadAvatarModel(FALLBACK_AVATAR_ID, clientId, isCurrent);
+      if (isCurrent()) this.avatarIdByClientId.set(clientId, FALLBACK_AVATAR_ID);
     } catch (fallbackError) {
       console.error(`Failed to load fallback avatar for ${clientId}:`, fallbackError);
     }
