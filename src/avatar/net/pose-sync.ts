@@ -28,6 +28,11 @@ const ANNOUNCE_AGAIN_AFTER_MS = 1000;
 /** How often the own avatar is announced again, for a client that missed every announcement so far */
 const ANNOUNCE_REPEAT_MS = 5000;
 
+/** Whether the user has entered the room; a client still in the lobby neither announces its avatar nor sends its pose */
+function hasEntered(): boolean {
+  return !!APP.scene?.is("entered");
+}
+
 /** The part of a tracked pose that one of the old per-part channels carries */
 function partOf(channel: string): PosePart | undefined {
   switch (channel) {
@@ -84,7 +89,9 @@ export class PoseSync {
     // Only the room session's avatars are solved and shown. A public speaking session receives the same
     // channels and loads the models too, but the frame loop never read its entities: they stay unbound
     this.models = new AvatarModelManager(APP.world, APP.avatarPoses, () => APP.sfu.avatarSync === this);
-    this.poseSender = new PoseSender(sfu, APP.avatarPoses);
+    // Like the announcement, the pose goes out only once the user has entered: the others do not draw a
+    // client still in the lobby. The sender is started when the channel opens and sends from entry on
+    this.poseSender = new PoseSender(sfu, APP.avatarPoses, hasEntered);
   }
 
   /** The avatar entity of each client; the name tag and the media session read it */
@@ -354,7 +361,7 @@ export class PoseSync {
 
   /** Announces the own avatar once the user has entered: the others do not draw a client still in the lobby */
   private announceSelf() {
-    if (!APP.scene?.is("entered")) return;
+    if (!hasEntered()) return;
     this.sendSelfAvatarSrc();
   }
 
@@ -368,7 +375,7 @@ export class PoseSync {
   private handleTransformSyncInit() {
     // The rig and controllers may not be in the scene yet when the channel opens
     if (!this.localPoseSource) this.waitForSelfAvatar();
-    // Sending begins with the next frame in which the own pose has been sampled
+    // Sending begins with the next frame in which the own pose has been sampled and the user has entered
     this.poseSender.start();
   }
 
