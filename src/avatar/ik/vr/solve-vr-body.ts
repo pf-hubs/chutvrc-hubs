@@ -17,7 +17,7 @@ import {
 import { BoneWrites } from "../shared/bone-writes";
 import { eyeOffsetInRootSpace, headTarget, SELF_BACK_OFFSET, trackedQuaternion } from "../shared/head";
 import { IkState, resetSolverState, Side, SolveFrame } from "../shared/ik-state";
-import { ARM_BONES, restArm, smoothHandTarget, solveArmTo, solvePlantedLeg } from "../shared/limbs";
+import { ARM_BONES, reachWithShoulder, restArm, smoothHandTarget, solveArmTo, solvePlantedLeg } from "../shared/limbs";
 import { followAncestor, localPositionOf, RestFrames, SolvedFrames } from "../shared/rig-frames";
 import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
 
@@ -131,6 +131,7 @@ function solveArm(
   }
 
   smoothHandTarget(state.vr.hands[side], controllerTarget(input, state.modelRatio, target), deltaSeconds);
+  reachWithShoulder(rest, solved, side, arm, target);
   solveArmTo(rig, solved, side, arm, target, heading);
   turnWithController(rig, solved, input, side);
 }
@@ -139,9 +140,10 @@ function solveArm(
  * Solves one avatar in VR for one frame. The root takes the rig transform as it is and the ratio as its
  * scale. The body's heading trails the head's yaw; the spine distributes the head's turn, roll included,
  * and the head lands on the headset's orientation; the hips are placed so the eyes land on the headset in
- * the model's proportions; the legs reach the planted feet and the arms the smoothed controllers. When the
- * ratio changes, the planted feet and the smoothed hands start afresh, since they are kept in the model's
- * proportions. Bones the model lacks are skipped. Nothing is allocated per frame.
+ * the model's proportions; the legs reach the planted feet and the arms the smoothed controllers, a
+ * shoulder turning toward a controller beyond its arm's length. When the ratio changes, the planted feet
+ * and the smoothed hands start afresh, since they are kept in the model's proportions. Bones the model
+ * lacks are skipped. Nothing is allocated per frame.
  */
 export function solveVrBody(
   rig: RigDescription,

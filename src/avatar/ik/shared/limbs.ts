@@ -1,4 +1,4 @@
-import { Vector3 } from "three";
+import { Quaternion, Vector3 } from "three";
 import { BoneName } from "../../rig/bone-names";
 import { RigDescription } from "../../rig/rig-description";
 import { BodyHeading } from "./body-frame";
@@ -12,12 +12,17 @@ import { createTwoBoneOutput, solveTwoBone, TwoBoneInput, TwoBoneOutput } from "
  * target: what the solvers share once each has chosen where a hand or a foot should go.
  */
 
-export type ArmBones = { upper: BoneName; lower: BoneName; hand: "leftHand" | "rightHand" };
+export type ArmBones = {
+  shoulder: BoneName;
+  upper: BoneName;
+  lower: BoneName;
+  hand: "leftHand" | "rightHand";
+};
 export type LegBones = { upper: BoneName; lower: BoneName; foot: BoneName };
 
 export const ARM_BONES: Record<Side, ArmBones> = {
-  left: { upper: "leftUpperArm", lower: "leftLowerArm", hand: "leftHand" },
-  right: { upper: "rightUpperArm", lower: "rightLowerArm", hand: "rightHand" }
+  left: { shoulder: "leftShoulder", upper: "leftUpperArm", lower: "leftLowerArm", hand: "leftHand" },
+  right: { shoulder: "rightShoulder", upper: "rightUpperArm", lower: "rightLowerArm", hand: "rightHand" }
 };
 export const LEG_BONES: Record<Side, LegBones> = {
   left: { upper: "leftUpperLeg", lower: "leftLowerLeg", foot: "leftFoot" },
@@ -34,6 +39,8 @@ const HAND_SNAP_DISTANCE = 1;
 const ELBOW_POLE_DOWN = 1;
 const ELBOW_POLE_BACK = 0.7;
 const ELBOW_POLE_OUT = 0.3;
+/** How far a shoulder may turn toward a hand target beyond the arm, from where the chest carries it */
+const SHOULDER_REACH_MAX_ANGLE = (50 * Math.PI) / 180;
 
 /** A limb of two bones in the rest pose: its three joints and the lengths of its two bones */
 export type RestLimb = {
@@ -66,6 +73,10 @@ const restOffset = new Vector3();
 const footTarget = new Vector3();
 const armPole = new Vector3();
 const armRestBend = new Vector3();
+const clavicle = new Vector3();
+const toTarget = new Vector3();
+const shoulderAxis = new Vector3();
+const shoulderTurn = new Quaternion();
 
 /** The limb's rest pose, or null when one of its bones is missing or too short to solve; the next call reuses the result */
 function restLimb(rest: RestFrames, upperName: BoneName, lowerName: BoneName, endName: BoneName): RestLimb | null {
@@ -139,6 +150,49 @@ export function solveLegTo(
 ) {
   const bones = LEG_BONES[side];
   solveLimb(solved, bones.upper, bones.lower, bones.foot, leg, footPosition, heading.forward, rig.forward);
+}
+
+/**
+ * Lets the shoulder help an arm that cannot reach its hand target: when the target lies beyond the arm's
+ * length from the upper arm, the shoulder turns about its joint toward the target, just far enough to
+ * bring it within the arm's length where it can and at most SHOULDER_REACH_MAX_ANGLE, and carries the
+ * upper arm with it. A model whose eyes sit far in front of its shoulders stands with its shoulders that
+ * much further behind the headset than its user's, so its stretched arm alone falls short of controllers
+ * its user holds within reach; the shoulder makes up for it, as a reaching person's does. A target within
+ * the arm's length, or an upper arm that does not hang from a shoulder, leaves the shoulder where the
+ * chest carries it, so the arm is solved as before.
+ */
+export function reachWithShoulder(rest: RestFrames, solved: SolvedFrames, side: Side, arm: RestLimb, target: Vector3) {
+  const bones = ARM_BONES[side];
+  if (!rest[bones.shoulder] || arm.upper.ancestor !== bones.shoulder) return;
+  const reach = arm.upperLength + arm.lowerLength;
+  const upperPosition = solved.position[bones.upper];
+  if (upperPosition.distanceToSquared(target) <= reach * reach) return;
+
+  const shoulderPosition = solved.position[bones.shoulder];
+  clavicle.subVectors(upperPosition, shoulderPosition);
+  const clavicleLength = clavicle.length();
+  toTarget.subVectors(target, shoulderPosition);
+  const distance = toTarget.length();
+  if (clavicleLength < MIN_BONE_LENGTH || distance < MIN_BONE_LENGTH) return;
+  shoulderAxis.crossVectors(clavicle, toTarget);
+  const sine = shoulderAxis.length();
+  // The shoulder pointing along the line to the target: turning it cannot bring the target closer
+  if (sine <= 1e-9 * clavicleLength * distance) return;
+  shoulderAxis.divideScalar(sine);
+
+  // The upper arm is `reach` from the target when the shoulder makes the angle `wanted` with the line to it
+  const apart = Math.atan2(sine, clavicle.dot(toTarget));
+  const cosine =
+    (distance * distance + clavicleLength * clavicleLength - reach * reach) / (2 * distance * clavicleLength);
+  const wanted = Math.acos(Math.min(1, Math.max(-1, cosine)));
+  const angle = Math.min(apart - wanted, SHOULDER_REACH_MAX_ANGLE);
+  if (angle <= 0) return;
+
+  shoulderTurn.setFromAxisAngle(shoulderAxis, angle);
+  solved.quaternion[bones.shoulder].premultiply(shoulderTurn);
+  solved.solved[bones.shoulder] = true;
+  upperPosition.copy(shoulderPosition).add(clavicle.applyQuaternion(shoulderTurn));
 }
 
 /**
