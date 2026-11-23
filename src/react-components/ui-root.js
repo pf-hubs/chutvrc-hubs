@@ -105,7 +105,6 @@ import { usePermissions } from "./room/hooks/usePermissions";
 import { ChatContextProvider } from "./room/contexts/ChatContext";
 import ChatToolbarButton from "./room/components/ChatToolbarButton/ChatToolbarButton";
 import SeePlansCTA from "./room/components/SeePlansCTA/SeePlansCTA";
-import RecordingButton from "./room/components/RecordingButton/RecordingButton";
 import { ChutvrcPopoversContainer } from "./room/ChutvrcPopoversContainer";
 
 const avatarEditorDebug = qsTruthy("avatarEditorDebug");
@@ -1195,9 +1194,6 @@ class UIRoot extends Component {
     const canCloseRoom = this.props.hubChannel && !!this.props.hubChannel.canOrWillIfCreator("close_hub");
     const isModerator = this.props.hubChannel && this.props.hubChannel.canOrWillIfCreator("kick_users") && !isMobileVR;
 
-    // const canToggleChutvrcPopovers =
-    //   APP.sfu && APP.hubChannel.presence?.state[APP.sfu.clientId]?.metas[0].roles["owner"];
-
     const moreMenu = [
       {
         id: "user",
@@ -1717,7 +1713,6 @@ class UIRoot extends Component {
                         selected={this.state.sidebarId === "chat"}
                       />
                     )}
-                    {!isLockedDownDemo && <RecordingButton />}
                     {entered && isMobileVR && (
                       <ToolbarButton
                         className={styleUtils.hideLg}
@@ -1727,10 +1722,11 @@ class UIRoot extends Component {
                         onClick={this.enterVRFromRoom}
                       />
                     )}
-                    {
-                      // canToggleChutvrcPopovers &&
-                      <ChutvrcPopoversContainer scene={this.props.scene} hubChannel={this.props.hubChannel} />
-                    }
+                    <ChutvrcPopoversContainer
+                      scene={this.props.scene}
+                      hubChannel={this.props.hubChannel}
+                      canRecord={!isLockedDownDemo}
+                    />
                   </>
                 }
                 toolbarRight={

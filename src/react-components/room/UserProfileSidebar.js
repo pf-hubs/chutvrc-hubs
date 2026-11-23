@@ -17,6 +17,7 @@ import { PublicSpeakingSystem } from "../../systems/public-speaking-system";
 import { useIsListedAsSpeaker } from "./hooks/usePublicSpeakingState";
 import { useRole } from "./hooks/useRole";
 import { NimproSystem } from "../../systems/nimpro-system";
+import configs from "../../utils/configs";
 
 const MIN = 0;
 const MAX = MAX_VOLUME_LABELS - 1;
@@ -55,7 +56,8 @@ export function UserProfileSidebar({
     [updateMultiplier]
   );
   const newLevel = calcLevel(multiplier);
-  const canTogglePublicSpeaker = useRole("owner");
+  const isOwner = useRole("owner");
+  const canTogglePublicSpeaker = isOwner && !!configs.feature("enable_public_speaking");
   // Follows the room's list of speakers, also when another owner changes it
   const publicSpeakerActive = useIsListedAsSpeaker(userId);
 
