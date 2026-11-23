@@ -1,5 +1,3 @@
-import { SFU } from "./sfu-types";
-
 function registerNetworkSchemas() {
   const vectorRequiresUpdate = epsilon => {
     return () => {
