@@ -8,25 +8,26 @@ import { ToolTip } from "@mozilla/lilypad-ui";
 export function ChutvrcPopovers({ buttons, activeMenu, renderContent }) {
   return (
     <Popover
-      title="Chutvrc"
+      title="Features"
       // Given as an element, not as a function: a function is a new component at every redraw of the room's
       // interface, which would throw the open menu away and build it again each time
       content={
         <div style={{ display: "flex", flexDirection: "column", paddingLeft: 12, paddingRight: 12 }}>
           <div style={{ display: "flex", gap: "24px", marginBottom: "10px" }}>
-            {buttons.map(
-              button =>
-                button && (
-                  <ToolbarButton
-                    key={button.id}
-                    icon={button.icon}
-                    label={button.label}
-                    onClick={button.onClick}
-                    selected={activeMenu === button.id}
-                    preset={button.preset}
-                  />
-                )
-            )}
+            {buttons.map(button => {
+              if (!button) return null;
+              if (button.element) return <React.Fragment key={button.id}>{button.element}</React.Fragment>;
+              return (
+                <ToolbarButton
+                  key={button.id}
+                  icon={button.icon}
+                  label={button.label}
+                  onClick={button.onClick}
+                  selected={activeMenu === button.id}
+                  preset={button.preset}
+                />
+              );
+            })}
           </div>
           <div>{renderContent()}</div>
         </div>
@@ -38,7 +39,7 @@ export function ChutvrcPopovers({ buttons, activeMenu, renderContent }) {
           <ToolbarButton
             ref={triggerRef}
             icon={<VRIcon />}
-            label="Chutvrc"
+            label="Features"
             onClick={togglePopover}
             selected={popoverVisible}
             preset="accent3"

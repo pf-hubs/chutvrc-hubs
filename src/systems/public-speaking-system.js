@@ -2,6 +2,7 @@ import { derivePublicSpeakingConfig } from "../sfu-adapters/sfu-config";
 import { SFU_CONNECTION_TYPE } from "../sfu-types";
 import { SfuSession } from "../sfu-adapters/sfu-session";
 import { SFU_CONNECTION_ERROR_FATAL } from "../sfu-adapters/sfu-adapter";
+import configs from "../utils/configs";
 
 /**
  * Broadcasting across rooms. Three kinds of media session beside the room's own (APP.sfu):
@@ -67,6 +68,8 @@ export class PublicSpeakingSystem {
     function tryTogglePublicSpeaker() {
       if (APP.sfu) {
         APP.sfu.on("toggle-public-speaker", ({ message }) => {
+          // With the feature off there would be no button to stop the broadcast with
+          if (!configs.feature("enable_public_speaking")) return;
           const clientId = message.split("|")[0];
           const isOn = message.split("|")[1] === "1";
           PublicSpeakingSystem.setListedAsSpeaker(clientId, isOn);

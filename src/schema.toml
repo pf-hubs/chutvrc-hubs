@@ -38,6 +38,9 @@ features.default_room_size = { category = "rooms", type = "number", name = "Defa
 features.max_room_size = { category = "rooms", type = "number", name = "Maximum room size", description = "Maximum room size visitors can set." }
 features.bitecs_loader = { category = "features", type="boolean", name="Use BitECS loader", description="Use the BitECS based loader by default in all rooms" }
 features.addons_config = { category = "features", type="json", name="Add-ons config JSON", description="Add-ons config JSON file" }
+features.enable_recording = { category = "features", type = "boolean", name = "Enable Recording", description = "Show Recording in the room's Features menu, for saving a recording of the scene." }
+features.enable_public_speaking = { category = "features", type = "boolean", name = "Enable Broadcast", description = "Show Broadcast in the room's Features menu, for speaking across rooms." }
+features.enable_nimpro = { category = "features", type = "boolean", name = "Enable N-impro", description = "Show N-impro in the room's Features menu." }
 
 features.show_feature_panels = { category = "features", type = "boolean", internal = "true" }
 features.show_join_us_dialog = { category = "features", type = "boolean", internal = "true" }
