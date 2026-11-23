@@ -1,6 +1,7 @@
 import { SOUND_TELEPORT_END, SOUND_TELEPORT_START } from "../systems/sound-effects-system";
 import { cylinderTextureSrc } from "./cylinder-texture";
 import { textureLoader } from "../utils/media-utils";
+import { bodyCalibration } from "../avatar/calibration/apply-calibration";
 
 const CYLINDER_TEXTURE = textureLoader.load(cylinderTextureSrc);
 
@@ -223,6 +224,8 @@ AFRAME.registerComponent("teleporter", {
       !this.isTeleporting &&
       userinput.get(start) &&
       !this.characterController.isTeleportingDisabled &&
+      // A trigger pressed for the body calibration's capture is not a teleport
+      !bodyCalibration.blocksControllerActions &&
       !window.APP.store.state.preferences.disableTeleporter
     ) {
       this.isTeleporting = true;

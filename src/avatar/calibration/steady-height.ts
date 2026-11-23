@@ -1,6 +1,6 @@
 /**
  * Whether the headset has been held at one height long enough to take that height: the pure part of the
- * capture in VR (vr-capture.ts). It is fed one sample a frame, the headset's height over the floor in real
+ * capture in VR (vr-capture.ts) for a player without controllers. It is fed one sample a frame, the headset's height over the floor in real
  * metres and how far the head is tilted from level, and answers once the samples of the last second have
  * all stayed within a few centimetres with the head about level, or once too long has passed without that.
  * No scene access; nothing is allocated per sample.
@@ -78,21 +78,30 @@ function isUsableSample(height: number, tilt: number): boolean {
   );
 }
 
+/** How long the headset has been steady up to its latest usable sample, in seconds; 0 without a steady run */
+export function steadyRunSeconds(detector: SteadyHeightDetector): number {
+  if (detector.count < 2) return 0;
+  const last = detector.times[(detector.start + detector.count - 1) % MAX_SAMPLES];
+  return last - detector.times[detector.start];
+}
+
 /**
  * Takes one sample: the time in seconds on any steady clock, the headset's height over the floor in real
  * metres and the head's tilt (headTiltOf). A sample with the head tilted too far or the height outside what a
  * player can have breaks the run. Otherwise the run keeps the latest samples whose heights all lie within
  * CAPTURE_STEADY_RANGE, so a short spike, such as a headset's first frames before its pose is tracked, starts
  * the run afresh instead of entering it, while a slow sway within the range does not break it. Once the run
- * spans CAPTURE_STEADY_SECONDS, the result is its mean height. Without that by CAPTURE_TIMEOUT_SECONDS after
- * the first sample, the result is a time-out. A detector that has answered keeps answering the same way only
+ * spans `steadySeconds`, the result is its mean height. Without that by `timeoutSeconds` after the first
+ * sample, the result is a time-out. A detector that has answered keeps answering the same way only
  * as long as it is fed; the caller stops feeding it.
  */
 export function stepSteadyHeight(
   detector: SteadyHeightDetector,
   time: number,
   height: number,
-  tilt: number
+  tilt: number,
+  steadySeconds = CAPTURE_STEADY_SECONDS,
+  timeoutSeconds = CAPTURE_TIMEOUT_SECONDS
 ): SteadyHeightResult {
   if (detector.startedAt === null) detector.startedAt = time;
 
@@ -126,13 +135,13 @@ export function stepSteadyHeight(
     detector.count = kept;
 
     const first = detector.times[detector.start];
-    if (detector.count >= 2 && time - first >= CAPTURE_STEADY_SECONDS) {
+    if (detector.count >= 2 && time - first >= steadySeconds) {
       let sum = 0;
       for (let i = 0; i < detector.count; i++) sum += detector.heights[(detector.start + i) % MAX_SAMPLES];
       return { status: "steady", height: sum / detector.count };
     }
   }
 
-  if (time - detector.startedAt >= CAPTURE_TIMEOUT_SECONDS) return TIMED_OUT;
+  if (time - detector.startedAt >= timeoutSeconds) return TIMED_OUT;
   return WAITING;
 }
