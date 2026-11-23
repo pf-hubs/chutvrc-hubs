@@ -23,9 +23,10 @@ import {
   restArm,
   smoothHandTarget,
   solveArmTo,
-  solvePlantedLeg,
+  solvePlantedLegs,
   solveRelaxedArm
 } from "../shared/limbs";
+import { FloorFrame } from "../shared/feet";
 import { followAncestor, localPositionOf, RestFrames, SolvedFrames } from "../shared/rig-frames";
 import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
 import { handGrip } from "./hand-grip";
@@ -62,6 +63,7 @@ const UNMEASURED_HAND_TURN_FLIPPED: Record<Side, Quaternion> = {
 const UNMEASURED_HAND_TURN_UNFLIPPED = new Quaternion().setFromAxisAngle(X_AXIS, -Math.PI / 3);
 
 const heading: BodyHeading = createBodyHeading();
+const floor: FloorFrame = { x: 0, z: 0, yaw: 0 };
 const controller = new Quaternion();
 const headsetPosition = new Vector3();
 const eyeOffset = new Vector3();
@@ -170,7 +172,8 @@ function solveArm(
  * Solves one avatar in VR for one frame. The root takes the rig transform as it is and the ratio as its
  * scale. The body's heading trails the head's yaw; the spine distributes the head's turn, roll included,
  * and the head lands on the headset's orientation; the hips are placed so the eyes land on the headset in
- * the model's proportions; the legs reach the planted feet and the arms the smoothed controllers, a
+ * the model's proportions; the legs reach the feet, which are planted on the floor and step after the
+ * body whether the headset or the rig moved it; the arms reach the smoothed controllers, a
  * shoulder turning toward a controller beyond its arm's length; an arm whose controller reports no pose
  * hangs at the side. When the ratio changes, the planted feet
  * and the smoothed hands start afresh, since they are kept in the model's proportions. Bones the model
@@ -214,8 +217,11 @@ export function solveVrBody(
   followChain(rest, solved);
 
   const sitting = pose.animState === AvatarAnimState.SIT;
-  solvePlantedLeg(rig, rest, solved, state.vr.feet, heading, sitting, "left");
-  solvePlantedLeg(rig, rest, solved, state.vr.feet, heading, sitting, "right");
+  // The rig's place on the floor in the model's proportions, like everything else solved here
+  floor.x = pose.rig.pos.x / ratio;
+  floor.z = pose.rig.pos.z / ratio;
+  floor.yaw = pose.rig.rot.y;
+  solvePlantedLegs(rig, rest, solved, state.vr.gait, heading, bodyYaw, floor, deltaSeconds, sitting);
   solveArm(rig, rest, solved, state, pose, out, deltaSeconds, "left");
   solveArm(rig, rest, solved, state, pose, out, deltaSeconds, "right");
   // An upper body's hands have no arms to hang by: without any controller they are hidden, as on a screen

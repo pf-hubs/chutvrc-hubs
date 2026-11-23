@@ -1,6 +1,6 @@
 import { Vector3 } from "three";
 import { BodyYawState, createBodyYawState } from "./body-yaw";
-import { createFootPlacement, FootPlacement } from "./feet";
+import { createGait, Gait, resetGait } from "./feet";
 import { createSolvedFrames, RestFrames, SolvedFrames } from "./rig-frames";
 
 export type Side = "left" | "right";
@@ -14,11 +14,11 @@ export type SmoothedTarget = { position: Vector3; valid: boolean };
  */
 export type SolverKind = "vr" | "screen" | "npc";
 
-/** What the VR solver keeps between frames: the planted feet and the smoothed hand targets */
-export type VrSolverState = { feet: Record<Side, FootPlacement>; hands: Record<Side, SmoothedTarget> };
+/** What the VR solver keeps between frames: the feet and their steps, and the smoothed hand targets */
+export type VrSolverState = { gait: Gait; hands: Record<Side, SmoothedTarget> };
 
-/** What the screen solver keeps between frames: the planted feet */
-export type ScreenSolverState = { feet: Record<Side, FootPlacement> };
+/** What the screen solver keeps between frames: the feet and their steps */
+export type ScreenSolverState = { gait: Gait };
 
 /** What the chatbot's solver keeps between frames: the smoothed hand targets; its feet are not planted */
 export type NpcSolverState = { hands: Record<Side, SmoothedTarget> };
@@ -55,10 +55,6 @@ export type IkState = {
  */
 export type SolveFrame = { now: number; isSelf: boolean; modelRatio?: number };
 
-function createFeet(): Record<Side, FootPlacement> {
-  return { left: createFootPlacement(), right: createFootPlacement() };
-}
-
 function createHands(): Record<Side, SmoothedTarget> {
   return { left: { position: new Vector3(), valid: false }, right: { position: new Vector3(), valid: false } };
 }
@@ -71,15 +67,10 @@ export function createIkState(frames: RestFrames): IkState {
     bodyYaw: createBodyYawState(),
     lastNow: 0,
     solver: null,
-    vr: { feet: createFeet(), hands: createHands() },
-    screen: { feet: createFeet() },
+    vr: { gait: createGait(), hands: createHands() },
+    screen: { gait: createGait() },
     npc: { hands: createHands() }
   };
-}
-
-function resetFoot(foot: FootPlacement) {
-  foot.position.set(0, 0, 0);
-  foot.planted = false;
 }
 
 function resetHand(hand: SmoothedTarget) {
@@ -95,14 +86,12 @@ function resetHand(hand: SmoothedTarget) {
 export function resetSolverState(state: IkState, solver: SolverKind) {
   switch (solver) {
     case "vr":
-      resetFoot(state.vr.feet.left);
-      resetFoot(state.vr.feet.right);
+      resetGait(state.vr.gait);
       resetHand(state.vr.hands.left);
       resetHand(state.vr.hands.right);
       break;
     case "screen":
-      resetFoot(state.screen.feet.left);
-      resetFoot(state.screen.feet.right);
+      resetGait(state.screen.gait);
       break;
     case "npc":
       resetHand(state.npc.hands.left);
