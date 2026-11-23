@@ -9,7 +9,7 @@ import { RestFrame, RestFrames } from "./shared/rig-frames";
  * hierarchy once, and each frame writes the solved pose to the bones and updates their matrices once.
  */
 
-/** The scale the old solver shrinks an upper-body model's hands to when they have no controller to follow */
+/** The scale an upper-body model's hands are shrunk to while they have no controller to follow */
 const HIDDEN_HAND_SCALE = 0.1;
 
 const localMatrix = new Matrix4();
@@ -151,13 +151,5 @@ export function applyToBones(rig: RigDescription, writes: BoneWrites) {
     if (writes.hasPosition.leftHand) setHandVisibility(rig.bones.leftHand, false);
     if (writes.hasPosition.rightHand) setHandVisibility(rig.bones.rightHand, false);
   }
-  root.updateWorldMatrix(false, true);
-}
-
-/** Brings the root back to its own size, for a model that the old solver poses from now on */
-export function resetRootScale(rig: RigDescription) {
-  const root = rig.bones.root;
-  if (!root || !restRootScales.has(root) || !setRootScale(root, 1)) return;
-  root.updateMatrix();
   root.updateWorldMatrix(false, true);
 }

@@ -19,7 +19,7 @@ import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
 
 /**
  * The chatbot's solver, the path the chatbot's avatar has always taken: it keeps the root and hips it was
- * given and the old solver's gates. Its head is not turned; the chain leans toward the head's position;
+ * given. Its head is not turned; the chain leans toward the head's position;
  * the feet stand at their rest spots without planting and the hands reach the given targets, smoothed,
  * neither turned. The chatbot's heights are used as they are.
  */
@@ -39,7 +39,7 @@ const angles: ChainAngles = { pitch: 0, yaw: 0, roll: 0 };
 
 /**
  * The angles the chain distributes: the chatbot gives the head a position to lean toward rather than an
- * orientation, so the chain bends toward it without twisting, as the old solver aimed it.
+ * orientation, so the chain bends toward it without twisting.
  */
 function chainAngles(rest: RestFrames, out: ChainAngles) {
   out.pitch = 0;

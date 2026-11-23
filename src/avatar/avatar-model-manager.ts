@@ -52,7 +52,7 @@ export function createAvatarEntities(
     poses.getOrCreate(poseClientId, isNPC);
     poses.bindEntity(avatarEid, poseClientId);
   }
-  world.eid2Ik.set(avatarEid, new AvatarIkManager(rig, isNPC));
+  world.eid2Ik.set(avatarEid, new AvatarIkManager(rig));
   return avatarEid;
 }
 

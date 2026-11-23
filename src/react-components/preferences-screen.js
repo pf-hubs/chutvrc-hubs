@@ -506,10 +506,6 @@ const preferenceLabels = defineMessages({
     id: "preferences-screen.preference.show-rtc-debug-panel",
     defaultMessage: "Show RTC Panel"
   },
-  avatarIkV2: {
-    id: "preferences-screen.preference.avatar-ik-v2",
-    defaultMessage: "Use the new avatar body solver (experimental)"
-  },
   bodyPosture: {
     id: "preferences-screen.preference.body-posture",
     defaultMessage: "How you play"
@@ -735,7 +731,7 @@ const IntlPreferenceListItem = injectIntl(PreferenceListItem);
  * The player's height for the body calibration, typed in centimetres and stored as soon as it is within
  * range. It has its own field because the number control clamps every keystroke to its range, which
  * makes a height of 50 cm or more impossible to type. Resetting it clears the calibration, so the next
- * entry in VR with the new body solver asks for it again.
+ * entry in VR asks for it again.
  */
 function BodyHeightPreference({ store }) {
   const intl = useIntl();
@@ -1452,10 +1448,6 @@ class PreferencesScreen extends Component {
           },
           {
             key: "showRtcDebugPanel",
-            prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX
-          },
-          {
-            key: "avatarIkV2",
             prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX
           },
           {

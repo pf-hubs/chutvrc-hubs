@@ -13,7 +13,7 @@ export const TRACKED_RIGHT_HAND = 4;
 export const TRACKED_ALL = TRACKED_HEAD | TRACKED_LEFT_HAND | TRACKED_RIGHT_HAND;
 
 /**
- * One part of a pose: a position and the same rotation twice, as the YXZ Euler angles the old solver reads
+ * One part of a pose: a position and the same rotation twice, as the YXZ Euler angles the solvers read
  * and as a quaternion, which the whole-body packet and the interpolation buffer use. Every writer keeps the
  * two equal; only the angle triple can differ from the sender's, at a pitch of ±90°, where yaw and roll are
  * not separable and the decomposition puts the whole turn into the yaw.

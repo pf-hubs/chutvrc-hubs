@@ -5,7 +5,7 @@ import { createSolvedFrames, RestFrames, SolvedFrames } from "./rig-frames";
 
 export type Side = "left" | "right";
 
-/** A hand target smoothed over time, as the old solver smoothed the controller positions */
+/** A hand target smoothed over time */
 export type SmoothedTarget = { position: Vector3; valid: boolean };
 
 /**

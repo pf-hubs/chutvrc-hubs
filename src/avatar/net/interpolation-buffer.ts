@@ -25,7 +25,7 @@ const quatTo = new Quaternion();
 const quatOut = new Quaternion();
 
 /**
- * Writes a rotation as the quaternion and as the YXZ Euler angles the old solver reads. The rotation is
+ * Writes a rotation as the quaternion and as the YXZ Euler angles the solvers read. The rotation is
  * the one the sender had; only the angle triple can differ from the sender's, at a pitch of ±90°, where
  * yaw and roll are not separable and the decomposition puts the whole turn into the yaw.
  */

@@ -1,7 +1,7 @@
 /**
  * The message on the #avatarId channel: "clientId|avatarId", and from this build on an optional third
  * field, the sender's standing eye height in room metres with three decimals ("clientId|avatarId|1.598").
- * The eye height is there only while the sender wears a calibrated body with the new body solver; an
+ * The eye height is there only while the sender is in VR with a calibrated body; an
  * observer draws the sender's model at that height over the model's own eye height. Older builds split the
  * message and read the first two fields, so the third does not disturb them. Pure.
  */

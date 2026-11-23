@@ -28,7 +28,7 @@ const messages = defineMessages({
 });
 
 /**
- * The body calibration the new avatar body solver asks for before the first entry in VR: how the player
+ * The body calibration asked for before the first entry in VR: how the player
  * plays, their height, and whether the avatar is fitted to them or they to the avatar. The height is
  * required; nothing is saved until it is valid.
  */

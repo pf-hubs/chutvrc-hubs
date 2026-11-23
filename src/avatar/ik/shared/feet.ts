@@ -5,7 +5,7 @@ export type FootPlacement = { position: Vector3; planted: boolean };
 
 /** How far the spot under the hips may move from a planted foot before the foot steps to it */
 export const STEP_DISTANCE = 0.25;
-/** A sitting avatar's feet: this far in front of the hips and this high over the floor, as the old solver placed them */
+/** A sitting avatar's feet: this far in front of the hips and this high over the floor */
 export const SITTING_FOOT_FORWARD = 0.4;
 export const SITTING_FOOT_HEIGHT = 0.3;
 
