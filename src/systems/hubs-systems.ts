@@ -94,6 +94,7 @@ import { inspectSystem } from "../bit-systems/inspect-system";
 import { snapMediaSystem } from "../bit-systems/snap-media-system";
 import { scaleWhenGrabbedSystem } from "../bit-systems/scale-when-grabbed-system";
 import { avatarSystemsTick } from "../avatar/avatar-systems";
+import { reportFrameError } from "../utils/frame-errors";
 import { PublicSpeakingSystem } from "./public-speaking-system";
 import { NimproSystem } from "./nimpro-system";
 import { interactableSystem } from "../bit-systems/interactable-system";
@@ -166,14 +167,19 @@ AFRAME.registerSystem("hubs-systems", {
   }
 });
 
-export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene, camera: Camera) {
+/**
+ * The components and systems of one frame, up to the avatars. Returns false when the scene is not playing
+ * yet and nothing was run. A component whose tick throws is cut short on its own; an error in a system
+ * ends this function for the frame and is caught by mainTick.
+ */
+function runSystems(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene, camera: Camera): boolean {
   const world = APP.world;
   const sceneEl = AFRAME.scenes[0];
   const aframeSystems = sceneEl.systems;
   const hubsSystems = aframeSystems["hubs-systems"];
 
   // TODO does anything actually ever pause the scene?
-  if (!sceneEl.isPlaying && !hubsSystems.DOMContentDidLoad) return;
+  if (!sceneEl.isPlaying && !hubsSystems.DOMContentDidLoad) return false;
 
   timeSystem(world);
   const t = world.time.elapsed;
@@ -183,7 +189,11 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   const tickComponents = sceneEl.behaviors.tick;
   for (let i = 0; i < tickComponents.length; i++) {
     if (!tickComponents[i].el.isPlaying) continue;
-    tickComponents[i].tick(t, dt);
+    try {
+      tickComponents[i].tick(t, dt);
+    } catch (error) {
+      reportFrameError(`component ${tickComponents[i].attrName}`, error);
+    }
   }
 
   // Run order of this loop, based on module load order
@@ -338,13 +348,11 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
     networkDebugSystem(world, scene);
   }
 
-  PublicSpeakingSystem.mirrorDataChannelMessageFromSpeaker();
+  return true;
+}
 
-  avatarSystemsTick(world, t);
-  APP.addon_systems.beforeMatricesUpdate.forEach((systemConfig: SystemConfigT) => {
-    systemConfig.system(APP);
-  });
-
+/** Updates the world matrices and draws the frame */
+function drawFrame(renderer: WebGLRenderer, scene: Scene, camera: Camera) {
   scene.updateMatrixWorld();
 
   renderer.info.reset();
@@ -365,4 +373,41 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
 
   // tock()s on components and system will fire here. (As well as any other time render() is called without unbinding onAfterRender)
   // TODO inline invoking tocks instead of using onAfterRender registered in a-scene
+}
+
+/**
+ * One frame: the components and systems, the public speaking relay, the avatars, the add-ons' systems,
+ * then the picture. The errors of each part are caught (utils/frame-errors.ts), because the renderer asks
+ * for the next frame only after this function has returned: one uncaught error would end the frame loop
+ * for good. A part that throws is cut short for this frame and the parts after it still run, so the own
+ * pose is still sent and the frame is still drawn.
+ */
+export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene, camera: Camera) {
+  try {
+    if (!runSystems(xrFrame, renderer, scene, camera)) return;
+  } catch (error) {
+    reportFrameError("systems", error);
+  }
+  try {
+    PublicSpeakingSystem.mirrorDataChannelMessageFromSpeaker();
+  } catch (error) {
+    reportFrameError("public speaking relay", error);
+  }
+  try {
+    avatarSystemsTick(APP.world, APP.world.time.elapsed);
+  } catch (error) {
+    reportFrameError("avatars", error);
+  }
+  try {
+    APP.addon_systems.beforeMatricesUpdate.forEach((systemConfig: SystemConfigT) => {
+      systemConfig.system(APP);
+    });
+  } catch (error) {
+    reportFrameError("add-on systems", error);
+  }
+  try {
+    drawFrame(renderer, scene, camera);
+  } catch (error) {
+    reportFrameError("drawing", error);
+  }
 }

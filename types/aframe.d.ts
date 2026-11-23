@@ -27,6 +27,8 @@ declare module "aframe" {
   }
 
   interface AComponent {
+    /** The name the component is attached under, with its id when an entity has several */
+    attrName?: string;
     data: any;
     init();
     tick: FnTick;
