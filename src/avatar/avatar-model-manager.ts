@@ -209,7 +209,8 @@ export class AvatarModelManager {
     console.log(
       `Avatar of ${clientId} mapped from ${rig.source}` +
         (missingBones.length > 0 ? `, without ${missingBones.join(", ")}` : "") +
-        `; hands measured from: ${handSources[0] === handSources[1] ? handSources[0] : handSources.join(" and ")}`
+        `; hands measured from: ${handSources[0] === handSources[1] ? handSources[0] : handSources.join(" and ")}` +
+        (rig.constraints.length > 0 ? `; ${rig.constraints.length} node constraints` : "")
     );
 
     const avatarEid = createAvatarEntities(this.world, this.poses, model, rig, clientId, this.showsPose());
