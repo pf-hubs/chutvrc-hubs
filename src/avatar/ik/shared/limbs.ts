@@ -2,7 +2,7 @@ import { Quaternion, Vector3 } from "three";
 import { BoneName } from "../../rig/bone-names";
 import { RigDescription } from "../../rig/rig-description";
 import { BodyHeading } from "./body-frame";
-import { FootPlacement, placeFoot, sittingFootTarget, standingFootTarget } from "./feet";
+import { FloorFrame, Gait, sittingFootTarget, standingFootTarget, stepGait } from "./feet";
 import { Side, SmoothedTarget } from "./ik-state";
 import { RestFrame, RestFrames, SolvedFrames } from "./rig-frames";
 import { createTwoBoneOutput, solveTwoBone, TwoBoneInput, TwoBoneOutput } from "./two-bone-ik";
@@ -74,7 +74,9 @@ const twoBoneInput: TwoBoneInput = {
 };
 const twoBone = createTwoBoneOutput();
 const restOffset = new Vector3();
-const footTarget = new Vector3();
+const SIDES: readonly Side[] = ["left", "right"];
+const footTargets: Record<Side, Vector3> = { left: new Vector3(), right: new Vector3() };
+const footTurn = new Quaternion();
 const armPole = new Vector3();
 const armRestBend = new Vector3();
 const clavicle = new Vector3();
@@ -250,30 +252,48 @@ export function solveRelaxedArm(
 }
 
 /**
- * A leg of a body that stands on the floor or sits: the foot goes to its rest spot under the hips, turned
- * with the body (in front of the hips and raised while sitting), and while standing stays planted until
- * the body has moved away from it; the foot turns with the body's heading. The hips are placed already.
+ * The legs of a body that stands on the floor or sits. Each foot's place is its rest spot under the hips,
+ * turned with the body (in front of the hips and raised while sitting). While standing the feet are
+ * planted on the floor and step to their places (feet.ts): the floor frame says where the rig is on the
+ * floor and the body yaw is the body's heading in root space, both for this frame, and the delta is the
+ * time since the previous one. Each foot points the way it was planted, or turns to the body's heading
+ * through a step. The hips are placed already.
  */
-export function solvePlantedLeg(
+export function solvePlantedLegs(
   rig: RigDescription,
   rest: RestFrames,
   solved: SolvedFrames,
-  feet: Record<Side, FootPlacement>,
+  gait: Gait,
   heading: BodyHeading,
-  sitting: boolean,
-  side: Side
+  bodyYaw: number,
+  floor: FloorFrame,
+  deltaSeconds: number,
+  sitting: boolean
 ) {
-  const leg = restLeg(rest, side);
-  if (!leg) return;
-  const foot = leg.end;
-  restOffset.subVectors(foot.position, rest.hips!.position);
-  if (sitting) sittingFootTarget(solved.position.hips, heading.bodyDelta, heading.forward, restOffset, footTarget);
-  else standingFootTarget(solved.position.hips, heading.bodyDelta, restOffset, foot.position.y, footTarget);
-  const footPosition = placeFoot(feet[side], footTarget, !sitting);
-  solveLegTo(rig, solved, side, leg, footPosition, heading);
-  const footName = LEG_BONES[side].foot;
-  solved.quaternion[footName].copy(foot.quaternion).premultiply(heading.bodyDelta);
-  solved.solved[footName] = true;
+  const hips = solved.position.hips;
+  for (const side of SIDES) {
+    const leg = restLeg(rest, side);
+    if (!leg) {
+      // A side without a leg has no foot to place; its place is taken to be under the hips
+      footTargets[side].set(hips.x, 0, hips.z);
+      continue;
+    }
+    restOffset.subVectors(leg.end.position, rest.hips!.position);
+    if (sitting) sittingFootTarget(hips, heading.bodyDelta, heading.forward, restOffset, footTargets[side]);
+    else standingFootTarget(hips, heading.bodyDelta, restOffset, leg.end.position.y, footTargets[side]);
+  }
+  stepGait(gait, footTargets, hips, bodyYaw, floor, deltaSeconds, !sitting);
+
+  for (const side of SIDES) {
+    const leg = restLeg(rest, side);
+    if (!leg) continue;
+    const foot = gait.feet[side];
+    solveLegTo(rig, solved, side, leg, foot.position, heading);
+    const footName = LEG_BONES[side].foot;
+    footTurn.setFromAxisAngle(UP, foot.yaw).multiply(heading.facing);
+    solved.quaternion[footName].copy(leg.end.quaternion).premultiply(footTurn);
+    solved.solved[footName] = true;
+  }
 }
 
 /**

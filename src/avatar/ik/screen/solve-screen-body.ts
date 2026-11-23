@@ -15,7 +15,8 @@ import {
 import { BoneWrites } from "../shared/bone-writes";
 import { SELF_BACK_OFFSET } from "../shared/head";
 import { IkState, Side, SolveFrame } from "../shared/ik-state";
-import { ARM_BONES, restArm, solvePlantedLeg, solveRelaxedArm } from "../shared/limbs";
+import { FloorFrame } from "../shared/feet";
+import { ARM_BONES, restArm, solvePlantedLegs, solveRelaxedArm } from "../shared/limbs";
 import { followAncestor, RestFrames, SolvedFrames } from "../shared/rig-frames";
 import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
 
@@ -27,6 +28,7 @@ import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
  */
 
 const heading: BodyHeading = createBodyHeading();
+const floor: FloorFrame = { x: 0, z: 0, yaw: 0 };
 const angles: ChainAngles = { pitch: 0, yaw: 0, roll: 0 };
 
 function solveArm(rig: RigDescription, rest: RestFrames, solved: SolvedFrames, out: BoneWrites, side: Side) {
@@ -55,7 +57,8 @@ function solveArm(rig: RigDescription, rest: RestFrames, solved: SolvedFrames, o
  * Solves one avatar on a screen for one frame. The root takes the rig transform as it is. The body's
  * heading trails the head's yaw; the spine distributes the head's pitch and yaw, without roll, and the
  * head lands on that orientation; the hips stay at their rest height under the rig's origin (the own
- * avatar a step back); the legs reach the planted feet and the arms hang. Bones the model lacks are
+ * avatar a step back); the legs reach the feet, which are planted on the floor and step after the body
+ * as the rig moves and turns; the arms hang. Bones the model lacks are
  * skipped. Nothing is allocated per frame.
  */
 export function solveScreenBody(
@@ -88,8 +91,11 @@ export function solveScreenBody(
   followChain(rest, solved);
 
   const sitting = pose.animState === AvatarAnimState.SIT;
-  solvePlantedLeg(rig, rest, solved, state.screen.feet, heading, sitting, "left");
-  solvePlantedLeg(rig, rest, solved, state.screen.feet, heading, sitting, "right");
+  // The model keeps its own size, so the rig's place on the floor is its position as it is
+  floor.x = pose.rig.pos.x;
+  floor.z = pose.rig.pos.z;
+  floor.yaw = pose.rig.rot.y;
+  solvePlantedLegs(rig, rest, solved, state.screen.gait, heading, bodyYaw, floor, deltaSeconds, sitting);
   solveArm(rig, rest, solved, out, "left");
   solveArm(rig, rest, solved, out, "right");
 
