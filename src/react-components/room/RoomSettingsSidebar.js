@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import { useForm } from "react-hook-form";
 import styles from "./RoomSettingsSidebar.scss";
@@ -23,6 +23,9 @@ import configs from "../../utils/configs";
 import { addons, isAddonEnabled } from "../../addons";
 import { shouldUseNewLoader } from "../../hubs";
 
+/** The media servers by the number a room stores */
+const SFU_NAMES = { 0: "Dialog", 1: "Sora", 2: "LiveKit" };
+
 export function RoomSettingsSidebar({
   showBackButton,
   accountId,
@@ -38,6 +41,9 @@ export function RoomSettingsSidebar({
   onChangeScene
 }) {
   const intl = useIntl();
+  // The media server's options are strings in the page while the room's value is a number, and the form
+  // compares the two exactly: given as a number, the room's value would leave no option selected
+  const values = useMemo(() => ({ ...room, sfu: String(room.sfu ?? 0) }), [room]);
   const {
     handleSubmit,
     register,
@@ -45,8 +51,15 @@ export function RoomSettingsSidebar({
     formState: { errors },
     setValue
   } = useForm({
-    defaultValues: room
+    defaultValues: values,
+    // Another owner may change the room while this panel is open: the fields follow the room, except the
+    // ones changed here, so that Apply does not send the old values back
+    values,
+    resetOptions: { keepDirtyValues: true }
   });
+  // The server this client is connected to, when a switch to the room's has not happened (it failed, or is under way)
+  const connectedSfu = APP.sfu?.isConnected ? APP.sfu.sfuId : null;
+  const otherSfuName = connectedSfu !== null && connectedSfu !== (room.sfu ?? 0) ? SFU_NAMES[connectedSfu] : null;
 
   const entryMode = watch("entry_mode");
   const spawnAndMoveMedia = watch("member_permissions.spawn_and_move_media");
@@ -306,6 +319,15 @@ export function RoomSettingsSidebar({
               {...register("sfu")}
             />
           </RadioInputField>
+        )}
+        {otherSfuName && (
+          <p>
+            <FormattedMessage
+              id="room-settings-sidebar.webrtc-sfu-not-switched"
+              defaultMessage="This device is still connected to {server}, not to the room's server."
+              values={{ server: otherSfuName }}
+            />
+          </p>
         )}
         <InputField
           label={<FormattedMessage id="room-settings-sidebar.bitecs-client" defaultMessage="bitECS based Client" />}

@@ -12,7 +12,10 @@ export function RoomSettingsSidebarContainer({ showBackButton, room, hubChannel,
   const { fetchingInvite, inviteUrl, revokeInvite } = useInviteUrl(hubChannel);
 
   const applyChanges = useCallback(
-    settings => {
+    formSettings => {
+      // The form holds the media server as the string of its option; the room stores a number
+      const sfu = Number(formSettings.sfu);
+      const settings = Number.isInteger(sfu) ? { ...formSettings, sfu } : formSettings;
       hubChannel.updateHub(settings);
       onClose();
 
