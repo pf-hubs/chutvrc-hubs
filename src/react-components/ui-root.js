@@ -69,7 +69,6 @@ import { ReactComponent as ShieldIcon } from "./icons/Shield.svg";
 import { ReactComponent as DiscordIcon } from "./icons/Discord.svg";
 import { ReactComponent as VRIcon } from "./icons/VR.svg";
 import { ReactComponent as LeaveIcon } from "./icons/Leave.svg";
-import { ReactComponent as DocumentIcon } from "./icons/Document.svg";
 import { ReactComponent as EnterIcon } from "./icons/Enter.svg";
 import { ReactComponent as InviteIcon } from "./icons/Invite.svg";
 import hubsLogo from "../assets/images/hubs-logo.png";
@@ -1722,11 +1721,7 @@ class UIRoot extends Component {
                         onClick={this.enterVRFromRoom}
                       />
                     )}
-                    <ChutvrcPopoversContainer
-                      scene={this.props.scene}
-                      hubChannel={this.props.hubChannel}
-                      canRecord={!isLockedDownDemo}
-                    />
+                    <ChutvrcPopoversContainer canRecord={!isLockedDownDemo} />
                   </>
                 }
                 toolbarRight={

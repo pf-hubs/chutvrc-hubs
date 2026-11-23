@@ -4,6 +4,7 @@ import { Popover } from "../popover/Popover";
 import { ToolbarButton } from "../input/ToolbarButton";
 import { ReactComponent as VRIcon } from "../icons/VR.svg";
 import { ToolTip } from "@mozilla/lilypad-ui";
+import { FormattedMessage } from "react-intl";
 
 export function ChutvrcPopovers({ buttons, activeMenu, renderContent }) {
   return (
@@ -39,7 +40,7 @@ export function ChutvrcPopovers({ buttons, activeMenu, renderContent }) {
           <ToolbarButton
             ref={triggerRef}
             icon={<VRIcon />}
-            label="Features"
+            label={<FormattedMessage id="features-popover.button" defaultMessage="Features" />}
             onClick={togglePopover}
             selected={popoverVisible}
             preset="accent3"

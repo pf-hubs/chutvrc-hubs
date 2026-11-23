@@ -14,7 +14,8 @@ export function usePublicSpeakingState() {
   }));
 
   useEffect(() => {
-    const update = () => setState({ speaking: PublicSpeakingSystem.isSpeaking, listening: PublicSpeakingSystem.isListening });
+    const update = () =>
+      setState({ speaking: PublicSpeakingSystem.isSpeaking, listening: PublicSpeakingSystem.isListening });
     APP.sfu.on(PUBLIC_SPEAKING_STATE_CHANGED, update);
     // Whatever changed between the first draw and this effect
     update();

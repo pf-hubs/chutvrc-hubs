@@ -10,7 +10,7 @@ import { ReactComponent as BrainIcon } from "../icons/Brain.svg";
 import { ReactComponent as PublicSpeakingIcon } from "../icons/PublicSpeaking.svg";
 
 /** The Features menu of the toolbar. An admin turns each feature on in the app settings; with none left it is hidden */
-export function ChutvrcPopoversContainer({ scene, hubChannel, canRecord }) {
+export function ChutvrcPopoversContainer({ canRecord }) {
   const isOwner = useRole("owner");
   const [activeMenu, setActiveMenu] = useState(null);
 
@@ -47,10 +47,8 @@ export function ChutvrcPopoversContainer({ scene, hubChannel, canRecord }) {
       activeMenu={activeMenu}
       renderContent={() => (
         <>
-          {showBroadcast && activeMenu === "publicSpeaking" && (
-            <PublicSpeakingMenu scene={scene} hubChannel={hubChannel} />
-          )}
-          {showNimpro && activeMenu === "nimpro" && <NimproMenu scene={scene} hubChannel={hubChannel} />}
+          {showBroadcast && activeMenu === "publicSpeaking" && <PublicSpeakingMenu />}
+          {showNimpro && activeMenu === "nimpro" && <NimproMenu />}
         </>
       )}
     />
@@ -58,7 +56,5 @@ export function ChutvrcPopoversContainer({ scene, hubChannel, canRecord }) {
 }
 
 ChutvrcPopoversContainer.propTypes = {
-  hubChannel: PropTypes.object.isRequired,
-  scene: PropTypes.object.isRequired,
   canRecord: PropTypes.bool
 };

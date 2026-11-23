@@ -287,8 +287,6 @@ module.exports = async (env, argv) => {
   // In production, the environment variables are defined in CI or loaded from ita and
   // the app config is injected into the head of the page by Reticulum.
 
-  const host = process.env.HOST_IP || env.localDev || env.remoteDev ? "localhost" : "localhost";
-
   const liveReload = !!process.env.LIVE_RELOAD || false;
 
   const devServerHeaders = {
@@ -306,7 +304,6 @@ module.exports = async (env, argv) => {
   const addonsConfigFilePath = "./addons.json";
   const addonsConfig = JSON.parse(fs.readFileSync(addonsConfigFilePath, "utf-8"));
 
-  const internalHostname = process.env.INTERNAL_HOSTNAME || "localhost";
   return {
     cache: {
       type: "filesystem"
@@ -358,9 +355,6 @@ module.exports = async (env, argv) => {
     output: {
       filename: "assets/js/[name]-[chunkhash].js",
       publicPath: process.env.BASE_ASSETS_PATH || ""
-    },
-    optimization: {
-      minimize: argv.mode === "production" ? true : false
     },
     target: ["web", "es5"], // use es5 for webpack runtime to maximize compatibility
     devtool: argv.mode === "production" ? "source-map" : "inline-source-map",

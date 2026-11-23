@@ -15,9 +15,11 @@ import { PageContainer } from "../layout/PageContainer";
 import { scaledThumbnailUrlFor } from "../../utils/media-url-utils";
 import { Column } from "../layout/Column";
 import { Container } from "../layout/Container";
+// eslint-disable-next-line no-unused-vars -- for the part commented out below
 import { SocialBar } from "../home/SocialBar";
 import { SignInButton } from "./SignInButton";
 import { AppLogo } from "../misc/AppLogo";
+// eslint-disable-next-line no-unused-vars -- for the part commented out below
 import { isHmc } from "../../utils/isHmc";
 import maskEmail from "../../utils/mask-email";
 
@@ -79,7 +81,9 @@ export function HomePage() {
           <div className={styles.appInfo}>
             <div className={styles.appDescription}>{configs.translation("app-description")}</div>
             <div className={styles.appDescription}>
-              <p style={{ fontSize: 18, color: "#aaa" }}>Sponsored by:</p>
+              <p style={{ fontSize: 18, color: "#aaa" }}>
+                <FormattedMessage id="home-page.sponsored-by" defaultMessage="Sponsored by:" />
+              </p>
               <img
                 className={styles.companyLogo}
                 src={configs.image("company_logo")}

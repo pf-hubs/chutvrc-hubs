@@ -334,7 +334,6 @@ export class NimproSystem {
     // Determine majority and minority answers
     const majorityAnswer = yesCount > noCount ? true : false;
     const minorityAnswer = !majorityAnswer;
-    const majorityCount = Math.max(yesCount, noCount);
     const minorityCount = Math.min(yesCount, noCount);
 
     // Allocate points to participants based on their answers
