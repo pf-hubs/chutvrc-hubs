@@ -1,5 +1,6 @@
 import { Object3D } from "three";
 import { BoneName } from "./bone-names";
+import { FingerBones, HandSide } from "./hand-frame";
 
 /**
  * Finds the bones of a model from the VRM humanoid extension of its glTF. VRM 0.x lists them as
@@ -93,6 +94,33 @@ function objectsByNodeIndex(gltf: LoadedGltf): Map<number, Object3D> {
     if (mapping?.nodes !== undefined && (object as Object3D).isObject3D) byIndex.set(mapping.nodes, object as Object3D);
   });
   return byIndex;
+}
+
+/** The VRM humanoid bones that are the first bone of an index, middle or little finger */
+const VRM_FINGER_BONE = /^(left|right)(Index|Middle|Little)Proximal$/;
+
+/**
+ * The first bones of the index, middle and little fingers of each hand, as the VRM humanoid extension names
+ * them; null when the glTF has no such extension. They are used to measure the hands (hand-frame.ts) and
+ * are left to the model otherwise.
+ */
+export function mapFingerBonesFromVrm(gltf: LoadedGltf): Record<HandSide, FingerBones> | null {
+  const json = gltf.parser?.json;
+  if (!json) return null;
+  const humanBones = humanBoneNodes(json);
+  if (!humanBones) return null;
+
+  const objects = objectsByNodeIndex(gltf);
+  const fingers: Record<HandSide, FingerBones> = {
+    left: { index: null, middle: null, little: null },
+    right: { index: null, middle: null, little: null }
+  };
+  for (const [vrmBone, nodeIndex] of humanBones.entries) {
+    const match = VRM_FINGER_BONE.exec(vrmBone);
+    if (!match) continue;
+    fingers[match[1] as HandSide][match[2].toLowerCase() as keyof FingerBones] = objects.get(nodeIndex) ?? null;
+  }
+  return fingers;
 }
 
 /** The bones the VRM humanoid extension names, or null when the glTF has no such extension */

@@ -1,5 +1,5 @@
 import { Quaternion, Vector3 } from "three";
-import { TrackedPart, TrackedPose } from "../../pose/tracked-pose";
+import { TRACKED_LEFT_HAND, TRACKED_RIGHT_HAND, TrackedPart, TrackedPose } from "../../pose/tracked-pose";
 import { RigDescription } from "../../rig/rig-description";
 import { AvatarAnimState } from "../../../types/avatar-types";
 import { wrapAngle, updateBodyYaw } from "../shared/body-yaw";
@@ -17,9 +17,18 @@ import {
 import { BoneWrites } from "../shared/bone-writes";
 import { eyeOffsetInRootSpace, headTarget, SELF_BACK_OFFSET, trackedQuaternion } from "../shared/head";
 import { IkState, resetSolverState, Side, SolveFrame } from "../shared/ik-state";
-import { ARM_BONES, reachWithShoulder, restArm, smoothHandTarget, solveArmTo, solvePlantedLeg } from "../shared/limbs";
+import {
+  ARM_BONES,
+  reachWithShoulder,
+  restArm,
+  smoothHandTarget,
+  solveArmTo,
+  solvePlantedLeg,
+  solveRelaxedArm
+} from "../shared/limbs";
 import { followAncestor, localPositionOf, RestFrames, SolvedFrames } from "../shared/rig-frames";
 import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
+import { handGrip } from "./hand-grip";
 
 /**
  * The VR solver, for a pose whose sender's headset is presenting: the eyes on the headset, the hands on
@@ -41,14 +50,16 @@ const X_AXIS = new Vector3(1, 0, 0);
 const Z_AXIS = new Vector3(0, 0, 1);
 
 /**
- * The turn from the controller's orientation to the hand bone's: a quarter
- * turn about z for a model that faces -z, a third of a turn about x for one that faces +z.
+ * The turn from the controller's orientation to the hand bone's for a hand that could not be measured
+ * (rig.hands), such as the hands of an upper-body avatar, which have neither a forearm nor finger bones:
+ * a quarter turn about z for a model that faces -z, a sixth of a turn about x for one that faces +z. It
+ * suits the default avatars' hands. Every other hand is turned from its own measured frame.
  */
-const HAND_CORRECTION_FLIPPED: Record<Side, Quaternion> = {
+const UNMEASURED_HAND_TURN_FLIPPED: Record<Side, Quaternion> = {
   left: new Quaternion().setFromAxisAngle(Z_AXIS, Math.PI / 2),
   right: new Quaternion().setFromAxisAngle(Z_AXIS, -Math.PI / 2)
 };
-const HAND_CORRECTION_UNFLIPPED = new Quaternion().setFromAxisAngle(X_AXIS, -Math.PI / 3);
+const UNMEASURED_HAND_TURN_UNFLIPPED = new Quaternion().setFromAxisAngle(X_AXIS, -Math.PI / 3);
 
 const heading: BodyHeading = createBodyHeading();
 const controller = new Quaternion();
@@ -57,8 +68,8 @@ const eyeOffset = new Vector3();
 const target = new Vector3();
 const angles: ChainAngles = { pitch: 0, yaw: 0, roll: 0 };
 
-function handCorrection(rig: RigDescription, side: Side): Quaternion {
-  return rig.isFlippedY ? HAND_CORRECTION_FLIPPED[side] : HAND_CORRECTION_UNFLIPPED;
+function unmeasuredHandTurn(rig: RigDescription, side: Side): Quaternion {
+  return rig.isFlippedY ? UNMEASURED_HAND_TURN_FLIPPED[side] : UNMEASURED_HAND_TURN_UNFLIPPED;
 }
 
 /** A ratio from the frame that can scale the model: a positive finite number, otherwise 1 */
@@ -72,10 +83,18 @@ function controllerTarget(hand: TrackedPart, ratio: number, out: Vector3): Vecto
   return out.set(hand.pos.x, hand.pos.y, hand.pos.z).divideScalar(ratio);
 }
 
-/** Turns the hand bone to the controller's orientation */
+/**
+ * Turns the hand with the controller. The hand's own frame, its fingers and the back of the hand, takes
+ * the grip's orientation in the controller's axes (hand-grip.ts), and the bone follows by the offset
+ * measured for this model (rig.hands), so every model holds the controller the same way whatever axes its
+ * rig gave the hand bone.
+ */
 function turnWithController(rig: RigDescription, solved: SolvedFrames, hand: TrackedPart, side: Side) {
   const name = ARM_BONES[side].hand;
-  solved.quaternion[name].copy(trackedQuaternion(hand.rot, controller)).multiply(handCorrection(rig, side));
+  const turn = solved.quaternion[name].copy(trackedQuaternion(hand.rot, controller));
+  const measured = rig.hands[side];
+  if (measured) turn.multiply(handGrip[side]).multiply(measured.boneOffset);
+  else turn.multiply(unmeasuredHandTurn(rig, side));
   solved.solved[name] = true;
 }
 
@@ -112,8 +131,12 @@ function solveArm(
   const name = ARM_BONES[side].hand;
   if (!rest[name]) return;
   const input = side === "left" ? pose.leftHand : pose.rightHand;
+  // A controller that reports no pose holds its last one, or the rig's origin before its first
+  const tracked = (pose.tracked & (side === "left" ? TRACKED_LEFT_HAND : TRACKED_RIGHT_HAND)) !== 0;
 
   if (rig.isHalfBody) {
+    // Without its controller the hand stays where it was; solveVrBody hides both hands when neither has one
+    if (!tracked) return;
     // The hands hang from the spine without arms: placed and turned from the controllers, without smoothing
     controllerTarget(input, state.modelRatio, solved.position[name]);
     turnWithController(rig, solved, input, side);
@@ -126,7 +149,14 @@ function solveArm(
   if (!arm) {
     // A hand without an arm to carry it follows its parent and only turns with the controller
     followAncestor(rest, solved, name);
-    turnWithController(rig, solved, input, side);
+    if (tracked) turnWithController(rig, solved, input, side);
+    return;
+  }
+
+  if (!tracked) {
+    // The arm hangs at the side, and the hand snaps to the controller when its pose returns
+    state.vr.hands[side].valid = false;
+    solveRelaxedArm(rig, rest, solved, side, arm, heading);
     return;
   }
 
@@ -141,7 +171,8 @@ function solveArm(
  * scale. The body's heading trails the head's yaw; the spine distributes the head's turn, roll included,
  * and the head lands on the headset's orientation; the hips are placed so the eyes land on the headset in
  * the model's proportions; the legs reach the planted feet and the arms the smoothed controllers, a
- * shoulder turning toward a controller beyond its arm's length. When the ratio changes, the planted feet
+ * shoulder turning toward a controller beyond its arm's length; an arm whose controller reports no pose
+ * hangs at the side. When the ratio changes, the planted feet
  * and the smoothed hands start afresh, since they are kept in the model's proportions. Bones the model
  * lacks are skipped. Nothing is allocated per frame.
  */
@@ -187,6 +218,8 @@ export function solveVrBody(
   solvePlantedLeg(rig, rest, solved, state.vr.feet, heading, sitting, "right");
   solveArm(rig, rest, solved, state, pose, out, deltaSeconds, "left");
   solveArm(rig, rest, solved, state, pose, out, deltaSeconds, "right");
+  // An upper body's hands have no arms to hang by: without any controller they are hidden, as on a screen
+  if (rig.isHalfBody && (pose.tracked & (TRACKED_LEFT_HAND | TRACKED_RIGHT_HAND)) === 0) out.handsHidden = true;
 
   writeSolvedRotations(rest, solved, out);
 }
