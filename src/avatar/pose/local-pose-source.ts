@@ -28,22 +28,17 @@ function copyRigChild(from: Object3D, to: TrackedPart, rigScale: number) {
   to.pos.z *= rigScale;
 }
 
-/** Whether the own head and hands are sent in room units: while the new body solver is on */
-function sendsInRoomUnits(): boolean {
-  return !!APP.store?.state.preferences.avatarIkV2;
-}
-
 /**
  * Reads the own rig, head and hands into the own pose once a frame, right before the solver runs, so
  * the own avatar follows this frame's camera and controllers. The local position and rotation of each
  * object are copied, as the timer sampler did; the solver never reads the scene objects themselves.
  *
  * The head and hands are children of the rig, placed by the headset and controllers in real metres, any
- * tracking offset of the body calibration included (it is applied to the XR reference space). With the new
- * body solver on, their positions are multiplied by the rig's scale, so the pose is in room units, as the
- * room sees the camera and the controllers: any receiver, old or new, draws the hands where they are, also
+ * tracking offset of the body calibration included (it is applied to the XR reference space). Their
+ * positions are multiplied by the rig's scale, so the pose is in room units, as the room sees the camera
+ * and the controllers: any receiver, of this build or an older one, draws the hands where they are, also
  * for a rig the body calibration or the avatar_scale address parameter scales. The own avatar is solved
- * from the same values. With the new solver off, the positions are sent as they are, as before.
+ * from the same values.
  */
 export class LocalPoseSource {
   constructor(
@@ -58,7 +53,7 @@ export class LocalPoseSource {
     const pose = this.store.getOrCreate(this.clientId);
     const { rig, head, leftHand, rightHand } = this.objects;
     // The rig is scaled uniformly; its own position is in the room already
-    const rigScale = sendsInRoomUnits() ? rig.scale.y : 1;
+    const rigScale = rig.scale.y;
     copyObject(rig, pose.rig);
     copyRigChild(head, pose.head, rigScale);
     copyRigChild(leftHand, pose.leftHand, rigScale);

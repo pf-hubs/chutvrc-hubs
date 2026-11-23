@@ -1,5 +1,5 @@
 import { Object3D, Vector3 } from "three";
-import { applyToBones, readRestFrames, resetRootScale } from "./apply-to-bones";
+import { applyToBones, readRestFrames } from "./apply-to-bones";
 import { modelRatioOf } from "../calibration/body-calibration";
 import {
   BoneWrites,
@@ -75,7 +75,6 @@ export class AvatarIkManager {
   private eyeHeight: number | undefined;
   private ikState: IkState | undefined;
   private boneWrites: BoneWrites | undefined;
-  private usesNewSolver: boolean | undefined;
   private newSolverKind: SolverKind | undefined;
 
   /** Takes the bones and the measurements of the rig as they were described when the model was loaded */
@@ -200,15 +199,7 @@ export class AvatarIkManager {
       this.animState = animState;
     }
 
-    const useNewSolver = !!APP.store.state.preferences.avatarIkV2;
-    if (useNewSolver !== this.usesNewSolver) {
-      this.usesNewSolver = useNewSolver;
-      console.log(`Avatar of ${clientId}: solving with the ${useNewSolver ? "new" : "old"} body solver`);
-      // The old solver draws the model at its own size
-      if (!useNewSolver) resetRootScale(this.rig);
-    }
-    if (useNewSolver) this.solveWithNewSolver(pose, clientId);
-    else this.updateAvatarBoneIk(this.poseInput);
+    this.solveWithNewSolver(pose, clientId);
   }
 
   /**
@@ -224,7 +215,7 @@ export class AvatarIkManager {
     const kind = solverKindOf(pose);
     if (kind !== this.newSolverKind) {
       this.newSolverKind = kind;
-      console.log(`Avatar of ${clientId}: solving with the new ${kind} body solver`);
+      console.log(`Avatar of ${clientId}: solving with the ${kind} body solver`);
     }
     this.isInputReady = true;
     if (this.rootBone.parent && !this.rootBone.parent.visible) this.rootBone.parent.visible = true;

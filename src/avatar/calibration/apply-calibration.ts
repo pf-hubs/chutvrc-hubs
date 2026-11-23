@@ -12,8 +12,7 @@ import {
 import { HeadsetSample, VrHeightCapture } from "./vr-capture";
 
 /**
- * Applies the body calibration to the own player while they are in VR with the new avatar body solver on
- * and a height saved: it captures the headset's height when the VR session starts (vr-capture.ts), derives
+ * Applies the body calibration to the own player while they are in VR and have a height saved: it captures the headset's height when the VR session starts (vr-capture.ts), derives
  * the calibration from the preferences, the capture and the own model's eye height (body-calibration.ts),
  * and applies it:
  *
@@ -34,7 +33,7 @@ import { HeadsetSample, VrHeightCapture } from "./vr-capture";
  * others as the avatar's, is unchanged. An offset at the rig would lift the rig off the floor, and the
  * character controller would put it back.
  *
- * Nothing of this applies outside VR, with the new solver off or without a saved height: then the rig takes
+ * Nothing of this applies outside VR or without a saved height: then the rig takes
  * its own scale back, the reference spaces their own, and no eye height is announced. Everything is
  * re-applied when the own model changes, a preference changes or a capture ends. Ticked once a frame from
  * avatarSystemsTick, before the own pose is sampled.
@@ -108,7 +107,7 @@ export class BodyCalibrationController {
     return this.inputs?.fit === "playerToAvatar" && this.calibration !== null;
   }
 
-  /** Whether the headset can be captured now: in VR, with the new solver on and a height saved */
+  /** Whether the headset can be captured now: in VR, with a height saved */
   get canCapture(): boolean {
     return this.session !== null && this.calibration !== null;
   }
@@ -135,7 +134,7 @@ export class BodyCalibrationController {
     const xr: WebGLRenderer["xr"] | undefined = scene?.renderer?.xr;
     const session = xr && xr.isPresenting && scene!.is("vr-mode") ? xr.getSession() : null;
     const heightCm = preferences?.bodyHeightCm;
-    if (!xr || !session || !preferences?.avatarIkV2 || !isCalibratedHeight(heightCm)) {
+    if (!xr || !session || !isCalibratedHeight(heightCm)) {
       this.stop(xr);
       if (!session) this.forgetSession();
       return;

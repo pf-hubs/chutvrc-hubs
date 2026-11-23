@@ -579,12 +579,10 @@ class UIRoot extends Component {
   };
 
   /**
-   * Whether entering in VR first needs the body calibration: the new avatar body solver is on and the
-   * player's height has not been entered
+   * Whether entering in VR first needs the body calibration: the player's height has not been entered
    */
   needsBodyCalibration = () => {
-    const { avatarIkV2, bodyHeightCm } = this.props.store.state.preferences;
-    return !!avatarIkV2 && !isCalibratedHeight(bodyHeightCm);
+    return !isCalibratedHeight(this.props.store.state.preferences.bodyHeightCm);
   };
 
   performDirectEntryFlow = async enterInVR => {
