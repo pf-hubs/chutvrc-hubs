@@ -639,11 +639,15 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
   }
 
   protected sendData(label: string, data: Uint8Array, spec: ChannelSpec): void {
-    if (!this._room) return;
-    this._room.localParticipant.publishData(data, {
-      reliable: spec.reliable,
-      topic: label
-    });
+    // Before the room is connected there is no connection to send on; while reconnecting the SDK keeps the data
+    const state = this._room?.state;
+    if (!this._room || state === ConnectionState.Connecting || state === ConnectionState.Disconnected) return;
+    this._room.localParticipant
+      .publishData(data, {
+        reliable: spec.reliable,
+        topic: label
+      })
+      .catch(error => debug("Data not sent:", label, error));
   }
 
   emitRTCEvent(level: string, tag: string, msgFunc: () => void): void {

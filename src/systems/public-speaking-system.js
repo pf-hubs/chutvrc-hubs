@@ -25,6 +25,8 @@ const SPEAKER_PREFIX = "PS-";
 /** How often a session is asked whether it is connected, and for how long, in milliseconds */
 const CONNECTED_POLL_MS = 200;
 const CONNECTED_TIMEOUT_MS = 15000;
+/** The voice each relay passes on: a stream is announced more than once, and a track can be published only once */
+const relayedTracks = new WeakMap();
 
 function emitStateChanged() {
   APP.sfu?.emit(PUBLIC_SPEAKING_STATE_CHANGED);
@@ -226,9 +228,15 @@ export class PublicSpeakingSystem {
     const agent = APP.publicSpeakerAgentSfus?.[clientId];
     // The relay could not be started, or listening was stopped meanwhile
     if (!agent || APP.publicSpeakersMirrorSfu !== mirror) return;
-    mirror.getMediaStream(clientId, "audio").then(stream => {
-      if (APP.publicSpeakerAgentSfus?.[clientId] === agent) agent.setLocalMediaStream(stream);
-    });
+    try {
+      const stream = await mirror.getMediaStream(clientId, "audio");
+      const track = stream?.getAudioTracks()[0];
+      if (APP.publicSpeakerAgentSfus?.[clientId] !== agent || !track || relayedTracks.get(agent) === track) return;
+      relayedTracks.set(agent, track);
+      await agent.setLocalMediaStream(stream);
+    } catch (error) {
+      console.error(`Public speaking: the voice of ${clientId} could not be relayed:`, error);
+    }
   }
 
   static closePublicSpeakingMirroring() {
