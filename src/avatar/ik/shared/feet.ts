@@ -31,15 +31,15 @@ const LIFT_SHARE = 0.3;
 const MIN_LIFT = 0.03;
 const MAX_LIFT = 0.1;
 /** A foot this far from its place steps even while the other foot is in the air */
-const FORCE_DISTANCE = 0.65;
+const FORCE_DISTANCE = 0.7;
 /** A step is this much quicker when the other foot is waiting to step too, as when a standing body starts to move */
 const HURRIED_STEP = 0.6;
 /** A planted foot is never left further than this from its place: beyond it, it is dragged along */
-const MAX_REACH = 0.7;
+const MAX_REACH = 0.8;
 /** A body that moved this far in one frame was moved at once (a teleport, a waypoint): the feet go with it without a step */
 export const TELEPORT_DISTANCE = 1;
 /** The body's speed is smoothed over about this long, in seconds */
-const SPEED_TIME_CONSTANT = 0.1;
+const SPEED_TIME_CONSTANT = 0.06;
 /** Once the body has been slower than this for this long, feet left apart by the last steps are brought to their places */
 const IDLE_SPEED = 0.15;
 const SETTLE_AFTER_SECONDS = 0.3;
@@ -246,13 +246,16 @@ export function stepGait(
   // How fast the body moves over the floor, and whether it was moved at once
   toFloor(hips, floor, hipsOnFloor);
   let teleported = false;
+  let speedNow = 0;
   if (gait.hasHips) {
     moved.subVectors(hipsOnFloor, gait.hips).setY(0);
     teleported = moved.length() > TELEPORT_DISTANCE;
     if (teleported) {
       gait.velocity.set(0, 0, 0);
     } else if (deltaSeconds > 0) {
-      gait.velocity.lerp(moved.divideScalar(deltaSeconds), 1 - Math.exp(-deltaSeconds / SPEED_TIME_CONSTANT));
+      moved.divideScalar(deltaSeconds);
+      speedNow = moved.length();
+      gait.velocity.lerp(moved, 1 - Math.exp(-deltaSeconds / SPEED_TIME_CONSTANT));
     }
   }
   gait.hips.copy(hipsOnFloor);
@@ -261,8 +264,13 @@ export function stepGait(
   gait.idleSeconds = speed < IDLE_SPEED ? gait.idleSeconds + deltaSeconds : 0;
   const settling = gait.idleSeconds > SETTLE_AFTER_SECONDS;
 
-  // A step is as long as it takes to cover the stride at this speed, and a foot lands ahead of its place
-  const stepSeconds = Math.min(MAX_STEP_SECONDS, Math.max(MIN_STEP_SECONDS, STRIDE_REACH / Math.max(speed, 1e-3)));
+  // A step is as long as it takes to cover the stride at this speed, and a foot lands ahead of its place.
+  // The time is taken from this frame's speed when that is the higher, so a body that has just started to
+  // move steps as quickly as it moves, before the smoothed speed has caught up.
+  const stepSeconds = Math.min(
+    MAX_STEP_SECONDS,
+    Math.max(MIN_STEP_SECONDS, STRIDE_REACH / Math.max(speed, speedNow, 1e-3))
+  );
   lead.copy(gait.velocity).multiplyScalar(LEAD_SHARE * stepSeconds);
 
   for (const side of SIDES) {
