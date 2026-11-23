@@ -72,8 +72,8 @@ EOF
 bio pkg build -k mozillareality .
 
 ### upload
-echo "### upload hab pkg to bldr.reticulum.io"
-export HAB_BLDR_URL="https://bldr.reticulum.io"
+echo "### upload hab pkg to bldr.reticulum.io.invalid"
+export HAB_BLDR_URL="https://bldr.reticulum.io.invalid"
 export HAB_AUTH_TOKEN=$BLDR_RET_TOKEN
 echo $BLDR_RET_PUB_B64 | base64 -d > /hab/cache/keys/mozillareality-20190117233449.pub
 hart="/hab/cache/artifacts/mozillareality-hubs*.hart"

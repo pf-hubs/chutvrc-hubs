@@ -8,7 +8,10 @@ declare module "aframe" {
       [name: string]: Object3D;
     };
     getObject3D(string): Object3D?;
-    components: { [s: string]: AComponent };
+    components: {
+      [s: string]: AComponent;
+      "player-info": PlayerInfo;
+    };
     eid: number;
     isPlaying: boolean;
   }
@@ -24,6 +27,8 @@ declare module "aframe" {
   }
 
   interface AComponent {
+    /** The name the component is attached under, with its id when an entity has several */
+    attrName?: string;
     data: any;
     init();
     tick: FnTick;
@@ -52,6 +57,7 @@ declare module "aframe" {
     drawingMenuSystem: DrawingMenuSystem;
     characterController: CharacterControllerSystem;
     waypointSystem: WaypointSystem;
+    mediaPDFOculusFix: MediaPDFOculusFix;
     cursorPoseTrackingSystem: CursorPoseTrackingSystem;
     menuAnimationSystem: MenuAnimationSystem;
     audioSettingsSystem: AudioSettingsSystem;
@@ -90,6 +96,10 @@ declare module "aframe" {
   interface PersonalSpaceInvader extends AComponent {
     enable(): void;
     disable(): void;
+  }
+
+  interface PlayerInfo extends AComponent {
+    playerSessionId: string;
   }
 
   interface PersonalSpaceBubbleSystem extends ASystem {

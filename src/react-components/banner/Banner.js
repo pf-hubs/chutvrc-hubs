@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars -- the sign-up form below is commented out and uses these */
 import React, { useState, useCallback } from "react";
 import PropTypes from "prop-types";
 import { RadioInputField } from "../input/RadioInputField";

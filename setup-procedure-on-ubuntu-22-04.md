@@ -216,7 +216,7 @@ Then exit
     ```bash
     HUBS_SERVER="**your.domain**"
     RETICULUM_SERVER="**your.domain**"
-    THUMBNAIL_SERVER="nearspark-dev.reticulum.io"
+    THUMBNAIL_SERVER="nearspark-dev.reticulum.io.invalid"
     NON_CORS_PROXY_DOMAINS="hubs.local,**your.domain**,**your.domain:4000**"
     CORS_PROXY_SERVER=""
     GITHUB_REPO="spoke"
@@ -265,13 +265,13 @@ Then exit
     
     # The thumbnailing backend to connect to.
     # See here for the server code: https://github.com/MozillaReality/farspark or https://github.com/MozillaReality/nearspark
-    THUMBNAIL_SERVER="nearspark-dev.reticulum.io"
+    THUMBNAIL_SERVER="nearspark-dev.reticulum.io.invalid"
     
     # The root URL under which Hubs expects environment GLTF bundles to be served.
-    ASSET_BUNDLE_SERVER="https://asset-bundles-prod.reticulum.io"
+    ASSET_BUNDLE_SERVER="https://asset-bundles-prod.reticulum.io.invalid"
     
     # Comma-separated list of domains which are known to not need CORS proxying
-    NON_CORS_PROXY_DOMAINS="**hubs.local**,**your.PUBLIC.ip.address**,**your.domain**,dev.reticulum.io,hubs-upload-cdn.com,hubs-proxy.com"
+    NON_CORS_PROXY_DOMAINS="**hubs.local**,**your.PUBLIC.ip.address**,**your.domain**,dev.reticulum.io.invalid,hubs-upload-cdn.com,hubs-proxy.com"
     
     # The root URL under which Hubs expects static assets to be served.
     BASE_ASSETS_PATH="https://**your.domain**:8080/" # or "/" if running at local

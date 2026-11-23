@@ -7,9 +7,9 @@ import { ChannelHandlerContext, IChannelHandler } from "../channel-handler-inter
 const AVATAR_SYNC_PRIORITY = 0;
 
 /**
- * Note: Avatar transform channels (#avatar-RIG, #avatar-HEAD, #avatar-LEFT, #avatar-RIGHT)
- * are handled directly in the DataChannelMessageDispatcher via pattern matching.
- * They delegate to AvatarSyncHelper.handleRecvMessage() without needing separate handlers.
+ * Note: The pose channels (#avatar-pose and the old per-part #avatar-RIG, #avatar-HEAD, #avatar-LEFT,
+ * #avatar-RIGHT) are handled directly in the DataChannelMessageDispatcher via pattern matching.
+ * They delegate to PoseSync.handleRecvMessage() without needing separate handlers.
  */
 
 /**
@@ -31,7 +31,7 @@ export class AvatarIdHandler implements IChannelHandler {
       return;
     }
 
-    context.avatarSyncHelper.handleRecvMessage(this.channelLabel, data);
+    context.poseSync.handleRecvMessage(this.channelLabel, data);
   }
 }
 
@@ -45,7 +45,7 @@ export class IsVRHandler implements IChannelHandler {
   readonly priority = AVATAR_SYNC_PRIORITY;
 
   handleMessage(data: Uint8Array, context: ChannelHandlerContext): void {
-    context.avatarSyncHelper.handleRecvMessage(this.channelLabel, data);
+    context.poseSync.handleRecvMessage(this.channelLabel, data);
   }
 }
 
@@ -59,21 +59,14 @@ export class AvatarAnimStateHandler implements IChannelHandler {
   readonly priority = AVATAR_SYNC_PRIORITY;
 
   handleMessage(data: Uint8Array, context: ChannelHandlerContext): void {
-    context.avatarSyncHelper.handleRecvMessage(this.channelLabel, data);
+    context.poseSync.handleRecvMessage(this.channelLabel, data);
   }
 }
 
 /**
  * Factory to create all avatar sync handlers.
- * Note: Avatar transform channels are handled directly by the dispatcher.
+ * Note: The pose channels are handled directly by the dispatcher.
  */
 export function createAvatarSyncHandlers(): IChannelHandler[] {
   return [new AvatarIdHandler(), new IsVRHandler(), new AvatarAnimStateHandler()];
-}
-
-/**
- * Get the list of all avatar transform channel labels.
- */
-export function getAvatarTransformChannelLabels(): string[] {
-  return ["#avatar-RIG", "#avatar-HEAD", "#avatar-LEFT", "#avatar-RIGHT"];
 }

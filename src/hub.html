@@ -218,7 +218,7 @@
                         <template data-name="Head">
                             <a-entity avatar-audio-source audio-zone-source
                                 personal-space-invader="radius: 0.15; useMaterial: true;"
-                                body-helper="type: kinematic; collisionFilterGroup: 4; collisionFilterMask: 1;"
+                                body-helper="type: kinematic; collisionFilterGroup: 4; collisionFilterMask: 33;"
                                 shape-helper="type: cylinder; fit: manual; halfExtents: 0.11 0.10 0.11; offset: 0 0.06 0.04;"></a-entity>
                         </template>
 
@@ -763,6 +763,8 @@
                                 position="0 0 0.001"></a-entity>
                         </a-entity>
                     </a-entity>
+                    <a-entity class="body-capture-btn" body-capture-button position="0 0.3 0.001"
+                        is-remote-hover-target tags="singleActionButton: true;"></a-entity>
                     <a-entity visible="false" vr-mode-toggle-visibility id="hud-tooltip" position="-0.2 -0.2 0"
                         rotation="-20 0 0" radius="0.025" opacity="0.35" class="hud bg">
                         <a-entity text="value: ; textAlign:center; fontSize: 0.06; outlineWidth: 2%;"
@@ -828,7 +830,8 @@
                 </template>
 
                 <template data-name="Spine">
-                    <a-entity>
+                    <a-entity body-helper="type: kinematic; collisionFilterGroup: 4; collisionFilterMask: 32;"
+                        shape-helper="type: capsule; fit: manual; halfExtents: 0.15 0.35 0.15; offset: 0 0.0 0.0;">
                         <a-entity class="chest-image" scale="0.18 0.18 0.18" position="0 -0.025 0.13"></a-entity>
                     </a-entity>
                 </template>

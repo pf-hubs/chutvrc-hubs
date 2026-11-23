@@ -7,6 +7,12 @@ import { Button } from "../input/Button.js";
 import styles from "./RtcDebugPanel.scss";
 import { FormattedMessage } from "react-intl";
 import { AudioDebugPanel } from "./AudioDebugPanel";
+import { SFU } from "../../sfu-types";
+
+// The panel reads mediasoup internals, so it has data only while the active adapter is Dialog.
+function getDialogAdapter() {
+  return APP.sfu.sfuId === SFU.DIALOG ? APP.sfu.adapter : null;
+}
 
 const isMobile = AFRAME.utils.device.isMobile();
 
@@ -263,7 +269,8 @@ export default class RtcDebugPanel extends Component {
 
   getDeviceData() {
     let result = {};
-    const device = APP.dialog._mediasoupDevice;
+    const dialog = getDialogAdapter();
+    const device = dialog && dialog._mediasoupDevice;
     if (device) {
       result["loaded"] = !device._closed ? true : false;
       result["codecs"] = device._recvRtpCapabilities?.codecs.map(
@@ -271,7 +278,7 @@ export default class RtcDebugPanel extends Component {
       );
       result = {
         ...result,
-        ...APP.dialog.downlinkBwe
+        ...dialog.downlinkBwe
       };
     }
     return result;
@@ -314,10 +321,11 @@ export default class RtcDebugPanel extends Component {
   async getTransportData(type) {
     const result = {};
     let transport;
+    const dialog = getDialogAdapter();
     if (type === TransportType.SEND) {
-      transport = APP.dialog._sendTransport;
+      transport = dialog && dialog._sendTransport;
     } else if (type === TransportType.RECEIVE) {
-      transport = APP.dialog._recvTransport;
+      transport = dialog && dialog._recvTransport;
     }
     const opened = (transport && !transport._closed && true) || false;
     result["opened"] = opened;
@@ -365,7 +373,8 @@ export default class RtcDebugPanel extends Component {
       result["name"] = profile ? profile.displayName : "N/A";
       result["peerId"] = peer._appData.peerId;
 
-      const stats = APP.dialog.consumerStats[peer._id];
+      const dialog = getDialogAdapter();
+      const stats = dialog && dialog.consumerStats && dialog.consumerStats[peer._id];
       if (result["kind"] === "video" && stats) {
         result["spatialLayer"] = stats["spatialLayer"];
         result["temporalLayer"] = stats["temporalLayer"];
@@ -386,11 +395,13 @@ export default class RtcDebugPanel extends Component {
   }
 
   getSignalingData() {
-    return { connected: APP.dialog._protoo && APP.dialog._protoo.connected };
+    const dialog = getDialogAdapter();
+    return { connected: !!(dialog && dialog._protoo && dialog._protoo.connected) };
   }
 
   async getServerData() {
-    return await APP.dialog.getServerStats();
+    const dialog = getDialogAdapter();
+    return dialog ? await dialog.getServerStats() : {};
   }
 
   async getRtpStatsData(peer, type) {
@@ -487,9 +498,10 @@ export default class RtcDebugPanel extends Component {
 
             // Populate graph, speed and stats data
             const statsData = {};
-            if (APP.dialog._micProducer) {
-              const id = APP.dialog._micProducer.id;
-              const peer = APP.dialog._micProducer;
+            const dialog = getDialogAdapter();
+            if (dialog && dialog._micProducer) {
+              const id = dialog._micProducer.id;
+              const peer = dialog._micProducer;
               const speedData = this.getPeerSpeed(id, "bytesSent");
               const rtpStatsData = await this.getRtpStatsData(peer, StatsType.OUTBOUND_RTP);
               const { lastStats, graphData } = this.getGraphData(id, rtpStatsData);
@@ -499,9 +511,9 @@ export default class RtcDebugPanel extends Component {
               statsData[id]["last"] = lastStats;
               statsData[id]["rtpStats"] = rtpStatsData;
             }
-            if (APP.dialog._cameraProducer) {
-              const id = APP.dialog._cameraProducer.id;
-              const peer = APP.dialog._cameraProducer;
+            if (dialog && dialog._cameraProducer) {
+              const id = dialog._cameraProducer.id;
+              const peer = dialog._cameraProducer;
               const speedData = this.getPeerSpeed(id, "bytesSent");
               const rtpStatsData = await this.getRtpStatsData(peer, StatsType.OUTBOUND_RTP);
               const { lastStats, graphData } = this.getGraphData(id, rtpStatsData);
@@ -511,9 +523,9 @@ export default class RtcDebugPanel extends Component {
               statsData[id]["last"] = lastStats;
               statsData[id]["rtpStats"] = rtpStatsData;
             }
-            if (APP.dialog._shareProducer) {
-              const id = APP.dialog._shareProducer.id;
-              const peer = APP.dialog._shareProducer;
+            if (dialog && dialog._shareProducer) {
+              const id = dialog._shareProducer.id;
+              const peer = dialog._shareProducer;
               const speedData = this.getPeerSpeed(id, "bytesSent");
               const rtpStatsData = await this.getRtpStatsData(peer, StatsType.OUTBOUND_RTP);
               const { lastStats, graphData } = this.getGraphData(id, rtpStatsData);
@@ -523,7 +535,7 @@ export default class RtcDebugPanel extends Component {
               statsData[id]["last"] = lastStats;
               statsData[id]["rtpStats"] = rtpStatsData;
             }
-            for (const consumer of APP.dialog._consumers) {
+            for (const consumer of dialog ? dialog._consumers : []) {
               const id = consumer[0];
               const peer = consumer[1];
               const speedData = this.getPeerSpeed(id, "bytesReceived");
@@ -556,28 +568,24 @@ export default class RtcDebugPanel extends Component {
   }
 
   restartSendICE = () => {
-    APP.dialog.restartSendICE();
+    const dialog = getDialogAdapter();
+    if (dialog) dialog.restartSendICE();
   };
 
   restartRecvICE = () => {
-    APP.dialog.restartRecvICE();
+    const dialog = getDialogAdapter();
+    if (dialog) dialog.restartRecvICE();
   };
 
   connectSignaling = () => {
-    APP.dialog.connect({
-      serverUrl: APP.dialog._serverUrl,
-      roomId: APP.dialog._roomId,
-      serverParams: APP.dialog._serverParams,
-      scene: APP.dialog.scene,
-      clientId: APP.dialog._clientId,
-      forceTcp: APP.dialog._forceTcp,
-      forceTurn: APP.dialog._forceTurn,
-      iceTransportPolicy: APP.dialog._iceTransportPolicy
-    });
+    const dialog = getDialogAdapter();
+    if (!dialog) return;
+    dialog.connect(dialog.config);
   };
 
   disconnectSignaling = () => {
-    APP.dialog.disconnect();
+    const dialog = getDialogAdapter();
+    if (dialog) dialog.disconnect();
   };
 
   colorForLevel = level => {
@@ -847,6 +855,7 @@ export default class RtcDebugPanel extends Component {
   render() {
     const { signalingData, serverData, statsData, deviceData, transportsData, collapsed } = this.state;
     const isNarrow = isMobile || window.innerWidth < 500;
+    const isDialog = !!getDialogAdapter();
     return (
       <div>
         <div className={classNames(styles.rtcDebugPanelRoot)}>
@@ -866,6 +875,14 @@ export default class RtcDebugPanel extends Component {
                 collapsed={collapsed.Local}
                 onCollapse={this.onCollapse}
               >
+                {!isDialog && (
+                  <p>
+                    <FormattedMessage
+                      id="rtc-debug-panel.not-dialog"
+                      defaultMessage="The room is not using Dialog. Transport statistics are shown only for Dialog rooms."
+                    />
+                  </p>
+                )}
                 {deviceData && (
                   <CollapsiblePanel
                     title={<FormattedMessage id="rtc-debug-panel.device-panel-title" defaultMessage="Device" />}

@@ -6,6 +6,7 @@ import {
   Track,
   RemoteTrack,
   TrackPublication,
+  LocalAudioTrack,
   LocalTrackPublication,
   RemoteTrackPublication,
   ConnectionState,
@@ -17,11 +18,11 @@ import {
 } from "livekit-client";
 import { debug as newDebug } from "debug";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL, SfuAdapter } from "./sfu-adapter";
-import { MediaDevices } from "../utils/media-devices-utils";
-import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
-import { CrossRoomStreamerAudioSource } from "../components/cross-room-streamer-audio-source";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
 import { SfuConnectionState } from "../types/sfu-adapter-interface";
+import { LivekitConfig, SfuConfig } from "./sfu-config";
+import { ChannelSpec, dataChannelLabels } from "./data-channel-bus";
+import { LocalTrackKind } from "./media-session";
 import {
   ChannelHandlerRegistry,
   createAvatarSyncHandlers,
@@ -42,63 +43,39 @@ const RETRY_CONFIG = {
   maxDelay: 10000
 };
 
-type ConnectProps = {
-  clientId: string;
-  roomName: string;
-  serverUrl: string;
-  accessToken: string;
-  scene: Element;
-};
+// A request for a remote stream gives up after this long
+const PENDING_MEDIA_TIMEOUT_MS = 30000;
 
-interface PendingMediaRequest {
-  resolve: (stream: MediaStream) => void;
-  reject: (error: Error) => void;
-  promise?: Promise<MediaStream>;
-}
-
-export class LivekitAdapter extends SfuAdapter {
+export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
   // LiveKit Room instance
   private _room: Room | null = null;
 
   // Connection state management
   private _connectionState: SfuConnectionState = SfuConnectionState.DISCONNECTED;
-  private _connectParams: ConnectProps | null = null;
   private _retryCount: number = 0;
 
   // Local media state
-  private _localMediaStream: MediaStream | null = null;
   private _micPublication: LocalTrackPublication | null = null;
   private _cameraPublication: LocalTrackPublication | null = null;
   private _sharePublication: LocalTrackPublication | null = null;
+  // The microphone stream the adapter acquired itself on connect; the only local stream it may stop
+  private _ownAudioStream: MediaStream | null = null;
 
-  // Remote participants and streams
+  // Remote participants
   private _remoteParticipants: Map<string, RemoteParticipant> = new Map();
-  private _remoteMediaStreams: Map<string, MediaStream> = new Map();
 
   // State management
-  private _pendingMediaRequests: Map<string, Record<string, PendingMediaRequest>> = new Map();
   private _blockedClients: Set<string> = new Set();
-  private _micShouldBeEnabled: boolean = false;
   private _scene: Element | null = null;
 
   // Data channel ready state
   private _dataChannelReadyChannels: Set<string> = new Set();
 
-  // Cross-room audio sources for public speakers
-  crossRoomStreamerAudioSource: Record<string, CrossRoomStreamerAudioSource> = {};
-
   // Handler system - keep reference for cleanup
   private _laserPointerHandler: LaserPointerHandler | null = null;
 
   constructor(connectionType: SFU_CONNECTION_TYPE) {
-    super();
-    this._sfuId = SFU.LIVEKIT;
-    this._connectionType = connectionType;
-    this._clientId = "";
-    this._avatarSyncHelper = new AvatarSyncHelper(this);
-    this._dataChannelMessages = [];
-    this._recordedDataChannelMessages = [];
-    this._publicSpeakerClientIdsInRoom = [];
+    super(SFU.LIVEKIT, connectionType, { pendingTimeoutMs: PENDING_MEDIA_TIMEOUT_MS });
 
     // Initialize message dispatcher with handlers for LivekitAdapter
     this.initializeLivekitHandlers();
@@ -133,15 +110,31 @@ export class LivekitAdapter extends SfuAdapter {
     return this._connectionState;
   }
 
-  protected _handleSfuTokenUpdated(event: CustomEvent): void {
-    if (this._connectParams) this._connectParams.accessToken = event.detail.token;
+  get isConnected(): boolean {
+    return this._room !== null && this._room.state === ConnectionState.Connected;
   }
 
-  async connect({ clientId, roomName, serverUrl, accessToken, scene }: ConnectProps): Promise<void> {
+  /**
+   * Only the connection to the room uses the room's token. A broadcast session is given a token of its own:
+   * under the room token's identity it would throw the connection to the room out.
+   */
+  private get _usesRoomToken(): boolean {
+    return this._connectionType === SFU_CONNECTION_TYPE.SENDRECV;
+  }
+
+  protected _handleSfuTokenUpdated(event: CustomEvent): void {
+    if (this._config && this._usesRoomToken) this._config = { ...this._config, accessToken: event.detail.token };
+  }
+
+  async connect(config: SfuConfig): Promise<void> {
+    if (config.kind !== "livekit") {
+      throw new Error(`LivekitAdapter cannot connect with a ${config.kind} config`);
+    }
+    const { clientId, roomName, serverUrl, accessToken, scene } = config;
     this._scene = scene;
     this._roomId = roomName;
     this._clientId = clientId;
-    this._connectParams = { clientId, roomName, serverUrl, accessToken, scene };
+    this._config = config;
     this._connectionState = SfuConnectionState.CONNECTING;
 
     this.updateDispatcherContext();
@@ -149,10 +142,10 @@ export class LivekitAdapter extends SfuAdapter {
     let tokenToUse = accessToken;
     if (!tokenToUse || tokenToUse === "") {
       debug("No access token provided, fetching fresh token...");
-      const freshToken = await this._ensureFreshToken();
+      const freshToken = this._usesRoomToken ? await this._ensureFreshToken() : null;
       if (freshToken) {
         tokenToUse = freshToken;
-        if (this._connectParams) this._connectParams.accessToken = freshToken;
+        this._config = { ...config, accessToken: freshToken };
       } else {
         console.error("Failed to get LiveKit access token from server");
         this._connectionState = SfuConnectionState.FAILED;
@@ -175,6 +168,17 @@ export class LivekitAdapter extends SfuAdapter {
       }
     };
 
+    if (this._room) {
+      // Drop the old room's listeners first so its own Disconnected event cannot start a second reconnect.
+      // The published tracks are left running: the microphone belongs to the media devices manager
+      this._room.removeAllListeners();
+      try {
+        await this._room.disconnect(false);
+      } catch (error) {
+        console.error("Failed to disconnect old LiveKit room:", error);
+      }
+    }
+
     this._room = new Room(roomOptions);
     this._setupRoomEventListeners();
 
@@ -191,7 +195,7 @@ export class LivekitAdapter extends SfuAdapter {
 
       // Initialize avatar sync with proper error handling
       try {
-        this._avatarSyncHelper.initSelfAvatarTransform();
+        this._poseSync.initSelfAvatarTransform();
       } catch (error) {
         console.error("Failed to initialize avatar transform:", error);
         // Continue - avatar sync is non-critical for basic functionality
@@ -212,8 +216,8 @@ export class LivekitAdapter extends SfuAdapter {
   }
 
   async reconnect(): Promise<void> {
-    if (!this._connectParams) {
-      console.error("Cannot reconnect: no connection params saved");
+    if (!this._config) {
+      console.error("Cannot reconnect: no connection config saved");
       return;
     }
 
@@ -227,8 +231,8 @@ export class LivekitAdapter extends SfuAdapter {
     this._connectionState = SfuConnectionState.RECONNECTING;
     this._retryCount++;
 
-    const freshToken = await this._ensureFreshToken();
-    if (freshToken && this._connectParams) this._connectParams.accessToken = freshToken;
+    const freshToken = this._usesRoomToken ? await this._ensureFreshToken() : null;
+    if (freshToken) this._config = { ...this._config, accessToken: freshToken };
 
     const delay = Math.min(RETRY_CONFIG.baseDelay * Math.pow(2, this._retryCount - 1), RETRY_CONFIG.maxDelay);
     debug(`Reconnecting in ${delay}ms (attempt ${this._retryCount}/${RETRY_CONFIG.maxRetries})`);
@@ -236,7 +240,7 @@ export class LivekitAdapter extends SfuAdapter {
     await new Promise(resolve => setTimeout(resolve, delay));
 
     try {
-      await this.connect(this._connectParams);
+      await this.connect(this._config);
     } catch (error) {
       console.error("Reconnection failed:", error);
       this._connectionState = SfuConnectionState.FAILED;
@@ -260,7 +264,6 @@ export class LivekitAdapter extends SfuAdapter {
           break;
         case ConnectionState.Disconnected:
           this._connectionState = SfuConnectionState.DISCONNECTED;
-          this.reconnect();
           break;
       }
     });
@@ -270,10 +273,12 @@ export class LivekitAdapter extends SfuAdapter {
       debug("Disconnected:", reason);
 
       if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
-        // Don't reconnect if kicked due to duplicate identity
+        // Connecting again would throw out the connection that took this identity, which would do the same back
         this._connectionState = SfuConnectionState.FAILED;
         this.emit(SFU_CONNECTION_ERROR_FATAL);
+        return;
       }
+      this.reconnect();
     });
 
     // Handle room reconnection
@@ -294,8 +299,10 @@ export class LivekitAdapter extends SfuAdapter {
       this._remoteParticipants.set(participant.identity, participant);
 
       if (this._connectionType !== SFU_CONNECTION_TYPE.RECV) {
-        this._avatarSyncHelper.sendSelfAvatarTransform(false);
+        this._poseSync.sendSelfAvatarTransform(false);
       }
+      // The participant has to learn the own avatar
+      this._poseSync.handlePeerJoined();
 
       this._setupParticipantEventListeners(participant);
       this.emit("stream_updated", participant.identity, "audio");
@@ -306,6 +313,7 @@ export class LivekitAdapter extends SfuAdapter {
     this._room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
       debug("Participant disconnected:", participant.identity);
       this._cleanupParticipant(participant.identity);
+      this.emit("peer_left", participant.identity);
     });
 
     // Track subscribed
@@ -318,10 +326,9 @@ export class LivekitAdapter extends SfuAdapter {
         }
 
         debug("Track subscribed:", track.kind, "from", participant.identity);
-        this._updateRemoteMediaStream(participant, track);
-        this._resolvePendingMediaRequestForTrack(participant.identity, track);
+        this.media.addRemoteTrack(participant.identity, track.kind, track.mediaStreamTrack);
         this.emit("stream_updated", participant.identity, track.kind);
-        this._tryAttachAudioToPublicSpeakerAgent(participant.identity, track);
+        if (track.kind === "audio") this.media.tryAttachAudioToPublicSpeakerAgent(participant.identity);
       }
     );
 
@@ -330,7 +337,7 @@ export class LivekitAdapter extends SfuAdapter {
       RoomEvent.TrackUnsubscribed,
       (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
         debug("Track unsubscribed:", track.kind, "from", participant.identity);
-        this._updateRemoteMediaStream(participant);
+        this.media.removeRemoteTrack(participant.identity, track.mediaStreamTrack);
       }
     );
 
@@ -346,27 +353,7 @@ export class LivekitAdapter extends SfuAdapter {
         if (!topic) return;
         if (participant && this._blockedClients.has(participant.identity)) return;
 
-        const label = topic;
-        const data = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
-
-        this._dataChannelMessages.push({ channelLabel: label, message: data as ArrayBuffer });
-
-        if (this._isRecording && !label.includes("#avatar-")) {
-          this._recordedDataChannelMessages.push({
-            l: label,
-            m: this._textDecoder.decode(data),
-            t: Date.now(),
-            s: 0
-          });
-        }
-
-        // Limit queue size
-        while (this._dataChannelMessages.length > 100) {
-          this._dataChannelMessages.shift();
-        }
-
-        // Dispatch through handler system (base class method)
-        this.handleDataChannelMessage(label, data as ArrayBuffer);
+        this.bus.receive(topic, payload);
       }
     );
   }
@@ -374,25 +361,13 @@ export class LivekitAdapter extends SfuAdapter {
   private _cleanupParticipant(clientId: string): void {
     // Remove from participants map
     this._remoteParticipants.delete(clientId);
-    this._remoteMediaStreams.delete(clientId);
 
-    // Clean up pending media requests
-    const requests = this._pendingMediaRequests.get(clientId);
-    if (requests) {
-      Object.values(requests).forEach(req => {
-        req.reject(new Error(`Participant ${clientId} disconnected`));
-      });
-      this._pendingMediaRequests.delete(clientId);
-    }
-
-    // Clean up cross-room audio source
-    if (this.crossRoomStreamerAudioSource[clientId]) {
-      this.crossRoomStreamerAudioSource[clientId].remove?.();
-      delete this.crossRoomStreamerAudioSource[clientId];
-    }
+    // Drop the streams and reject the pending media requests, then stop the cross-room audio source
+    this.media.removePeer(clientId, new Error(`Participant ${clientId} disconnected`));
+    this.media.removePublicSpeakerAudio(clientId);
 
     // Notify avatar sync helper (which should clean all its maps)
-    this._avatarSyncHelper.handleOnClientLeave(clientId);
+    this._poseSync.handleOnClientLeave(clientId, "participant disconnected");
 
     // Hide laser pointer when public speaker disconnects
     if (clientId.includes("PS") && this._laserPointerHandler) {
@@ -410,45 +385,21 @@ export class LivekitAdapter extends SfuAdapter {
     });
   }
 
-  private _updateRemoteMediaStream(participant: RemoteParticipant, newTrack?: RemoteTrack): void {
-    let stream = this._remoteMediaStreams.get(participant.identity);
-
-    if (!stream) {
-      stream = new MediaStream();
-      this._remoteMediaStreams.set(participant.identity, stream);
-    }
-
-    // Remove old tracks
-    stream.getTracks().forEach(t => stream!.removeTrack(t));
-
-    // Add current tracks
-    participant.trackPublications.forEach(publication => {
-      if (publication.track && publication.isSubscribed) {
-        const mediaTrack = publication.track.mediaStreamTrack;
-        if (mediaTrack) {
-          stream!.addTrack(mediaTrack);
-        }
-      }
-    });
-  }
-
   private async _initializeLocalAudio(): Promise<void> {
     try {
-      this._localMediaStream = await navigator.mediaDevices.getUserMedia({
+      const localMediaStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: false
       });
+      this._ownAudioStream = localMediaStream;
+      this.media.rememberLocalStream(localMediaStream);
 
-      const audioTrack = this._localMediaStream.getAudioTracks()[0];
+      const audioTrack = localMediaStream.getAudioTracks()[0];
       if (audioTrack) {
-        // publishTrack returns LocalTrackPublication
-        this._micPublication = await this._room!.localParticipant.publishTrack(audioTrack, {
-          name: "microphone",
-          simulcast: false
-        });
-
-        // Start muted by default
-        this.enableMicrophone(false);
+        // In the state last asked for: off at the first entry, as the user left it on a later connect
+        await this.publishMicrophoneTrack(audioTrack);
+        this.media.registerLocalTrack("microphone", audioTrack);
+        this.emit("mic-state-changed", { enabled: this.isMicEnabled });
       }
 
       this._initializeDataChannels();
@@ -460,65 +411,39 @@ export class LivekitAdapter extends SfuAdapter {
   }
 
   private _initializeDataChannels(): void {
-    const channelsToProduce = this._avatarSyncHelper._channelsForSync.concat([
-      "#nimpro",
-      "#iot",
-      "#pdfPage",
-      "#laserPointer",
-      "#emoji",
-      "#togglePublicSpeaker"
-    ]);
-
-    channelsToProduce.forEach(label => {
+    dataChannelLabels().forEach(label => {
       this._dataChannelReadyChannels.add(label);
       if (!this._clientId.includes("PS-") || this._roomId.includes("public_speaking")) {
-        this._avatarSyncHelper.handleSyncInit(label);
+        this._poseSync.handleSyncInit(label);
       }
     });
   }
 
-  async disconnect(): Promise<void> {
+  protected async closeConnection(): Promise<void> {
     debug("disconnect()");
     this._connectionState = SfuConnectionState.DISCONNECTED;
 
-    // Clean up all participants
-    this._remoteParticipants.forEach((_, clientId) => {
-      this._cleanupParticipant(clientId);
-    });
-
-    // Disconnect from room
+    // Disconnect from room. Detach the listeners first so that this intentional
+    // disconnect does not trigger a reconnect from the Disconnected event. The SDK stops the
+    // published tracks by default; they are unpublished only, since the tracks set from outside
+    // belong to the media devices manager
     if (this._room) {
-      await this._room.disconnect();
+      this._room.removeAllListeners();
+      await this._room.disconnect(false);
       this._room = null;
     }
 
-    // Clean up intervals
-    if (this._sendSelfAvatarSrcIntervalId) {
-      clearInterval(this._sendSelfAvatarSrcIntervalId);
-    }
-
-    // Stop avatar sync
-    this._avatarSyncHelper?.stopSyncing();
-
-    // Cleanup message dispatcher
-    this.cleanupDispatcher();
-
-    // Cleanup token handler
-    this._cleanupTokenHandler();
-
-    // Clean up local media
-    if (this._localMediaStream) {
-      this._localMediaStream.getTracks().forEach(track => track.stop());
-      this._localMediaStream = null;
+    // The microphone the adapter acquired itself is stopped; a stream set from outside is left running
+    if (this._ownAudioStream) {
+      this._ownAudioStream.getTracks().forEach(track => track.stop());
+      if (this.media.localStream === this._ownAudioStream) this.media.clearLocal();
+      this._ownAudioStream = null;
     }
 
     this._micPublication = null;
     this._cameraPublication = null;
     this._sharePublication = null;
-    this._laserPointerHandler = null;
     this._remoteParticipants.clear();
-    this._remoteMediaStreams.clear();
-    this._pendingMediaRequests.clear();
     this._dataChannelReadyChannels.clear();
 
     this.emitRTCEvent("info", "Signaling", () => `[close]`);
@@ -533,167 +458,106 @@ export class LivekitAdapter extends SfuAdapter {
     );
   }
 
-  getMediaStream(clientId: string, kind = "audio") {
-    let stream: MediaStream | null | undefined = null;
-    let tracks: MediaStreamTrack[] | null | undefined = null;
+  protected beforeLocalStreamApplied(): boolean {
+    return this._room !== null;
+  }
 
-    const isSelfStreamRetrievable = this._clientId === clientId && this._connectionType !== SFU_CONNECTION_TYPE.RECV;
-    const isOtherStreamRetrievable = this._clientId !== clientId && this._connectionType !== SFU_CONNECTION_TYPE.SEND;
-
-    // Self stream
-    if (isSelfStreamRetrievable) {
-      const selfTracks: MediaStreamTrack[] = [];
-
-      if (kind === "audio" && this._micPublication) {
-        const mediaTrack = this._micPublication.track?.mediaStreamTrack;
-        if (mediaTrack) selfTracks.push(mediaTrack);
-      } else if (kind === "video") {
-        if (this._cameraPublication) {
-          const mediaTrack = this._cameraPublication.track?.mediaStreamTrack;
-          if (mediaTrack) selfTracks.push(mediaTrack);
-        } else if (this._sharePublication) {
-          const mediaTrack = this._sharePublication.track?.mediaStreamTrack;
-          if (mediaTrack) selfTracks.push(mediaTrack);
-        }
-      }
-
-      if (selfTracks.length > 0) {
-        tracks = selfTracks;
-      }
-    } else if (isOtherStreamRetrievable) {
-      // Remote stream
-      stream = this._remoteMediaStreams.get(clientId);
-      if (stream) {
-        tracks = kind === "audio" ? stream.getAudioTracks() : stream.getVideoTracks();
-      }
-    }
-
-    if (tracks && tracks.length > 0) {
-      debug(`Already had ${kind} for ${clientId}`);
-      const promise = Promise.resolve(new MediaStream(tracks));
-      promise.catch(e => {
-        this.emitRTCEvent("error", "Adapter", () => `getMediaStream error: ${e}`);
-        console.warn(`${clientId} getMediaStream Error`, e);
-      });
-      return promise;
-    } else if (isSelfStreamRetrievable || isOtherStreamRetrievable) {
-      // Pending request
-      debug(`Waiting on ${kind} for ${clientId}`);
-      if (!this._pendingMediaRequests.has(clientId)) {
-        this._pendingMediaRequests.set(clientId, {});
-      }
-
-      const requests = this._pendingMediaRequests.get(clientId)!;
-
-      const promise = new Promise<MediaStream>((resolve, reject) => {
-        requests[kind] = { resolve, reject };
-
-        // Timeout after 30 seconds
-        setTimeout(() => {
-          if (requests[kind]) {
-            reject(new Error(`Timeout waiting for ${kind} stream from ${clientId}`));
-            delete requests[kind];
-          }
-        }, 30000);
-      });
-
-      requests[kind].promise = promise;
-
-      return promise;
+  protected async publishTrack(kind: LocalTrackKind, track: MediaStreamTrack): Promise<void> {
+    switch (kind) {
+      case "microphone":
+        await this.publishMicrophone(track);
+        break;
+      case "camera":
+        await this.publishCamera(track);
+        break;
+      case "screen":
+        await this.publishShare(track);
+        break;
     }
   }
 
-  getLocalMicTrack(): MediaStreamTrack | undefined {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return undefined;
-    return this._micPublication?.track?.mediaStreamTrack;
-  }
-
-  getLocalMediaStream(): MediaStream | undefined {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return undefined;
-    return this._localMediaStream ?? undefined;
-  }
-
-  getDataChannelMessage(): { channelLabel: string; message: ArrayBuffer | null } {
-    return this._dataChannelMessages.length > 0
-      ? this._dataChannelMessages.shift()!
-      : { channelLabel: "", message: null };
-  }
-
-  async setLocalMediaStream(
-    stream: MediaStream,
-    videoContentHintByTrackId: Map<string, string> | null = null
-  ): Promise<void> {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._room) return;
-
-    let sawAudio = false;
-    let sawVideo = false;
-
-    await Promise.all(
-      stream.getTracks().map(async track => {
-        if (track.kind === "audio") {
-          sawAudio = true;
-
-          if (this._micPublication) {
-            // Publish new track (will replace old one)
-            await this._room!.localParticipant.publishTrack(track, {
-              name: "microphone"
-            });
-          } else {
-            this._micPublication = await this._room!.localParticipant.publishTrack(track, {
-              name: "microphone"
-            });
-          }
-
-          this.emit("mic-state-changed", { enabled: this.isMicEnabled });
-        } else {
-          sawVideo = true;
-          const contentHint = videoContentHintByTrackId?.get(track.id);
-
-          if (contentHint === MediaDevices.SCREEN) {
-            await this.disableCamera();
-            await this.enableShare(track);
-          } else if (contentHint === MediaDevices.CAMERA) {
-            await this.disableShare();
-            await this.enableCamera(track);
-          }
-        }
-      })
-    );
-
-    if (!sawVideo) {
-      await this.disableCamera();
-      await this.disableShare();
+  protected async replaceTrack(kind: LocalTrackKind, track: MediaStreamTrack): Promise<void> {
+    if (kind === "microphone") {
+      await this.publishMicrophone(track);
+      return;
     }
-
-    this._localMediaStream = stream;
+    await this.unpublishTrack(kind);
+    await this.publishTrack(kind, track);
   }
 
-  setLocalDataChannelMessage({ channelLabel, message }: { channelLabel: string; message: ArrayBuffer }): void {
-    if (!channelLabel || !message) return;
-    this.broadcastUint8(channelLabel, new Uint8Array(message));
-  }
-
-  toggleMicrophone(): void {
-    this.enableMicrophone(!this._micShouldBeEnabled);
-  }
-
-  enableMicrophone(enabled: boolean): void {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return;
-
-    if (this._room?.localParticipant) {
-      this._room.localParticipant.setMicrophoneEnabled(enabled);
-      this._micShouldBeEnabled = enabled;
-      this.emit("mic-state-changed", { enabled: this._micShouldBeEnabled });
+  protected async unpublishTrack(kind: LocalTrackKind): Promise<void> {
+    switch (kind) {
+      case "microphone":
+        // The microphone stays published when a stream without an audio track is set, as before
+        break;
+      case "camera":
+        await this.unpublishCamera();
+        break;
+      case "screen":
+        await this.unpublishShare();
+        break;
     }
   }
 
-  get isMicEnabled(): boolean | null {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return false;
-    return this._room?.localParticipant.isMicrophoneEnabled ?? false;
+  protected async setMicEnabled(enabled: boolean): Promise<boolean> {
+    // The mic track is published manually via publishTrack() (so we can wrap the
+    // stream for eval chirp injection and control getUserMedia ourselves), which
+    // gives it Source.Unknown. localParticipant.setMicrophoneEnabled() only acts
+    // on a Source.Microphone track, so it silently no-ops here and the mic never
+    // actually mutes — a LiveKit-only bug (Dialog pauses its producer directly).
+    // Mute/unmute the real published track instead. Without a publication the
+    // media session keeps the request and the microphone is published in it;
+    // LiveKit's managed microphone would be a second one that the mute does not reach.
+    const track = this._micPublication?.track;
+    if (!track) return false;
+    // The SDK mutes and unmutes behind a lock, so the state changes only once this settles
+    if (enabled) {
+      await track.unmute();
+    } else {
+      await track.mute();
+    }
+    return true;
   }
 
-  async enableCamera(track: MediaStreamTrack): Promise<void> {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._room) return;
+  protected micEnabled(): boolean | null {
+    // Reflect the real published-track mute state — setMicrophoneEnabled() does
+    // not own our manually-published track (see setMicEnabled).
+    const track = this._micPublication?.track;
+    return track ? !track.isMuted : null;
+  }
+
+  private async publishMicrophone(track: MediaStreamTrack): Promise<void> {
+    const micTrack = this._micPublication?.track;
+    if (micTrack instanceof LocalAudioTrack) {
+      // Swap the MediaStreamTrack under the existing publication instead of publishing a second mic.
+      // replaceTrack() keeps the publication's muted flag but not the new track's enabled flag,
+      // so align them first or a muted mic would start sending audio.
+      track.enabled = !micTrack.isMuted;
+      await micTrack.replaceTrack(track);
+    } else {
+      await this.publishMicrophoneTrack(track);
+    }
+
+    this.emit("mic-state-changed", { enabled: this.isMicEnabled });
+  }
+
+  /**
+   * Publishes a microphone track in the state last asked for. A microphone asked to be off is muted before it
+   * is published, so it never sends; LiveKit would otherwise enable the track as it publishes it.
+   */
+  private async publishMicrophoneTrack(track: MediaStreamTrack): Promise<void> {
+    const microphone = new LocalAudioTrack(track, undefined, true);
+    if (!this.media.micShouldBeEnabled) await microphone.mute();
+    this._micPublication = await this._room!.localParticipant.publishTrack(microphone, {
+      name: "microphone",
+      simulcast: false
+    });
+    // The request may have changed while the microphone was being published
+    await this.setMicEnabled(this.media.micShouldBeEnabled);
+  }
+
+  private async publishCamera(track: MediaStreamTrack): Promise<void> {
+    if (!this._room) return;
 
     try {
       // publishTrack returns LocalTrackPublication
@@ -708,8 +572,8 @@ export class LivekitAdapter extends SfuAdapter {
     }
   }
 
-  async disableCamera(): Promise<void> {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._room) return;
+  private async unpublishCamera(): Promise<void> {
+    if (!this._room) return;
 
     if (this._cameraPublication?.track) {
       try {
@@ -722,8 +586,8 @@ export class LivekitAdapter extends SfuAdapter {
     }
   }
 
-  async enableShare(track: MediaStreamTrack): Promise<void> {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._room) return;
+  private async publishShare(track: MediaStreamTrack): Promise<void> {
+    if (!this._room) return;
 
     try {
       // publishTrack returns LocalTrackPublication
@@ -738,8 +602,8 @@ export class LivekitAdapter extends SfuAdapter {
     }
   }
 
-  async disableShare(): Promise<void> {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._room) return;
+  private async unpublishShare(): Promise<void> {
+    if (!this._room) return;
 
     if (this._sharePublication?.track) {
       try {
@@ -774,53 +638,16 @@ export class LivekitAdapter extends SfuAdapter {
     document.body.dispatchEvent(new CustomEvent("unblocked", { detail: { clientId } }));
   }
 
-  broadcast(channel: string, message: string): void {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._room) return;
-
-    try {
-      const data = this._textEncoder.encode(message);
-      this._room.localParticipant.publishData(data, {
-        reliable: true,
-        topic: channel
-      });
-
-      if (this._isRecording && !channel.includes("#avatar-")) {
-        this._recordedDataChannelMessages.push({
-          l: channel,
-          m: message,
-          t: Date.now(),
-          s: 1
-        });
-      }
-    } catch (error) {
-      console.error("Broadcast error:", error);
-      this.emitRTCEvent("error", "DataChannel", () => `Broadcast failed: ${error}`);
-    }
-  }
-
-  broadcastUint8(channel: string, message: Uint8Array): void {
-    if (this._connectionType === SFU_CONNECTION_TYPE.RECV || !this._room) return;
-
-    try {
-      // Avatar transform data is time-sensitive, use unreliable
-      const reliable = !channel.includes("#avatar-");
-
-      this._room.localParticipant.publishData(message, {
-        reliable,
-        topic: channel
-      });
-
-      if (this._isRecording && !channel.includes("#avatar-")) {
-        this._recordedDataChannelMessages.push({
-          l: channel,
-          m: this._textDecoder.decode(message),
-          t: Date.now(),
-          s: 1
-        });
-      }
-    } catch (error) {
-      console.error("BroadcastUint8 error:", error);
-    }
+  protected sendData(label: string, data: Uint8Array, spec: ChannelSpec): void {
+    // Before the room is connected there is no connection to send on; while reconnecting the SDK keeps the data
+    const state = this._room?.state;
+    if (!this._room || state === ConnectionState.Connecting || state === ConnectionState.Disconnected) return;
+    this._room.localParticipant
+      .publishData(data, {
+        reliable: spec.reliable,
+        topic: label
+      })
+      .catch(error => debug("Data not sent:", label, error));
   }
 
   emitRTCEvent(level: string, tag: string, msgFunc: () => void): void {
@@ -832,60 +659,5 @@ export class LivekitAdapter extends SfuAdapter {
       second: "numeric"
     });
     (this._scene as any)?.emit("rtc_event", { level, tag, time, msg: msgFunc() });
-  }
-
-  private _resolvePendingMediaRequestForTrack(clientId: string, track: RemoteTrack): void {
-    if (this._connectionType === SFU_CONNECTION_TYPE.SEND) return;
-
-    const requests = this._pendingMediaRequests.get(clientId);
-    if (!requests) return;
-
-    const kind = track.kind;
-    if (requests[kind]) {
-      const resolve = requests[kind].resolve;
-      delete requests[kind];
-
-      const mediaTrack = track.mediaStreamTrack;
-      if (mediaTrack) {
-        resolve(new MediaStream([mediaTrack]));
-      }
-    }
-
-    if (Object.keys(requests).length === 0) {
-      this._pendingMediaRequests.delete(clientId);
-    }
-  }
-
-  private async _tryAttachAudioToPublicSpeakerAgent(clientId: string, track: RemoteTrack): Promise<void> {
-    if (!clientId.includes("PS-") || this._roomId.includes("public_speaking")) return;
-    if (track.kind !== "audio") return;
-
-    try {
-      const stream = await this.getMediaStream(clientId, "audio");
-      if (!stream) return;
-
-      this.crossRoomStreamerAudioSource[clientId] = new CrossRoomStreamerAudioSource(
-        new MediaStream(stream as any)
-      );
-
-      const tryAttachAudioToAvatar = (): void => {
-        const avatarEid = this._avatarSyncHelper._client2AvatarEid.get(clientId);
-        if (avatarEid) {
-          const avatarObj = (window as any).APP.world.eid2obj.get(avatarEid);
-          if (avatarObj) {
-            this.crossRoomStreamerAudioSource[clientId].attachAudio(avatarObj);
-            return;
-          }
-        }
-        // Retry if not attached yet
-        if (this.crossRoomStreamerAudioSource[clientId] && !this.crossRoomStreamerAudioSource[clientId].node) {
-          window.setTimeout(tryAttachAudioToAvatar, 1000);
-        }
-      };
-
-      tryAttachAudioToAvatar();
-    } catch (error) {
-      console.error(`Error attaching audio to public speaker ${clientId}:`, error);
-    }
   }
 }

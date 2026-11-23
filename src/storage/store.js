@@ -65,7 +65,7 @@ export const SCHEMA = {
       properties: {
         displayName: { type: "string", pattern: "^[A-Za-z0-9_~\\s\\-]{3,32}$" },
         avatarId: { type: "string" },
-        pronouns: { type: "string", pattern: "^([a-zA-Z]{1,32}\\/){0,4}[a-zA-Z]{1,32}$" },
+        pronouns: { type: "string", pattern: "^([a-zA-Z]{1,32}[\\/, ]\\s*){0,4}[a-zA-Z]{1,32}$" },
         // personalAvatarId is obsolete, but we need it here for backwards compatibility.
         personalAvatarId: { type: "string" }
       }
@@ -151,6 +151,12 @@ export const SCHEMA = {
         disableAutoGainControl: { type: "bool", default: isFirefoxReality },
         locale: { type: "string", default: "browser" },
         showRtcDebugPanel: { type: "bool", default: false },
+        // The body calibration the body solver takes in VR (avatar/calibration/body-calibration.ts): the
+        // player's height in centimetres, 0 until entered; "standing" or "sitting"; and "avatarToPlayer" or
+        // "playerToAvatar", how a difference in height between player and avatar is resolved
+        bodyHeightCm: { type: "number", default: 0 },
+        bodyPosture: { type: "string", default: "standing" },
+        bodyFit: { type: "string", default: "avatarToPlayer" },
         showAudioDebugPanel: { type: "bool", default: false },
         enableAudioClipping: { type: "bool", default: false },
         audioClippingThreshold: { type: "number", default: 0.015 },

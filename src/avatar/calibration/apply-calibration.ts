@@ -1,0 +1,378 @@
+import { AElement } from "aframe";
+import { Object3D, WebGLRenderer } from "three";
+import {
+  BodyCalibration,
+  BodyFit,
+  BodyPosture,
+  deriveBodyCalibration,
+  isCalibratedHeight,
+  parseBodyFit,
+  parseBodyPosture
+} from "./body-calibration";
+import { HeadsetSample, TriggerState, VrHeightCapture } from "./vr-capture";
+
+/**
+ * Applies the body calibration to the own player while they are in VR and have a height saved: it captures
+ * the headset's height when the VR session starts, on a press of both triggers (vr-capture.ts), derives
+ * the calibration from the preferences, the capture and the own model's eye height (body-calibration.ts),
+ * and applies it:
+ *
+ * - "Fit me to the avatar" scales the avatar rig (#avatar-rig), multiplied with the avatar_scale address
+ *   parameter's scale, so the view, the reach and the walking speed take the model's size;
+ * - a seated player's tracking offset lifts the headset and both controllers together;
+ * - the standing eye height in room metres is announced with the own avatar (net/pose-sync.ts) and kept in
+ *   the pose store under the own client id, from which the own avatar's VR solver takes its ratio too.
+ *
+ * Where the offset goes. The headset's pose reaches the camera through three.js's WebXR manager, which reads
+ * the viewer pose in its reference space every frame; the controllers' poses come from the user input
+ * system, which reads them in a reference space of its own (both "local-floor"). The camera and the
+ * controllers are children of the rig, and the rig itself is kept on the floor of the navigation mesh by
+ * the character controller, which measures the player's height as the camera's height over the rig. So the
+ * offset is applied where the poses come from: both are given one offset reference space
+ * (getOffsetReferenceSpace), and the camera, the avatar's point of view, the controllers, their cursors and
+ * whatever hangs from them rise together, while the rig stays on the floor and its position, sent to the
+ * others as the avatar's, is unchanged. An offset at the rig would lift the rig off the floor, and the
+ * character controller would put it back.
+ *
+ * Nothing of this applies outside VR or without a saved height: then the rig takes
+ * its own scale back, the reference spaces their own, and no eye height is announced. Everything is
+ * re-applied when the own model changes, a preference changes or a capture ends. Ticked once a frame from
+ * avatarSystemsTick, before the own pose is sampled.
+ */
+
+/** A change of the rig's scale smaller than this is rounding, not a change */
+const SCALE_EPSILON = 1e-9;
+
+/** The rig's scale the avatar_scale address parameter asks for, as scene-entry-manager.js applies it; 1 without */
+function avatarScaleParameter(): number {
+  const scale = parseInt(new URLSearchParams(location.search).get("avatar_scale") || "", 10);
+  return scale ? scale : 1;
+}
+
+/** The own model's eye height at its own size, in metres; 0 while the own avatar has no model */
+function ownModelEyeHeight(): number {
+  const avatarSync = APP.sfu?.avatarSync;
+  if (!avatarSync) return 0;
+  const avatarEid = avatarSync.models.avatarEidByClientId.get(APP.sfu.clientId);
+  const ik = avatarEid === undefined ? undefined : APP.world.eid2Ik.get(avatarEid);
+  return ik ? ik.modelEyeHeight() : 0;
+}
+
+/** The two cursors, whose click a trigger press would otherwise be */
+const CURSOR_CONTROLLER_IDS = ["right-cursor-controller", "left-cursor-controller"];
+/** The short vibration of both controllers when the height is taken: strength from 0 to 1, and milliseconds */
+const CAPTURED_PULSE_STRENGTH = 0.6;
+const CAPTURED_PULSE_MS = 80;
+
+/** The user input system's reference space, in which it reads the controllers' poses */
+type UserInputReferenceSpace = { xrReferenceSpace?: XRReferenceSpace | null };
+
+type CalibrationInputs = {
+  heightCm: number;
+  posture: BodyPosture;
+  fit: BodyFit;
+  capturedHeadHeight: number | null;
+  modelEyeHeight: number;
+};
+
+export class BodyCalibrationController {
+  private readonly capture = new VrHeightCapture();
+  private readonly baseRigScale = avatarScaleParameter();
+  /** The XR session the capture and the reference spaces below belong to */
+  private session: XRSession | null = null;
+  /** The WebXR manager's own reference space for the session, before any offset */
+  private baseSpace: XRReferenceSpace | null = null;
+  /** The offset reference space given to the camera and the controllers; null while there is no offset */
+  private offsetSpace: XRReferenceSpace | null = null;
+  private appliedOffsetY = 0;
+  /** Whether this controller set the rig's scale, so it puts the scale back when it stops applying */
+  private scalesRig = false;
+  /**
+   * The headset's captured height in real metres for this session; null before the first steady capture.
+   * A capture that times out leaves it as it was: the entered height alone on the first capture, the
+   * previous capture on a repeated one.
+   */
+  private capturedHeadHeight: number | null = null;
+  /** The posture the captures of this session are taken in; a capture in another posture does not count */
+  private capturePosture: BodyPosture | null = null;
+  private captureRequested = false;
+  private readonly triggers: TriggerState = { left: false, right: false, connected: false };
+  /** Whether the cursors are switched off because a capture waits for the triggers */
+  private blocksControllers = false;
+  /** The own model's eye height, kept while a new model loads so the fit does not jump in between */
+  private modelEyeHeight = 0;
+  private inputs: CalibrationInputs | null = null;
+  private calibration: BodyCalibration | null = null;
+  /** The own eye height last written to the pose store, and under which client id */
+  private announcedEyeHeight: number | undefined;
+  private announcedClientId: string | undefined;
+
+  /** The calibration applied now; null while none is */
+  get current(): BodyCalibration | null {
+    return this.calibration;
+  }
+
+  /** Whether a calibrated player is fitted to the avatar now, so their walking speed follows the rig's scale */
+  get fitsPlayerToAvatar(): boolean {
+    return this.inputs?.fit === "playerToAvatar" && this.calibration !== null;
+  }
+
+  /** Whether the headset can be captured now: in VR, with a height saved */
+  get canCapture(): boolean {
+    return this.session !== null && this.calibration !== null;
+  }
+
+  /**
+   * Whether a press of the triggers belongs to the capture now and should do nothing else in the room: the
+   * cursors are switched off meanwhile, and the teleporters ask here (components/teleporter.js)
+   */
+  get blocksControllerActions(): boolean {
+    return this.blocksControllers;
+  }
+
+  /** Whether a capture is under way or starts on the next frame */
+  get isCapturing(): boolean {
+    return this.captureRequested || this.capture.isRunning;
+  }
+
+  /**
+   * Captures the headset's height again, from the next frame, if it can be captured now. Asked for from the
+   * in-world menu in VR (components/body-capture-button.js); the last capture stays applied until the new
+   * one is taken, and stays if the new one times out.
+   */
+  requestCapture() {
+    if (this.canCapture) this.captureRequested = true;
+  }
+
+  /** `now` is the frame's time in milliseconds */
+  tick(now: number) {
+    const scene = APP.scene;
+    const preferences = APP.store?.state.preferences;
+    // A stand-in renderer, such as a bot's, may have no WebXR manager
+    const xr: WebGLRenderer["xr"] | undefined = scene?.renderer?.xr;
+    const session = xr && xr.isPresenting && scene!.is("vr-mode") ? xr.getSession() : null;
+    const heightCm = preferences?.bodyHeightCm;
+    if (!xr || !session || !isCalibratedHeight(heightCm)) {
+      this.stop(xr);
+      if (!session) this.forgetSession();
+      return;
+    }
+
+    if (session !== this.session) {
+      // A new VR session: its reference space is the WebXR manager's own until an offset is given, and the
+      // headset is captured afresh (forgetting the session forgets the posture, which starts a capture)
+      this.forgetSession();
+      this.session = session;
+    }
+    if (!this.baseSpace) {
+      this.baseSpace = xr.getReferenceSpace();
+      if (!this.baseSpace) return;
+    }
+
+    const posture = parseBodyPosture(preferences.bodyPosture);
+    if (posture !== this.capturePosture) {
+      // The session's first frame, or the posture changed: a capture in the other posture does not count
+      this.capturePosture = posture;
+      this.capturedHeadHeight = null;
+      this.captureRequested = true;
+    }
+    if (this.captureRequested) {
+      this.captureRequested = false;
+      this.capture.start(posture);
+    }
+    if (this.capture.isRunning) {
+      const captured = this.capture.step(now / 1000, this.readHeadset(xr), this.readTriggers(session));
+      if (captured !== undefined && captured !== null) {
+        this.capturedHeadHeight = captured;
+        console.log(`Body calibration: captured the headset at ${captured.toFixed(3)} m`);
+        this.pulseControllers(session);
+      } else if (captured === null) {
+        console.warn("Body calibration: no capture was taken; the entered height is used as it is");
+      }
+    }
+    this.capture.tick(now / 1000);
+    this.blockControllers(this.capture.waitsForTriggers);
+
+    const modelEyeHeight = ownModelEyeHeight();
+    if (modelEyeHeight > 0) this.modelEyeHeight = modelEyeHeight;
+    const fit = parseBodyFit(preferences.bodyFit);
+    const inputs = this.inputs;
+    if (
+      !this.calibration ||
+      !inputs ||
+      inputs.heightCm !== heightCm ||
+      inputs.posture !== posture ||
+      inputs.fit !== fit ||
+      inputs.capturedHeadHeight !== this.capturedHeadHeight ||
+      inputs.modelEyeHeight !== this.modelEyeHeight
+    ) {
+      const changed = {
+        heightCm,
+        posture,
+        fit,
+        capturedHeadHeight: this.capturedHeadHeight,
+        modelEyeHeight: this.modelEyeHeight
+      };
+      this.inputs = changed;
+      this.calibration = deriveBodyCalibration(changed);
+      console.log("Body calibration:", { ...changed, ...this.calibration });
+    }
+
+    this.applyRigScale(this.baseRigScale * this.calibration.rigScale);
+    this.scalesRig = true;
+    this.applyOffset(xr, this.calibration.trackingOffsetY);
+    this.announce(this.calibration.announcedEyeHeight * this.baseRigScale);
+  }
+
+  /** The headset's pose in the WebXR manager's own reference space: real metres, before the offset and the rig */
+  private readHeadset(xr: WebGLRenderer["xr"]): HeadsetSample | null {
+    const frame = xr.getFrame();
+    if (!frame || !this.baseSpace) return null;
+    const pose = frame.getViewerPose(this.baseSpace);
+    if (!pose) return null;
+    return { height: pose.transform.position.y, quaternion: pose.transform.orientation };
+  }
+
+  /** Whether each controller's trigger is down, and whether any controller is connected */
+  private readTriggers(session: XRSession): TriggerState {
+    const triggers = this.triggers;
+    triggers.left = false;
+    triggers.right = false;
+    triggers.connected = false;
+    const sources = session.inputSources;
+    for (let i = 0; i < sources.length; i++) {
+      const gamepad = sources[i].gamepad;
+      if (!gamepad) continue;
+      triggers.connected = true;
+      const down = !!gamepad.buttons[0]?.pressed;
+      if (sources[i].handedness === "left") triggers.left = down;
+      else if (sources[i].handedness === "right") triggers.right = down;
+    }
+    return triggers;
+  }
+
+  /** A short vibration of every controller that can vibrate */
+  private pulseControllers(session: XRSession) {
+    const sources = session.inputSources;
+    for (let i = 0; i < sources.length; i++) {
+      const actuator = sources[i].gamepad?.hapticActuators?.[0] as
+        | { pulse?: (strength: number, milliseconds: number) => Promise<unknown> }
+        | undefined;
+      try {
+        actuator?.pulse?.(CAPTURED_PULSE_STRENGTH, CAPTURED_PULSE_MS)?.catch(() => {});
+      } catch (error) {
+        // A controller that cannot vibrate: the prompt alone says the height was taken
+      }
+    }
+  }
+
+  /**
+   * Switches the cursors off while a capture waits for the triggers, so that the press does not click or
+   * grab what the cursors point at, and back on afterwards. The entry flow switches them on when the room is
+   * entered, so "off" is set again every frame it is wanted.
+   */
+  private blockControllers(blocked: boolean) {
+    if (!blocked && !this.blocksControllers) return;
+    this.blocksControllers = blocked;
+    const enabled = !blocked && !!APP.scene?.is("entered");
+    for (const id of CURSOR_CONTROLLER_IDS) {
+      const cursor = (document.getElementById(id) as AElement | null)?.components["cursor-controller"] as
+        | { enabled: boolean }
+        | undefined;
+      if (cursor && cursor.enabled !== enabled) cursor.enabled = enabled;
+    }
+  }
+
+  private rig(): Object3D | null {
+    return (document.getElementById("avatar-rig") as AElement | null)?.object3D ?? null;
+  }
+
+  private applyRigScale(scale: number) {
+    const rig = this.rig();
+    if (!rig || Math.abs(rig.scale.y - scale) < SCALE_EPSILON) return;
+    rig.scale.setScalar(scale);
+    rig.matrixNeedsUpdate = true;
+  }
+
+  /**
+   * Gives the camera and the controllers a reference space whose poses are higher by the offset, or their
+   * own while the offset is 0. The user input system asks for its reference space a moment after a session
+   * starts, so it is checked every frame.
+   */
+  private applyOffset(xr: WebGLRenderer["xr"], offsetY: number) {
+    const base = this.baseSpace!;
+    if (offsetY !== this.appliedOffsetY || (offsetY !== 0 && !this.offsetSpace)) {
+      this.offsetSpace =
+        offsetY === 0 ? null : base.getOffsetReferenceSpace(new XRRigidTransform({ x: 0, y: -offsetY, z: 0 }));
+      this.appliedOffsetY = offsetY;
+      xr.setReferenceSpace(this.offsetSpace ?? base);
+      const userinput = this.userinput();
+      if (userinput && !this.offsetSpace && userinput.xrReferenceSpace) userinput.xrReferenceSpace = base;
+    }
+    if (this.offsetSpace) {
+      const userinput = this.userinput();
+      if (userinput && userinput.xrReferenceSpace !== this.offsetSpace) userinput.xrReferenceSpace = this.offsetSpace;
+    }
+  }
+
+  private userinput(): UserInputReferenceSpace | undefined {
+    return APP.scene?.systems.userinput as unknown as UserInputReferenceSpace | undefined;
+  }
+
+  /** Keeps the own eye height in the pose store and tells the peers when it changed */
+  private announce(eyeHeight: number | undefined) {
+    const clientId = APP.sfu?.clientId;
+    if (eyeHeight === this.announcedEyeHeight && clientId === this.announcedClientId) return;
+    if (this.announcedClientId !== undefined && this.announcedClientId !== clientId) {
+      APP.avatarPoses.setAnnouncedEyeHeight(this.announcedClientId, undefined);
+    }
+    if (clientId) APP.avatarPoses.setAnnouncedEyeHeight(clientId, eyeHeight);
+    const changed = eyeHeight !== this.announcedEyeHeight;
+    this.announcedEyeHeight = eyeHeight;
+    this.announcedClientId = clientId;
+    if (changed) APP.sfu?.avatarSync?.announceSelfChanged();
+  }
+
+  /** Takes everything back: the rig's scale, the reference spaces, the announced eye height and the prompt */
+  private stop(xr: WebGLRenderer["xr"] | undefined) {
+    // A capture cut short starts again when the calibration applies again
+    if (this.capture.isRunning) this.capturePosture = null;
+    this.capture.cancel();
+    this.blockControllers(false);
+    this.captureRequested = false;
+    if (this.scalesRig) {
+      this.applyRigScale(this.baseRigScale);
+      this.scalesRig = false;
+    }
+    if (this.offsetSpace || this.appliedOffsetY !== 0) {
+      if (xr && this.baseSpace) xr.setReferenceSpace(this.baseSpace);
+      const userinput = this.userinput();
+      if (userinput && this.baseSpace && userinput.xrReferenceSpace === this.offsetSpace) {
+        userinput.xrReferenceSpace = this.baseSpace;
+      }
+      this.offsetSpace = null;
+      this.appliedOffsetY = 0;
+    }
+    this.inputs = null;
+    this.calibration = null;
+    this.announce(undefined);
+  }
+
+  /** Forgets the session: the next one starts with its own reference space and a new capture */
+  private forgetSession() {
+    this.session = null;
+    this.baseSpace = null;
+    this.offsetSpace = null;
+    this.appliedOffsetY = 0;
+    this.capturedHeadHeight = null;
+    this.capturePosture = null;
+  }
+}
+
+/** The page's one controller */
+export const bodyCalibration = new BodyCalibrationController();
+
+/** Whether the own walking speed follows the rig's scale itself: a calibrated player fitted to the avatar */
+export function walkingSpeedFollowsRigScale(): boolean {
+  return bodyCalibration.fitsPlayerToAvatar;
+}

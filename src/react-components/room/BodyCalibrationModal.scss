@@ -1,0 +1,13 @@
+@use "../styles/theme.scss";
+
+:local(.content) {
+  p {
+    font-size: theme.$font-size-sm;
+    font-weight: theme.$font-weight-medium;
+    line-height: 1.2;
+  }
+
+  & > :last-child {
+    margin-top: auto;
+  }
+}

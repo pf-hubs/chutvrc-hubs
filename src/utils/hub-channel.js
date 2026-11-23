@@ -479,6 +479,29 @@ export default class HubChannel extends EventTarget {
     return (await this.fetchSfuToken()).accessToken;
   };
 
+  /** Lets a session of this room speak to the other rooms, or stops letting it; for a room owner */
+  allowPublicSpeaker = (sessionId, allowed) =>
+    new Promise((resolve, reject) => {
+      this.channel
+        .push("allow_public_speaker", { session_id: sessionId, allowed }, 10000)
+        .receive("ok", resolve)
+        .receive("error", reject)
+        .receive("timeout", () => reject(new Error("timeout")));
+    });
+
+  /**
+   * The LiveKit token of one of a broadcast's sessions: "speak", "listen", or "relay" with the speaker's name.
+   * It is not the room's token: that one's identity is this client's connection to the room.
+   */
+  fetchPublicSpeakingToken = (role, speaker) =>
+    new Promise((resolve, reject) => {
+      this.channel
+        .push("public_speaking_sfu_token", { role, speaker }, 10000)
+        .receive("ok", res => resolve(res.sfu_access_token))
+        .receive("error", reject)
+        .receive("timeout", () => reject(new Error("timeout")));
+    });
+
   _hasValidSfuToken = () => {
     if (!this._sfuToken) return false;
     if (!this._sfuTokenDecoded) return true;
@@ -535,10 +558,7 @@ export default class HubChannel extends EventTarget {
    */
   sendDeviceOffer = (deviceId, offer) => {
     return new Promise((resolve, reject) => {
-      this.channel
-        .push("device:offer", { device_id: deviceId, offer })
-        .receive("ok", resolve)
-        .receive("error", reject);
+      this.channel.push("device:offer", { device_id: deviceId, offer }).receive("ok", resolve).receive("error", reject);
     });
   };
 

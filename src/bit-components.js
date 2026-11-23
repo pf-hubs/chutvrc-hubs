@@ -1,5 +1,5 @@
 import { defineComponent, setDefaultSize, setRemovedRecycleThreshold, Types } from "bitecs";
-import { BoneType } from "./constants";
+import { bodyBoneRecord } from "./avatar/rig/bone-names";
 
 // TODO this has to happen before all components are defined. Is there a better spot to be doing this?
 setDefaultSize(10000);
@@ -22,7 +22,9 @@ export const Owned = defineComponent();
 export const EntityStateDirty = defineComponent();
 export const NetworkedMediaFrame = defineComponent({
   capturedNid: Types.ui32,
-  scale: [Types.f32, 3]
+  scale: [Types.f32, 3],
+  flags: Types.ui8,
+  mediaType: Types.ui8
 });
 NetworkedMediaFrame.capturedNid[$isStringType] = true;
 
@@ -37,6 +39,44 @@ export const MediaFrame = defineComponent({
   previewingNid: Types.eid,
   flags: Types.ui8
 });
+export const MediaRoot = defineComponent();
+// A string property holds a string id from APP.getSid(), which counts up without limit, so it needs 32 bits
+export const NetworkedText = defineComponent({
+  text: Types.ui32,
+  anchorX: Types.ui8,
+  anchorY: Types.ui8,
+  color: Types.ui32,
+  curveRadius: Types.f32,
+  direction: Types.ui8,
+  fillOpacity: Types.f32,
+  fontUrl: Types.ui8,
+  fontSize: Types.f32,
+  letterSpacing: Types.f32,
+  lineHeight: Types.ui32,
+  textAlign: Types.ui8,
+  outlineWidth: Types.ui32,
+  outlineColor: Types.ui32,
+  outlineBlur: Types.ui32,
+  outlineOffsetX: Types.ui32,
+  outlineOffsetY: Types.ui32,
+  outlineOpacity: Types.f32,
+  strokeWidth: Types.ui32,
+  strokeColor: Types.ui32,
+  strokeOpacity: Types.ui32,
+  textIndent: Types.ui32,
+  whiteSpace: Types.ui8,
+  overflowWrap: Types.ui8,
+  opacity: Types.f32,
+  side: Types.ui8,
+  maxWidth: Types.f32
+});
+NetworkedText.text[$isStringType] = true;
+NetworkedText.lineHeight[$isStringType] = true;
+NetworkedText.outlineWidth[$isStringType] = true;
+NetworkedText.outlineBlur[$isStringType] = true;
+NetworkedText.outlineOffsetX[$isStringType] = true;
+NetworkedText.outlineOffsetY[$isStringType] = true;
+NetworkedText.strokeWidth[$isStringType] = true;
 export const TextTag = defineComponent();
 export const ReflectionProbe = defineComponent();
 export const Slice9 = defineComponent({
@@ -60,7 +100,9 @@ export const SpotLightTag = defineComponent();
 export const CursorRaycastable = defineComponent();
 export const RemoteHoverTarget = defineComponent();
 export const NotRemoteHoverTarget = defineComponent();
-export const Holdable = defineComponent();
+export const Holdable = defineComponent({
+  flags: Types.ui8
+});
 export const RemoveNetworkedEntityButton = defineComponent();
 export const Interacted = defineComponent();
 export const HandRight = defineComponent();
@@ -120,7 +162,11 @@ export const Rigidbody = defineComponent({
   activationState: Types.ui8,
   collisionFilterGroup: Types.ui32,
   collisionFilterMask: Types.ui32,
-  flags: Types.ui8
+  flags: Types.ui8,
+  initialCollisionFilterMask: Types.ui32
+});
+export const NetworkedRigidBody = defineComponent({
+  prevType: Types.ui8
 });
 export const PhysicsShape = defineComponent({
   bodyId: Types.ui16,
@@ -271,9 +317,12 @@ export const LoopAnimation = defineComponent();
  */
 export const LoopAnimationData = new Map();
 export const NetworkedVideo = defineComponent({
+  src: Types.ui32,
   time: Types.f32,
-  flags: Types.ui8
+  flags: Types.ui8,
+  projection: Types.ui8
 });
+NetworkedVideo.src[$isStringType] = true;
 export const VideoMenuItem = defineComponent();
 export const VideoMenu = defineComponent({
   videoRef: Types.eid,
@@ -388,6 +437,7 @@ export const Billboard = defineComponent({
   onlyY: Types.ui8
 });
 export const MaterialTag = defineComponent();
+export const TextureTag = defineComponent();
 export const UVScroll = defineComponent({
   speed: [Types.f32, 2],
   increment: [Types.f32, 2],
@@ -442,8 +492,6 @@ export const LinearScale = defineComponent({
   targetY: Types.f32,
   targetZ: Types.f32
 });
-export const Quack = defineComponent();
-
 const Vector3Schema = { x: Types.f32, y: Types.f32, z: Types.f32 };
 const QuaternionSchema = { x: Types.f32, y: Types.f32, z: Types.f32 };
 const TransformSchema = {
@@ -454,28 +502,8 @@ const BoneSchema = {
   // boneType: Types.ui8,
   transform: TransformSchema
 };
-const AvatarSchema = {
-  root: Types.eid,
-  hips: Types.eid,
-  spine: Types.eid,
-  chest: Types.eid,
-  neck: Types.eid,
-  head: Types.eid,
-  leftUpperLeg: Types.eid,
-  leftLowerLeg: Types.eid,
-  leftFoot: Types.eid,
-  rightUpperLeg: Types.eid,
-  rightLowerLeg: Types.eid,
-  rightFoot: Types.eid,
-  leftShoulder: Types.eid,
-  leftUpperArm: Types.eid,
-  leftLowerArm: Types.eid,
-  leftHand: Types.eid,
-  rightShoulder: Types.eid,
-  rightUpperArm: Types.eid,
-  rightLowerArm: Types.eid,
-  rightHand: Types.eid
-};
+// The bone entity of each body bone, by bone name; 0 for a bone the model lacks
+const AvatarSchema = bodyBoneRecord(Types.eid);
 
 export const TransformComponent = defineComponent(TransformSchema);
 export const BoneComponent = defineComponent(BoneSchema);

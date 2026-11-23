@@ -1,69 +1,125 @@
 import EventEmitter from "eventemitter3";
-import { AvatarSyncHelper } from "../utils/avatar-sync-helper";
+import { PoseSync } from "../avatar/net/pose-sync";
 import { SFU, SFU_CONNECTION_TYPE } from "../sfu-types";
-import {
-  BridgeCapable,
-  BridgeEnvelope,
-  BridgeMessageCallback,
-  IOT_BRIDGE_CHANNEL
-} from "../libpeer/bridge/bridge-capable";
+import { BridgeEnvelope, BridgeMessageCallback, IOT_BRIDGE_CHANNEL } from "../libpeer/bridge/bridge-capable";
 import { serializeBridgeEnvelope, deserializeBridgeEnvelope } from "../libpeer/bridge/bridge-message-protocol";
-import {
-  DataChannelMessage,
-  ISfuConnectable,
-  ISfuMediaStreams,
-  ISfuMicrophoneControl,
-  ISfuDataChannels,
-  ISfuParticipantControl,
-  ISfuDiagnostics,
-  SfuConnectionState
-} from "../types/sfu-adapter-interface";
-import {
-  DataChannelMessageDispatcher,
-  ChannelHandlerRegistry,
-  IChannelHandler
-} from "../utils/data-channel-handlers";
+import { DataChannelMessage, ISfuAdapter, SfuConnectionState } from "../types/sfu-adapter-interface";
+import { DataChannelMessageDispatcher, ChannelHandlerRegistry, IChannelHandler } from "../utils/data-channel-handlers";
+import { SfuConfig } from "./sfu-config";
+import { ChannelSpec, DataChannelBus } from "./data-channel-bus";
+import { LocalTrackKind, MediaSession, MediaSessionOptions } from "./media-session";
 
 // Re-export for backwards compatibility
 export type { DataChannelMessage };
 export { SfuConnectionState };
 
-type Vector3 = { x: number; y: number; z: number };
-type RecordedDataChannelAvatarTransform = { c: string; p: Vector3; r: Vector3 };
-type RecordedDataChannelMessage = {
-  l: string;
-  m: string | RecordedDataChannelAvatarTransform | null;
-  t: number;
-  s: 0 | 1;
-}; // l: label/chanel, m: message, t: timestamp, s: isSend (0: false (is recv), 1: true)
-
 export const SFU_CONNECTION_CONNECTED = "sfu-connection-connected";
 export const SFU_CONNECTION_ERROR_FATAL = "sfu-connection-error-fatal";
+/** Emitted with the decoded envelope when a message arrives on the IoT bridge channel. */
+export const BRIDGE_MESSAGE_RECEIVED = "bridge-message-received";
 
-export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
-  _sfuId: SFU;
-  _clientId: string;
-  _roomId: string;
-  _avatarSyncHelper: AvatarSyncHelper;
-  _connectionType: SFU_CONNECTION_TYPE;
-  _dataChannelMessages: DataChannelMessage[];
-  _recordedDataChannelMessages: RecordedDataChannelMessage[];
-  _isRecording: boolean;
-  _sendSelfAvatarSrcIntervalId: NodeJS.Timer;
-  _publicSpeakerClientIdsInRoom: string[];
+/**
+ * One connection to one media server. The shared parts (data channels, media, avatar sync, channel
+ * handlers, the IoT bridge) live here and in the bus and media session; each media server's SDK is
+ * driven through the abstract methods. Outside code talks to the SfuSession that owns the adapter.
+ */
+export abstract class SfuAdapter<TConfig extends SfuConfig = SfuConfig> extends EventEmitter implements ISfuAdapter {
+  protected readonly _sfuId: SFU;
+  protected readonly _connectionType: SFU_CONNECTION_TYPE;
+  protected _clientId = "";
+  protected _roomId = "";
+  protected readonly _poseSync: PoseSync;
+  protected _sendSelfAvatarSrcIntervalId: NodeJS.Timer | undefined;
+  protected readonly _publicSpeakerClientIdsInRoom: string[] = [];
+
+  // Data channel sending, recording and relaying, shared by every adapter
+  readonly bus: DataChannelBus = new DataChannelBus(this, {
+    send: (label, data, spec) => this.sendData(label, data, spec),
+    dispatch: (label, data) => this.handleDataChannelMessage(label, data)
+  });
+
+  // Remote streams, local tracks, microphone state and public speaker audio, shared by every adapter
+  readonly media: MediaSession;
+
+  /** Every event the adapter emits is emitted here as well; the owning session sets it. */
+  delegate: EventEmitter | null = null;
+
+  // The config of the current (or last) connection, set by connect()
+  protected _config: TConfig | null = null;
 
   // Message dispatcher for structured channel handling
   protected _messageDispatcher: DataChannelMessageDispatcher | null = null;
   protected _handlerRegistry: ChannelHandlerRegistry | null = null;
 
-  // BridgeCapable implementation
-  protected _bridgeMessageCallbacks: Set<BridgeMessageCallback> = new Set();
-  protected _textEncoder: TextEncoder = new TextEncoder();
   protected _textDecoder: TextDecoder = new TextDecoder();
 
   // Token management
   protected _hubChannel: any = null;
   private _boundTokenHandler: ((event: CustomEvent) => void) | null = null;
+
+  constructor(sfuId: SFU, connectionType: SFU_CONNECTION_TYPE, mediaOptions: MediaSessionOptions = {}) {
+    super();
+    this._sfuId = sfuId;
+    this._connectionType = connectionType;
+    this._poseSync = new PoseSync(this);
+    this.media = new MediaSession(
+      this,
+      {
+        publishTrack: (kind, track) => this.publishTrack(kind, track),
+        replaceTrack: (kind, track) => this.replaceTrack(kind, track),
+        unpublishTrack: kind => this.unpublishTrack(kind),
+        setMicEnabled: enabled => this.setMicEnabled(enabled),
+        micEnabled: () => this.micEnabled(),
+        localTracks: kind => this.localTracks(kind),
+        beforeLocalStreamApplied: stream => this.beforeLocalStreamApplied(stream),
+        afterLocalStreamApplied: stream => this.afterLocalStreamApplied(stream)
+      },
+      mediaOptions
+    );
+  }
+
+  emit(event: string | symbol, ...args: any[]): boolean {
+    const handled = super.emit(event, ...args);
+    return this.delegate ? this.delegate.emit(event, ...args) || handled : handled;
+  }
+
+  // ========== Accessors ==========
+
+  get sfuId(): SFU {
+    return this._sfuId;
+  }
+
+  get connectionType(): SFU_CONNECTION_TYPE {
+    return this._connectionType;
+  }
+
+  get clientId(): string {
+    return this._clientId;
+  }
+
+  get roomId(): string {
+    return this._roomId;
+  }
+
+  get avatarSync(): PoseSync {
+    return this._poseSync;
+  }
+
+  /** The clients speaking publicly in this room. Callers add and remove entries in place. */
+  get publicSpeakerClientIds(): string[] {
+    return this._publicSpeakerClientIdsInRoom;
+  }
+
+  get localMediaStream(): MediaStream | null {
+    return this.media.localStream;
+  }
+
+  get config(): TConfig | null {
+    return this._config;
+  }
+
+  /** Whether the adapter has a live connection that can carry media and data. */
+  abstract get isConnected(): boolean;
 
   set hubChannel(channel: any) {
     if (this._hubChannel && this._boundTokenHandler) {
@@ -98,33 +154,122 @@ export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
     }
   }
 
-  connect(props: any) {}
-  disconnect() {}
-  getMediaStream(clientId: string, kind: string) {}
-  getDataChannelMessage(): DataChannelMessage | undefined {
-    return { channelLabel: "", message: null };
+  // ========== Connection ==========
+
+  /** Joins the room described by the config. Throws when the config is for another media server. */
+  abstract connect(config: SfuConfig): Promise<void>;
+
+  /**
+   * Leaves the room and forgets what was in it, in the same order on every media server:
+   * 1. closeConnection(): the transports, room or connection are closed and the SDK listeners detached;
+   *    the local tracks are unpublished but not stopped (the microphone stream belongs to the media devices manager)
+   * 2. the requests waiting for a remote stream are rejected, and the remote streams and public speaker audio forgotten
+   * 3. the relay queue is emptied
+   * 4. the avatar sync stops sending and announcing, and every remote avatar's entity and model are
+   *    removed; the next connection announces the own avatar again, since the room has to send its avatars anew
+   * 5. the public speaker list is emptied
+   * 6. the channel handlers are told, and the hub channel's token handler removed
+   * The adapter can connect() again afterwards.
+   */
+  async disconnect(): Promise<void> {
+    await this.closeConnection();
+    this.media.forgetLocalTracks();
+    this.media.clearRemote(new Error("Disconnected from the media server"));
+    this.bus.clearRelay();
+    if (this._sendSelfAvatarSrcIntervalId) clearInterval(this._sendSelfAvatarSrcIntervalId);
+    this._poseSync.stopSyncing();
+    this._poseSync.handleOnAllRemoteClientsLeave();
+    this._publicSpeakerClientIdsInRoom.length = 0;
+    this.cleanupDispatcher();
+    this._cleanupTokenHandler();
+  }
+
+  /**
+   * Closes the SDK's transports, room or connection and detaches the listeners on its objects.
+   * The local tracks lose their publications but are not stopped.
+   */
+  protected abstract closeConnection(): Promise<void>;
+
+  // ========== Media ==========
+
+  // Typed loosely for the callers, which are JavaScript and handle a null stream themselves
+  getMediaStream(clientId: string, kind: string = "audio"): Promise<any> {
+    return this.media.getMediaStream(clientId, kind);
   }
   getLocalMicTrack(): MediaStreamTrack | undefined {
-    return undefined;
+    if (this._connectionType === SFU_CONNECTION_TYPE.RECV) return undefined;
+    return this.media.localTrack("microphone");
   }
-  getLocalMediaStream() {}
-  setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId?: Map<string, string> | null) {}
-  setLocalDataChannelMessage(m: DataChannelMessage) {} // TODO: specify type
-  toggleMicrophone() {}
-  enableMicrophone(enabled: boolean) {}
+  getLocalMediaStream(): MediaStream | null | undefined {
+    return this.media.localStream;
+  }
+  setLocalMediaStream(stream: MediaStream, videoContentHintByTrackId: Map<string, string> | null = null) {
+    return this.media.setLocalMediaStream(stream, videoContentHintByTrackId);
+  }
+  toggleMicrophone(): void {
+    this.media.toggleMicrophone();
+  }
+  enableMicrophone(enabled: boolean): void {
+    this.media.enableMicrophone(enabled);
+  }
   get isMicEnabled(): boolean | null {
-    return false;
+    return this.media.isMicEnabled;
   }
-  async enableCamera(track: MediaStreamTrack) {}
-  async disableCamera() {}
-  async enableShare(track: MediaStreamTrack) {}
-  async disableShare() {}
-  kick(clientId: string) {}
-  block(clientId: string) {}
-  unblock(clientId: string) {}
-  broadcast(channel: string, message: string) {}
-  broadcastUint8(channel: string, message: Uint8Array) {}
-  emitRTCEvent(level: string, tag: string, msgFunc: () => void) {}
+
+  // ========== Participants and data ==========
+
+  abstract kick(clientId: string): Promise<void> | void;
+  abstract block(clientId: string): Promise<void> | void;
+  abstract unblock(clientId: string): Promise<void> | void;
+  broadcast(channel: string, message: string): void {
+    this.bus.send(channel, message);
+  }
+  broadcastUint8(channel: string, message: Uint8Array): void {
+    this.bus.send(channel, message);
+  }
+  abstract emitRTCEvent(level: string, tag: string, msgFunc: () => string | void): void;
+
+  // ========== Media Driver ==========
+
+  /** Publishes a local track of a kind that was not published before. */
+  protected abstract publishTrack(kind: LocalTrackKind, track: MediaStreamTrack): Promise<void>;
+
+  /** Swaps the track under the existing publication of a kind. */
+  protected abstract replaceTrack(kind: LocalTrackKind, track: MediaStreamTrack): Promise<void>;
+
+  /** Removes the publication of a kind, if any. */
+  protected abstract unpublishTrack(kind: LocalTrackKind): Promise<void>;
+
+  /**
+   * Applies the microphone state in the SDK, settling once the SDK has applied it. Returns false when there was
+   * nothing to apply it to; the media session keeps the request, and the adapter applies it when it publishes
+   * a microphone.
+   */
+  protected abstract setMicEnabled(enabled: boolean): boolean | Promise<boolean>;
+
+  /** The microphone state as the SDK sees it, or null while there is no microphone published. */
+  protected abstract micEnabled(): boolean | null;
+
+  /** The local tracks of a media kind for getMediaStream of the own client. By default the published ones. */
+  protected localTracks(kind: string): MediaStreamTrack[] {
+    return this.media.publishedTracks(kind);
+  }
+
+  /** Runs before a new local stream is applied. Returns false to leave the stream unapplied. */
+  protected beforeLocalStreamApplied(stream: MediaStream): boolean {
+    return true;
+  }
+
+  /** Runs after a new local stream has been applied and remembered. */
+  protected async afterLocalStreamApplied(stream: MediaStream): Promise<void> {}
+
+  // ========== Data Channel Driver ==========
+
+  /**
+   * Hands the bytes for one channel to the SFU SDK. The bus calls this after it has
+   * dropped sends on a receive-only adapter, encoded strings and recorded the message.
+   */
+  protected abstract sendData(label: string, data: Uint8Array, spec: ChannelSpec): void;
 
   // ========== Message Dispatcher ==========
 
@@ -134,12 +279,12 @@ export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
    */
   protected initializeMessageDispatcher(registry: ChannelHandlerRegistry): void {
     this._handlerRegistry = registry;
-    this._messageDispatcher = new DataChannelMessageDispatcher(this, this._avatarSyncHelper, registry);
+    this._messageDispatcher = new DataChannelMessageDispatcher(this, this._poseSync, registry);
   }
 
   /**
    * Handle an incoming data channel message through the dispatcher.
-   * Subclasses should call this instead of handling messages inline.
+   * The bus calls this after it has recorded and queued the message.
    */
   protected handleDataChannelMessage(channelLabel: string, data: ArrayBuffer): void {
     if (this._messageDispatcher) {
@@ -192,18 +337,8 @@ export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
 
   /**
    * Check if bridge channel is ready for transmission
-   * Must be overridden by concrete adapter implementations
    */
-  get isBridgeChannelReady(): boolean {
-    return false;
-  }
-
-  /**
-   * Get the client ID
-   */
-  get clientId(): string {
-    return this._clientId;
-  }
+  abstract get isBridgeChannelReady(): boolean;
 
   /**
    * Send a message through the bridge channel to room participants
@@ -218,17 +353,17 @@ export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
   }
 
   /**
-   * Register a callback for incoming bridge messages
+   * Register a callback for incoming bridge messages. The session the adapter belongs to receives them too.
    */
   onBridgeMessage(callback: BridgeMessageCallback): void {
-    this._bridgeMessageCallbacks.add(callback);
+    this.on(BRIDGE_MESSAGE_RECEIVED, callback);
   }
 
   /**
    * Remove a bridge message callback
    */
   offBridgeMessage(callback: BridgeMessageCallback): void {
-    this._bridgeMessageCallbacks.delete(callback);
+    this.off(BRIDGE_MESSAGE_RECEIVED, callback);
   }
 
   /**
@@ -239,7 +374,7 @@ export abstract class SfuAdapter extends EventEmitter implements BridgeCapable {
     const text = this._textDecoder.decode(data);
     const envelope = deserializeBridgeEnvelope(text);
     if (envelope) {
-      this._bridgeMessageCallbacks.forEach(cb => cb(envelope));
+      this.emit(BRIDGE_MESSAGE_RECEIVED, envelope);
     }
   }
 }

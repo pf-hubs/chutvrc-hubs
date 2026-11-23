@@ -67,6 +67,7 @@ import "./components/bone-mute-state-indicator";
 import "./components/bone-visibility";
 import "./components/fader";
 import "./components/in-world-hud";
+import "./components/body-capture-button";
 import "./components/emoji";
 import "./components/emoji-hud";
 import "./components/virtual-gamepad-controls";
@@ -182,6 +183,7 @@ import "./systems/audio-debug-system";
 import "./systems/audio-gain-system";
 import "./gltf-component-mappings";
 
+import { addons } from "./addons";
 import { App, getScene } from "./app";
 import MediaDevicesManager from "./utils/media-devices-manager";
 import PinningHelper from "./utils/pinning-helper";
@@ -218,8 +220,6 @@ preload(
   })
 );
 
-const store = window.APP.store;
-store.update({ preferences: { shouldPromptForRefresh: false } }); // Clear flag that prompts for refresh from preference screen
 const mediaSearchStore = window.APP.mediaSearchStore;
 const OAUTH_FLOW_PERMS_TOKEN_KEY = "ret-oauth-flow-perms-token";
 const NOISY_OCCUPANT_COUNT = 30; // Above this # of occupants, we stop posting join/leaves/renames
@@ -266,15 +266,17 @@ import { ThemeProvider } from "./react-components/styles/theme";
 import { LogMessageType } from "./react-components/room/ChatSidebar";
 import "./load-media-on-paste-or-drop";
 import { swapActiveScene } from "./bit-systems/scene-loading";
-import { localClientID, setLocalClientID } from "./bit-systems/networking";
+import { setLocalClientID } from "./bit-systems/networking";
 import { listenForNetworkMessages } from "./utils/listen-for-network-messages";
 import { exposeBitECSDebugHelpers } from "./bitecs-debug-helpers";
 import { SFU_CONNECTION_CONNECTED, SFU_CONNECTION_ERROR_FATAL } from "./sfu-adapters/sfu-adapter";
-import { connectSfu } from "./utils/sfu-adapter-utils";
+import { buildSfuConfig, withDialogHost } from "./sfu-adapters/sfu-config";
+import { switchSfu } from "./sfu-adapters/switch-sfu";
 import { loadLegacyRoomObjects } from "./utils/load-legacy-room-objects";
 import { LibpeerDeviceManager, BridgeManager } from "./libpeer";
 import { loadSavedEntityStates } from "./utils/entity-state-utils";
 import { shouldUseNewLoader } from "./utils/bit-utils";
+import { getStore } from "./utils/store-instance";
 
 const PHOENIX_RELIABLE_NAF = "phx-reliable";
 NAF.options.firstSyncSource = PHOENIX_RELIABLE_NAF;
@@ -362,6 +364,7 @@ function mountUI(props = {}) {
     qsTruthy("allow_idle") || (process.env.NODE_ENV === "development" && !qs.get("idle_timeout"));
   const forcedVREntryType = qsVREntryType;
 
+  const store = getStore();
   root.render(
     <WrappedIntlProvider>
       <ThemeProvider store={store}>
@@ -555,8 +558,18 @@ export async function updateEnvironmentForHub(hub, entryManager) {
   }
 }
 
-export async function updateUIForHub(hub, hubChannel, showBitECSBasedClientRefreshPrompt = false) {
-  remountUI({ hub, entryDisallowed: !hubChannel.canEnterRoom(hub), showBitECSBasedClientRefreshPrompt });
+export async function updateUIForHub(
+  hub,
+  hubChannel,
+  showBitECSBasedClientRefreshPrompt = false,
+  showAddonRefreshPrompt = false
+) {
+  remountUI({
+    hub,
+    entryDisallowed: !hubChannel.canEnterRoom(hub),
+    showBitECSBasedClientRefreshPrompt,
+    showAddonRefreshPrompt
+  });
 }
 
 function onConnectionError(entryManager, connectError) {
@@ -621,7 +634,7 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
     onSendMessage: messageDispatch.dispatch,
     onLoaded: () => {
       audioSystem.setMediaGainOverride(1);
-      store.executeOnLoadActions(scene);
+      getStore().executeOnLoadActions(scene);
     },
     onMediaSearchResultEntrySelected: (entry, selectAction) =>
       scene.emit("action_selected_media_result_entry", { entry, selectAction }),
@@ -686,27 +699,11 @@ function handleHubChannelJoined(entryManager, hubChannel, messageDispatch, data)
 
       // Disconnect in case this is a re-entry
 
-      APP.sfu?.disconnect();
-      APP.sfu = APP.sfuCandidates.find((sfu, sfuId) => sfuId === data.sfu);
+      APP.sfu.disconnect();
       APP.sfu.hubChannel = hubChannel;
       listenSfuConnection(scene);
       registerNetworkSchemas();
-      connectSfu(APP.sfu, {
-        sfuId: data.sfu,
-        clientId: data.session_id,
-        channelId: data.sora_channel_id || hub.hub_id,
-        scene,
-        sfuAccessToken: data.sfu_access_token,
-        sfuServerUrl: data.sfu_server_url,
-        sfuRoomId: data.sfu_room_id,
-        serverUrl: `wss://${hub.host}:4443`,
-        serverParams: { host: hub.host, port: hub.port, turn: hub.turn },
-        signalingUrl: data.sora_signaling_url,
-        accessToken: data.sora_access_token,
-        forceTcp: qs?.get("force_tcp"),
-        forceTurn: qs?.get("force_turn"),
-        debug: data.sora_is_debug
-      });
+      APP.sfu.connect(buildSfuConfig(data, hub, scene, qs, APP.sfu.config));
 
       if (data.sfu_access_token) {
         hubChannel.setSfuToken(data.sfu_access_token);
@@ -775,6 +772,7 @@ async function runBotMode(scene, entryManager) {
     render: noop,
     shadowMap: {},
     vr: { isPresenting: alwaysFalse },
+    xr: { enabled: false, isPresenting: false },
     setSize: noop
   };
 
@@ -783,6 +781,9 @@ async function runBotMode(scene, entryManager) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const store = getStore();
+  store.update({ preferences: { shouldPromptForRefresh: false } }); // Clear flag that prompts for refresh from preference screen
+
   if (!root) {
     const container = document.getElementById("ui-root");
     root = createRoot(container);
@@ -1460,16 +1461,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     const displayName = (userInfo && userInfo.metas[0].profile.displayName) || "API";
 
     let showBitECSBasedClientRefreshPrompt = false;
-
-    if (!!hub.user_data?.hubs_use_bitecs_based_client !== !!window.APP.hub.user_data?.hubs_use_bitecs_based_client) {
+    if (!!hub.user_data?.hubs_use_bitecs_based_client !== !!APP.hub.user_data?.hubs_use_bitecs_based_client) {
       showBitECSBasedClientRefreshPrompt = true;
       setTimeout(() => {
         document.location.reload();
       }, 5000);
     }
+    let showAddonRefreshPrompt = false;
+    [...addons.keys()].map(id => {
+      const oldAddonState = !!APP.hub.user_data && "addons" in APP.hub.user_data && APP.hub.user_data.addons[id];
+      const newAddonState = !!hub.user_data && "addons" in hub.user_data && hub.user_data.addons[id];
+      if (newAddonState !== oldAddonState) {
+        showAddonRefreshPrompt = true;
+        setTimeout(() => {
+          document.location.reload();
+        }, 5000);
+      }
+    });
 
     window.APP.hub = hub;
-    updateUIForHub(hub, hubChannel, showBitECSBasedClientRefreshPrompt);
+    updateUIForHub(hub, hubChannel, showBitECSBasedClientRefreshPrompt, showAddonRefreshPrompt);
 
     if (
       stale_fields.includes("scene") ||
@@ -1522,9 +1533,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       scene.emit("hub_closed");
     }
 
-    // if (hub.sfu !== APP.usingSfu) {
-    //   scene.emit("hub_updated_require_refresh");
-    // }
+    if (hub.sfu !== APP.sfu.sfuId) {
+      switchSfu(hub, scene);
+    }
 
     scene.emit("hub_updated", { hub });
   });
@@ -1538,16 +1549,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     APP.sfu.disconnect();
-    connectSfu({
-      sfuId: APP.sfu._sfuId,
-      clientId: APP.getString(localClientID),
-      channelId: APP.hub.hub_id,
-      scene,
-      serverUrl: `wss://${host}:${port}`,
-      serverParams: { host, port, turn },
-      forceTcp: qs.get("force_tcp"),
-      forceTurn: qs.get("force_turn")
-    });
+    APP.sfu.connect(withDialogHost(APP.sfu.config, { host, port, turn }));
   });
 
   hubPhxChannel.on("permissions_updated", () => hubChannel.fetchPermissions());
@@ -1560,4 +1562,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   authChannel.setSocket(socket);
   linkChannel.setSocket(socket);
+
+  APP.notifyOnInit();
 });

@@ -30,6 +30,7 @@ import { AudioZonesSystem } from "./audio-zones-system";
 import { GainSystem } from "./audio-gain-system";
 import { EnvironmentSystem } from "./environment-system";
 import { NameTagVisibilitySystem } from "./name-tag-visibility-system";
+import { MediaPDFOculusFix } from "./media-pdf-oculus-fix";
 
 // new world
 import { networkReceiveSystem } from "../bit-systems/network-receive-system";
@@ -76,10 +77,8 @@ import { textSystem } from "../bit-systems/text";
 import { audioTargetSystem } from "../bit-systems/audio-target-system";
 import { scenePreviewCameraSystem } from "../bit-systems/scene-preview-camera-system";
 import { linearTransformSystem } from "../bit-systems/linear-transform";
-import { quackSystem } from "../bit-systems/quack";
 import { mixerAnimatableSystem } from "../bit-systems/mixer-animatable";
 import { loopAnimationSystem } from "../bit-systems/loop-animation";
-import { avatarIkSystem } from "../bit-systems/avatar-bones-system";
 import { linkSystem } from "../bit-systems/link-system";
 import { objectMenuTransformSystem } from "../bit-systems/object-menu-transform-system";
 import { bitPenCompatSystem } from "./bit-pen-system";
@@ -94,9 +93,12 @@ import { linkedPDFSystem } from "../bit-systems/linked-pdf-system";
 import { inspectSystem } from "../bit-systems/inspect-system";
 import { snapMediaSystem } from "../bit-systems/snap-media-system";
 import { scaleWhenGrabbedSystem } from "../bit-systems/scale-when-grabbed-system";
-import { AvatarPart } from "../utils/avatar-transform-buffer";
+import { avatarSystemsTick } from "../avatar/avatar-systems";
+import { reportFrameError } from "../utils/frame-errors";
 import { PublicSpeakingSystem } from "./public-speaking-system";
 import { NimproSystem } from "./nimpro-system";
+import { interactableSystem } from "../bit-systems/interactable-system";
+import { SystemConfigT } from "../types";
 
 declare global {
   interface Window {
@@ -140,6 +142,7 @@ AFRAME.registerSystem("hubs-systems", {
     this.drawingMenuSystem = new DrawingMenuSystem(this.el);
     this.characterController = new CharacterControllerSystem(this.el);
     this.waypointSystem = new WaypointSystem(this.el, this.characterController);
+    this.mediaPDFOculusFix = new MediaPDFOculusFix(this.el);
     this.cursorPoseTrackingSystem = new CursorPoseTrackingSystem();
     this.menuAnimationSystem = new MenuAnimationSystem();
     this.audioSettingsSystem = new AudioSettingsSystem(this.el);
@@ -164,14 +167,19 @@ AFRAME.registerSystem("hubs-systems", {
   }
 });
 
-export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene, camera: Camera) {
+/**
+ * The components and systems of one frame, up to the avatars. Returns false when the scene is not playing
+ * yet and nothing was run. A component whose tick throws is cut short on its own; an error in a system
+ * ends this function for the frame and is caught by mainTick.
+ */
+function runSystems(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene, camera: Camera): boolean {
   const world = APP.world;
   const sceneEl = AFRAME.scenes[0];
   const aframeSystems = sceneEl.systems;
   const hubsSystems = aframeSystems["hubs-systems"];
 
   // TODO does anything actually ever pause the scene?
-  if (!sceneEl.isPlaying && !hubsSystems.DOMContentDidLoad) return;
+  if (!sceneEl.isPlaying && !hubsSystems.DOMContentDidLoad) return false;
 
   timeSystem(world);
   const t = world.time.elapsed;
@@ -181,7 +189,11 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   const tickComponents = sceneEl.behaviors.tick;
   for (let i = 0; i < tickComponents.length; i++) {
     if (!tickComponents[i].el.isPlaying) continue;
-    tickComponents[i].tick(t, dt);
+    try {
+      tickComponents[i].tick(t, dt);
+    } catch (error) {
+      reportFrameError(`component ${tickComponents[i].attrName}`, error);
+    }
   }
 
   // Run order of this loop, based on module load order
@@ -204,6 +216,10 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
     aframeSystems[systemNames[i]].tick(t, dt);
   }
 
+  APP.addon_systems.setup.forEach((systemConfig: SystemConfigT) => {
+    systemConfig.system(APP);
+  });
+
   networkReceiveSystem(world);
   onOwnershipLost(world);
   sceneLoadingSystem(world, hubsSystems.environmentSystem, hubsSystems.characterController);
@@ -219,10 +235,13 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   buttonSystems(world);
   sfxButtonSystem(world, aframeSystems["hubs-systems"].soundEffectsSystem);
 
+  APP.addon_systems.prePhysics.forEach((systemConfig: SystemConfigT) => {
+    systemConfig.system(APP);
+  });
+
   physicsCompatSystem(world, hubsSystems.physicsSystem);
   hubsSystems.physicsSystem.tick(dt);
   constraintsSystem(world, hubsSystems.physicsSystem);
-  floatyObjectSystem(world);
 
   hoverableVisualsSystem(world);
 
@@ -246,6 +265,8 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   hubsSystems.hoverMenuSystem.tick();
   hubsSystems.positionAtBorderSystem.tick();
   hubsSystems.twoPointStretchingSystem.tick();
+  interactableSystem(world);
+  floatyObjectSystem(world);
 
   hubsSystems.holdableButtonSystem.tick();
   hubsSystems.hoverButtonSystem.tick();
@@ -287,7 +308,6 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   hubsSystems.nameTagSystem.tick();
   simpleWaterSystem(world);
   linearTransformSystem(world);
-  quackSystem(world);
   followInFovSystem(world);
   linkedMediaSystem(world);
   linkedVideoSystem(world);
@@ -309,6 +329,10 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
   bitPenCompatSystem(world, aframeSystems["pen-tools"]);
   snapMediaSystem(world, aframeSystems["hubs-systems"].soundEffectsSystem);
 
+  APP.addon_systems.postPhysics.forEach((systemConfig: SystemConfigT) => {
+    systemConfig.system(APP);
+  });
+
   deleteEntitySystem(world, aframeSystems.userinput);
   destroyAtExtremeDistanceSystem(world);
   removeNetworkedObjectButtonSystem(world);
@@ -324,34 +348,66 @@ export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene
     networkDebugSystem(world, scene);
   }
 
-  PublicSpeakingSystem.mirrorDataChannelMessageFromSpeaker();
+  return true;
+}
 
-  /* Implementation for using bitECS */
-  if (APP.sfu) {
-    avatarIkSystem(
-      world,
-      {
-        rig: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.RIG) || new Map(),
-        hmd: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.HEAD) || new Map(),
-        leftController: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.LEFT) || new Map(),
-        rightController: APP.sfu._avatarSyncHelper._client2Transform.get(AvatarPart.RIGHT) || new Map()
-      },
-      APP.sfu._avatarSyncHelper._avatarEid2ClientId,
-      APP.sfu._avatarSyncHelper._client2VrMode,
-      APP.sfu._avatarSyncHelper._client2AnimState
-    );
-  }
-  /* End of implementation for using bitECS */
-
+/** Updates the world matrices and draws the frame */
+function drawFrame(renderer: WebGLRenderer, scene: Scene, camera: Camera) {
   scene.updateMatrixWorld();
 
   renderer.info.reset();
+
+  APP.addon_systems.beforeRender.forEach((systemConfig: SystemConfigT) => {
+    systemConfig.system(APP);
+  });
+
   if (APP.fx.composer) {
     APP.fx.composer.render();
   } else {
     renderer.render(scene, camera);
   }
 
+  APP.addon_systems.afterRender.forEach((systemConfig: SystemConfigT) => {
+    systemConfig.system(APP);
+  });
+
   // tock()s on components and system will fire here. (As well as any other time render() is called without unbinding onAfterRender)
   // TODO inline invoking tocks instead of using onAfterRender registered in a-scene
+}
+
+/**
+ * One frame: the components and systems, the public speaking relay, the avatars, the add-ons' systems,
+ * then the picture. The errors of each part are caught (utils/frame-errors.ts), because the renderer asks
+ * for the next frame only after this function has returned: one uncaught error would end the frame loop
+ * for good. A part that throws is cut short for this frame and the parts after it still run, so the own
+ * pose is still sent and the frame is still drawn.
+ */
+export function mainTick(xrFrame: XRFrame, renderer: WebGLRenderer, scene: Scene, camera: Camera) {
+  try {
+    if (!runSystems(xrFrame, renderer, scene, camera)) return;
+  } catch (error) {
+    reportFrameError("systems", error);
+  }
+  try {
+    PublicSpeakingSystem.mirrorDataChannelMessageFromSpeaker();
+  } catch (error) {
+    reportFrameError("public speaking relay", error);
+  }
+  try {
+    avatarSystemsTick(APP.world, APP.world.time.elapsed);
+  } catch (error) {
+    reportFrameError("avatars", error);
+  }
+  try {
+    APP.addon_systems.beforeMatricesUpdate.forEach((systemConfig: SystemConfigT) => {
+      systemConfig.system(APP);
+    });
+  } catch (error) {
+    reportFrameError("add-on systems", error);
+  }
+  try {
+    drawFrame(renderer, scene, camera);
+  } catch (error) {
+    reportFrameError("drawing", error);
+  }
 }

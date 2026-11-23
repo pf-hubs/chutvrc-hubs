@@ -127,7 +127,15 @@ function createDefaultAppConfig() {
     // Enable all features with a boolean type
     if (categoryName === "features") {
       for (const [key, schema] of Object.entries(category)) {
-        if (key === "require_account_for_join" || key === "disable_room_creation") {
+        if (
+          [
+            "require_account_for_join",
+            "disable_room_creation",
+            "enable_recording",
+            "enable_public_speaking",
+            "enable_nimpro"
+          ].includes(key)
+        ) {
           appConfig[categoryName][key] = false;
         } else {
           appConfig[categoryName][key] = schema.type === "boolean" ? true : null;
@@ -173,8 +181,8 @@ async function fetchAppConfigAndEnvironmentVars() {
     appConfig.theme.themes = JSON.parse(appConfig.theme.themes);
   }
 
-  // dev.reticulum.io doesn't run ita
-  if (host === "dev.reticulum.io") {
+  // dev.reticulum.io.invalid doesn't run ita
+  if (host === "dev.reticulum.io.invalid") {
     return appConfig;
   }
 
@@ -244,7 +252,7 @@ module.exports = async (env, argv) => {
     if (env.loadAppConfig || process.env.LOAD_APP_CONFIG) {
       if (!env.localDev) {
         // Load and set the app config and environment variables from the remote server.
-        // A Hubs Cloud server or dev.reticulum.io can be used.
+        // A Hubs Cloud server or dev.reticulum.io.invalid can be used.
         appConfig = await fetchAppConfigAndEnvironmentVars();
       }
     } else {
@@ -266,7 +274,7 @@ module.exports = async (env, argv) => {
         HOST: localDevHost,
         RETICULUM_SOCKET_SERVER: reticulumHost,
         CORS_PROXY_SERVER: process.env.CORS_PROXY_SERVER || "hubs-proxy.local:4000",
-        NON_CORS_PROXY_DOMAINS: `${localDevHost},${reticulumHost},dev.reticulum.io`,
+        NON_CORS_PROXY_DOMAINS: `${localDevHost},${reticulumHost},dev.reticulum.io.invalid`,
         BASE_ASSETS_PATH: `https://${localDevHost}:8080/`,
         RETICULUM_SERVER: `${reticulumHost}:4000`,
         POSTGREST_SERVER: "",
@@ -278,8 +286,6 @@ module.exports = async (env, argv) => {
 
   // In production, the environment variables are defined in CI or loaded from ita and
   // the app config is injected into the head of the page by Reticulum.
-
-  const host = process.env.HOST_IP || env.localDev || env.remoteDev ? "localhost" : "localhost";
 
   const liveReload = !!process.env.LIVE_RELOAD || false;
 
@@ -295,7 +301,9 @@ module.exports = async (env, argv) => {
     // .replaceAll("connect-src", "connect-src https://example.com");
   }
 
-  const internalHostname = process.env.INTERNAL_HOSTNAME || "localhost";
+  const addonsConfigFilePath = "./addons.json";
+  const addonsConfig = JSON.parse(fs.readFileSync(addonsConfigFilePath, "utf-8"));
+
   return {
     cache: {
       type: "filesystem"
@@ -313,7 +321,9 @@ module.exports = async (env, argv) => {
         "three/examples/js/libs/basis/basis_transcoder.js": basisTranscoderPath,
         "three/examples/js/libs/draco/gltf/draco_wasm_wrapper.js": dracoWasmWrapperPath,
         "three/examples/js/libs/basis/basis_transcoder.wasm": basisWasmPath,
-        "three/examples/js/libs/draco/gltf/draco_decoder.wasm": dracoWasmPath
+        "three/examples/js/libs/draco/gltf/draco_decoder.wasm": dracoWasmPath,
+
+        hubs$: path.resolve(__dirname, "./src/hubs.js")
       },
       // Allows using symlinks in node_modules
       symlinks: false,
@@ -330,7 +340,7 @@ module.exports = async (env, argv) => {
     entry: {
       support: path.join(__dirname, "src", "support.js"),
       index: path.join(__dirname, "src", "index.js"),
-      hub: path.join(__dirname, "src", "hub.js"),
+      hub: [path.join(__dirname, "src", "hub.js"), ...addonsConfig.addons],
       scene: path.join(__dirname, "src", "scene.js"),
       avatar: path.join(__dirname, "src", "avatar.js"),
       link: path.join(__dirname, "src", "link.js"),

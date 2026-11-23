@@ -1,8 +1,6 @@
 /**
  * Avatar animation state enum
  * Used throughout the avatar sync system to track animation state
- *
- * Note: AvatarPart enum is defined in utils/avatar-transform-buffer.ts
  */
 export enum AvatarAnimState {
   STAND = 0,

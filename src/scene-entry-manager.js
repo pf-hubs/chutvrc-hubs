@@ -25,7 +25,6 @@ import { MediaDevices, MediaDevicesEvents } from "./utils/media-devices-utils";
 import { addComponent, removeEntity } from "bitecs";
 import { MyCameraTool } from "./bit-components";
 import { anyEntityWith, shouldUseNewLoader } from "./utils/bit-utils";
-import { SFU } from "./sfu-types";
 import { moveToSpawnPoint } from "./bit-systems/waypoint";
 import { spawnFromFileList, spawnFromUrl } from "./load-media-on-paste-or-drop";
 import { isLockedDownDemoRoom } from "./utils/hub-utils";
@@ -157,12 +156,6 @@ export default class SceneEntryManager {
     const localStream = APP.sfu?.getLocalMediaStream();
     if (localStream) {
       localStream.getTracks().forEach(t => t.stop());
-
-      // In previous cases of using Dialog, when the kick button is clicked, in parallel with sending a request to Reticulum to disconnect the target client
-      // Hubs also send a request through websocket directly to Dialog to disconnect the target client in function APP.dialog.kick().
-      // However when using Sora, one is only allowed to disconnect oneself since there is no API in Sora to disconnect someone else by specifying client id.
-      // Therefore, here we have the kicked client explicitly call APP.sfu.disconnect() when exiting the scene (when exitScene() is called).
-      if (APP.sfu === SFU.SORA) APP.sfu.disconnect();
     }
     if (this.hubChannel) {
       this.hubChannel.disconnect();
@@ -195,8 +188,8 @@ export default class SceneEntryManager {
 
     this._lastFetchedAvatarId = avatarId;
     const avatarSrc = await getAvatarSrc(avatarId);
-    APP.sfu._avatarSyncHelper.sendSelfAvatarSrc(avatarId);
-    APP.sfu._avatarSyncHelper.replaceAvatarModel(avatarId, APP.sfu._clientId);
+    APP.sfu.avatarSync.sendSelfAvatarSrc(avatarId);
+    APP.sfu.avatarSync.replaceAvatarModel(avatarId, APP.sfu.clientId);
     this.avatarRig.setAttribute("player-info", { avatarSrc, avatarType: getAvatarType(avatarId) });
   };
 
@@ -223,10 +216,13 @@ export default class SceneEntryManager {
   _setupBlocking = () => {
     document.body.addEventListener("blocked", ev => {
       NAF.connection.entities.removeEntitiesOfClient(ev.detail.clientId);
+      // The avatar model and pose come over the media server, not as networked entities
+      APP.sfu.avatarSync?.hideClient(ev.detail.clientId);
     });
 
     document.body.addEventListener("unblocked", ev => {
       NAF.connection.entities.completeSync(ev.detail.clientId, true);
+      APP.sfu.avatarSync?.showClient(ev.detail.clientId);
     });
   };
 
@@ -573,9 +569,11 @@ export default class SceneEntryManager {
 
     const connect = async () => {
       await APP.sfu.setLocalMediaStream(this.mediaDevicesManager.mediaStream);
+      // A bot skips the entry that switches the microphone on, and its microphone starts off
+      APP.sfu.enableMicrophone(true);
       audioEl.play();
     };
-    if (APP.sfu._sendTransport || APP.sfu._connector) {
+    if (APP.sfu.isConnected) {
       connect();
     } else {
       this.scene.addEventListener("didConnectToSfu", connect);

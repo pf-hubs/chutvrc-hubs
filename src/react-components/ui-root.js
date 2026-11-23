@@ -48,6 +48,7 @@ import { ToolbarButton } from "./input/ToolbarButton";
 import { RoomEntryModal } from "./room/RoomEntryModal";
 import { EnterOnDeviceModal } from "./room/EnterOnDeviceModal";
 import { MicSetupModalContainer } from "./room/MicSetupModalContainer";
+import { BodyCalibrationModal } from "./room/BodyCalibrationModal";
 import { InvitePopoverContainer } from "./room/InvitePopoverContainer";
 import { MoreMenuPopoverButton, CompactMoreMenuButton, MoreMenuContextProvider } from "./room/MoreMenuPopover";
 import { ChatSidebarContainer } from "./room/ChatSidebarContainer";
@@ -68,7 +69,6 @@ import { ReactComponent as ShieldIcon } from "./icons/Shield.svg";
 import { ReactComponent as DiscordIcon } from "./icons/Discord.svg";
 import { ReactComponent as VRIcon } from "./icons/VR.svg";
 import { ReactComponent as LeaveIcon } from "./icons/Leave.svg";
-import { ReactComponent as DocumentIcon } from "./icons/Document.svg";
 import { ReactComponent as EnterIcon } from "./icons/Enter.svg";
 import { ReactComponent as InviteIcon } from "./icons/Invite.svg";
 import hubsLogo from "../assets/images/hubs-logo.png";
@@ -104,7 +104,6 @@ import { usePermissions } from "./room/hooks/usePermissions";
 import { ChatContextProvider } from "./room/contexts/ChatContext";
 import ChatToolbarButton from "./room/components/ChatToolbarButton/ChatToolbarButton";
 import SeePlansCTA from "./room/components/SeePlansCTA/SeePlansCTA";
-import RecordingButton from "./room/components/RecordingButton/RecordingButton";
 import { ChutvrcPopoversContainer } from "./room/ChutvrcPopoversContainer";
 
 const avatarEditorDebug = qsTruthy("avatarEditorDebug");
@@ -156,6 +155,7 @@ class UIRoot extends Component {
     initialIsFavorited: PropTypes.bool,
     showSignInDialog: PropTypes.bool,
     showBitECSBasedClientRefreshPrompt: PropTypes.bool,
+    showAddonRefreshPrompt: PropTypes.bool,
     signInMessage: PropTypes.object,
     onContinueAfterSignIn: PropTypes.func,
     showSafariMicDialog: PropTypes.bool,
@@ -576,6 +576,46 @@ class UIRoot extends Component {
   };
 
   performDirectEntryFlow = async enterInVR => {
+    // The body calibration is a step of every entry in VR, between choosing VR and the microphone setup,
+    // filled in with the saved values. The entry is not marked as in VR until it is saved, so going back
+    // from it and joining in 2D stays in 2D.
+    if (enterInVR) {
+      this.pushHistoryState("entry_step", "body");
+      return;
+    }
+    await this.continueDirectEntryFlow(enterInVR);
+  };
+
+  onBodyCalibrationSaved = async ({ heightCm, posture, fit }) => {
+    this.props.store.update({ preferences: { bodyHeightCm: heightCm, bodyPosture: posture, bodyFit: fit } });
+    if (isLockedDownDemoRoom()) {
+      // The locked-down demo room enters a headset straight away, without the microphone setup
+      this.setState({ enterInVR: true }, this.onAudioReadyButton);
+      return;
+    }
+    await this.continueDirectEntryFlow(true);
+  };
+
+  /**
+   * The in-room "Enter VR" control: the calibration form comes first, filled in with the saved values, and
+   * the headset is entered when it is saved.
+   */
+  enterVRFromRoom = () => {
+    const { bodyHeightCm, bodyPosture, bodyFit } = this.props.store.state.preferences;
+    this.showNonHistoriedDialog(BodyCalibrationModal, {
+      heightCm: bodyHeightCm,
+      posture: bodyPosture,
+      fit: bodyFit,
+      onBack: this.closeDialog,
+      onSave: ({ heightCm, posture, fit }) => {
+        this.props.store.update({ preferences: { bodyHeightCm: heightCm, bodyPosture: posture, bodyFit: fit } });
+        this.setState({ dialog: null });
+        exit2DInterstitialAndEnterVR(true);
+      }
+    });
+  };
+
+  continueDirectEntryFlow = async enterInVR => {
     this.setState({ enterInVR, waitingOnAudio: true });
 
     const hasGrantedMic = (await grantedMicLabels()).length > 0;
@@ -846,7 +886,7 @@ class UIRoot extends Component {
           onJoinRoom={() => {
             if (isLockedDownDemo) {
               if (this.props.forcedVREntryType?.startsWith("vr")) {
-                this.setState({ enterInVR: true }, this.onAudioReadyButton);
+                this.pushHistoryState("entry_step", "body");
                 return;
               }
               return this.onAudioReadyButton();
@@ -918,6 +958,19 @@ class UIRoot extends Component {
           this.setState({ linkCode: null, linkCodeCancel: null });
           this.props.history.goBack();
         }}
+      />
+    );
+  };
+
+  renderBodyCalibrationPanel = () => {
+    const { bodyHeightCm, bodyPosture, bodyFit } = this.props.store.state.preferences;
+    return (
+      <BodyCalibrationModal
+        heightCm={bodyHeightCm}
+        posture={bodyPosture}
+        fit={bodyFit}
+        onSave={this.onBodyCalibrationSaved}
+        onBack={() => this.props.history.goBack()}
       />
     );
   };
@@ -1078,6 +1131,9 @@ class UIRoot extends Component {
           <StateRoute stateKey="entry_step" stateValue="device" history={this.props.history}>
             {this.renderDevicePanel()}
           </StateRoute>
+          <StateRoute stateKey="entry_step" stateValue="body" history={this.props.history}>
+            {this.renderBodyCalibrationPanel()}
+          </StateRoute>
           <StateRoute stateKey="entry_step" stateValue="audio" history={this.props.history}>
             {this.renderAudioSetupPanel()}
           </StateRoute>
@@ -1136,9 +1192,6 @@ class UIRoot extends Component {
     const canCreateRoom = !configs.feature("disable_room_creation") || configs.isAdmin();
     const canCloseRoom = this.props.hubChannel && !!this.props.hubChannel.canOrWillIfCreator("close_hub");
     const isModerator = this.props.hubChannel && this.props.hubChannel.canOrWillIfCreator("kick_users") && !isMobileVR;
-
-    // const canToggleChutvrcPopovers =
-    //   APP.sfu && APP.hubChannel.presence?.state[APP.sfu._clientId]?.metas[0].roles["owner"];
 
     const moreMenu = [
       {
@@ -1659,20 +1712,16 @@ class UIRoot extends Component {
                         selected={this.state.sidebarId === "chat"}
                       />
                     )}
-                    {!isLockedDownDemo && <RecordingButton />}
                     {entered && isMobileVR && (
                       <ToolbarButton
                         className={styleUtils.hideLg}
                         icon={<VRIcon />}
                         preset="accept"
                         label={<FormattedMessage id="toolbar.enter-vr-button" defaultMessage="Enter VR" />}
-                        onClick={() => exit2DInterstitialAndEnterVR(true)}
+                        onClick={this.enterVRFromRoom}
                       />
                     )}
-                    {
-                      // canToggleChutvrcPopovers &&
-                      <ChutvrcPopoversContainer scene={this.props.scene} hubChannel={this.props.hubChannel} />
-                    }
+                    <ChutvrcPopoversContainer canRecord={!isLockedDownDemo} />
                   </>
                 }
                 toolbarRight={
@@ -1682,7 +1731,7 @@ class UIRoot extends Component {
                         icon={<VRIcon />}
                         preset="accept"
                         label={<FormattedMessage id="toolbar.enter-vr-button" defaultMessage="Enter VR" />}
-                        onClick={() => exit2DInterstitialAndEnterVR(true)}
+                        onClick={this.enterVRFromRoom}
                       />
                     )}
                     {entered && (
@@ -1715,6 +1764,14 @@ class UIRoot extends Component {
               <FormattedMessage
                 id="ui-root.bitecs-based-client-refresh-prompt"
                 defaultMessage="This page will be reloaded in five seconds because the room owner toggled the bitECS based client activation flag."
+              />
+            </div>
+          )}
+          {this.props.showAddonRefreshPrompt && (
+            <div className={styles.bitecsBasedClientRefreshPrompt}>
+              <FormattedMessage
+                id="ui-root.addons-state-changed-refresh-prompt"
+                defaultMessage="This page will be reloaded in five seconds because the room owner changed the room add-ons configuration."
               />
             </div>
           )}

@@ -1,7 +1,6 @@
 import { SourceType, AudioType } from "./audio-params";
 import { getCurrentAudioSettings, updateAudioSettings } from "../update-audio-settings";
 import { isRoomOwner } from "../utils/hub-utils";
-import { SFU } from "../sfu-types";
 const INFO_INIT_FAILED = "Failed to initialize avatar-audio-source.";
 const INFO_NO_NETWORKED_EL = "Could not find networked el.";
 const INFO_NO_OWNER = "Networked component has no owner.";
@@ -106,13 +105,7 @@ AFRAME.registerComponent("avatar-audio-source", {
     this.audioSystem = this.el.sceneEl.systems["hubs-systems"].audioSystem;
     // We subscribe to audio stream notifications for this peer to update the audio source
     // This could happen in case there is an ICE failure that requires a transport recreation.
-    if (APP.sfu) {
-      APP.sfu.on("stream_updated", this._onStreamUpdated, this);
-    } else {
-      APP.sfuCandidates.forEach(sfu => {
-        sfu.on("stream_updated", this._onStreamUpdated, this);
-      });
-    }
+    APP.sfu.on("stream_updated", this._onStreamUpdated, this);
 
     this.createAudio();
 

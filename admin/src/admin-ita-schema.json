@@ -29,9 +29,9 @@
   },
   "hubs-discord-bot": {
     "general": {
-      "token": { "type": "string", "default": "dev.reticulum.io" },
+      "token": { "type": "string", "default": "dev.reticulum.io.invalid" },
       "reticulum_bot_access_key": { "type": "string", "default": "" },
-      "reticulum_host": { "type": "string", "default": "dev.reticulum.io" },
+      "reticulum_host": { "type": "string", "default": "dev.reticulum.io.invalid" },
       "hubs_hosts": { "type": "string", "default": "localhost,hubs.local" },
       "statsd_host": { "type": "string", "default": "localhost:8125" },
       "statsd_prefix": { "type": "string", "default": "discordbot." },

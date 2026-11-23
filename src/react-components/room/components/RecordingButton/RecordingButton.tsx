@@ -13,19 +13,21 @@ const recordingDescription = defineMessage({
 });
 
 const RecordingButton = () => {
-  const [selectedState, setSelectedState] = useState(APP.sfu._isRecording);
+  const [selectedState, setSelectedState] = useState(APP.sfu.bus?.isRecording ?? false);
   const intl = useIntl();
   const description = intl.formatMessage(recordingDescription);
 
   const SwitchRecordingState = () => {
-    if (APP.sfu._isRecording) {
+    const bus = APP.sfu.bus;
+    if (!bus) return;
+    if (bus.isRecording) {
       // Download recording
-      const blob = new Blob([JSON.stringify(APP.sfu._recordedDataChannelMessages)], {
+      const blob = new Blob([JSON.stringify(bus.takeRecording())], {
         type: "text/json"
       });
       const link = document.createElement("a");
 
-      link.download = "chutvrc-recording-" + APP.sfu._roomId + "-" + Date.now();
+      link.download = "chutvrc-recording-" + APP.sfu.roomId + "-" + Date.now();
       link.href = window.URL.createObjectURL(blob);
       link.dataset.downloadurl = ["text/json", link.download, link.href].join(":");
 
@@ -38,11 +40,12 @@ const RecordingButton = () => {
       link.dispatchEvent(evt);
       link.remove();
 
-      APP.sfu._recordedDataChannelMessages = [];
+      bus.stopRecording();
+    } else {
+      bus.startRecording();
     }
 
-    APP.sfu._isRecording = !APP.sfu._isRecording;
-    setSelectedState(APP.sfu._isRecording);
+    setSelectedState(bus.isRecording);
   };
 
   return (

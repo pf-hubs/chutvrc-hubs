@@ -5,6 +5,8 @@ import {
   NetworkedFloatyObject,
   NetworkedMediaFrame,
   NetworkedPDF,
+  NetworkedRigidBody,
+  NetworkedText,
   NetworkedTransform,
   NetworkedVideo,
   NetworkedWaypoint
@@ -16,6 +18,8 @@ import { NetworkedTransformSchema } from "./networked-transform-schema";
 import { NetworkedVideoSchema } from "./networked-video-schema";
 import { NetworkedWaypointSchema } from "./networked-waypoint-schema";
 import type { CursorBuffer, EntityID } from "./networking-types";
+import { NetworkedTextSchema } from "./networked-text-schema";
+import { NetworkedRigidBodySchema } from "./networked-rigid-body";
 
 export interface StoredComponent {
   version: number;
@@ -46,6 +50,8 @@ schemas.set(NetworkedFloatyObject, {
   ...defineNetworkSchema(NetworkedFloatyObject)
 });
 schemas.set(NetworkedPDF, NetworkedPDFSchema);
+schemas.set(NetworkedText, NetworkedTextSchema);
+schemas.set(NetworkedRigidBody, NetworkedRigidBodySchema);
 
 export const networkableComponents = Array.from(schemas.keys());
 
@@ -61,7 +67,8 @@ export function write(prop: any, eid: EntityID, value: any) {
   if (ArrayBuffer.isView(prop[eid])) {
     prop[eid].set(value);
   } else {
-    prop[eid] = prop[$isStringType] ? APP.getString(value) : value;
+    // A string property holds a string id; read() returns the string, so write() takes the string
+    prop[eid] = prop[$isStringType] ? APP.getSid(value) : value;
   }
 }
 

@@ -20,13 +20,7 @@ AFRAME.registerComponent("in-world-hud", {
     this.onMicStateChanged = () => {
       this.mic.setAttribute("mic-button", "active", APP.sfu.isMicEnabled);
     };
-    if (APP.sfu) {
-      APP.sfu.on("mic-state-changed", this.onMicStateChanged);
-    } else {
-      APP.sfuCandidates.forEach(sfu => {
-        sfu.on("mic-state-changed", this.onMicStateChanged);
-      });
-    }
+    APP.sfu.on("mic-state-changed", this.onMicStateChanged);
 
     this.updateButtonStates = () => {
       this.mic.setAttribute("mic-button", "active", APP.sfu?.isMicEnabled || false);

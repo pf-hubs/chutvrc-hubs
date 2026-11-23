@@ -1,32 +1,28 @@
 import { SfuAdapter } from "../../sfu-adapters/sfu-adapter";
-import { DataChannelMessage } from "../../types/sfu-adapter-interface";
-import { AvatarSyncHelper } from "../avatar-sync-helper";
+import { PoseSync } from "../../avatar/net/pose-sync";
 import { ChannelHandlerContext, IChannelHandler } from "./channel-handler-interface";
 import { ChannelHandlerRegistry } from "./channel-handler-registry";
 
 /**
  * Dispatches data channel messages to appropriate handlers.
- * Maintains backward compatibility with message buffering.
  */
 export class DataChannelMessageDispatcher {
   private registry: ChannelHandlerRegistry;
   private context: ChannelHandlerContext;
-  private messageBuffer: DataChannelMessage[] = [];
-  private readonly maxBufferSize = 100;
 
   constructor(
     adapter: SfuAdapter,
-    avatarSyncHelper: AvatarSyncHelper,
+    poseSync: PoseSync,
     registry: ChannelHandlerRegistry
   ) {
     this.registry = registry;
     this.context = {
       adapter,
-      clientId: adapter._clientId,
-      roomId: adapter._roomId,
+      clientId: adapter.clientId,
+      roomId: adapter.roomId,
       textDecoder: new TextDecoder(),
       textEncoder: new TextEncoder(),
-      avatarSyncHelper
+      poseSync
     };
   }
 
@@ -40,15 +36,11 @@ export class DataChannelMessageDispatcher {
 
   /**
    * Dispatch a message to the appropriate handler.
-   * Also buffers the message for backward compatibility with getDataChannelMessage().
    *
    * @param channelLabel The channel label (e.g., "#nimpro")
    * @param data The raw message data
    */
   dispatchMessage(channelLabel: string, data: ArrayBuffer): void {
-    // Buffer message for backward compatibility
-    this.bufferMessage(channelLabel, data);
-
     const uint8Data = new Uint8Array(data);
 
     // Find and invoke handler
@@ -62,36 +54,15 @@ export class DataChannelMessageDispatcher {
       return;
     }
 
-    // Check for avatar transform channels (pattern: #avatar-*)
+    // Check for the pose channels (pattern: #avatar-*: #avatar-pose and the old per-part channels)
     if (channelLabel.startsWith("#avatar-")) {
-      // Delegate avatar transform channels to AvatarSyncHelper
-      this.context.avatarSyncHelper.handleRecvMessage(channelLabel, uint8Data);
+      // Delegate the pose channels to the pose sync, which tells the whole-body packets from the per-part ones
+      this.context.poseSync.handleRecvMessage(channelLabel, uint8Data);
       return;
     }
 
     // No handler found - this is not necessarily an error, just unhandled
     // console.debug(`No handler registered for channel: ${channelLabel}`);
-  }
-
-  /**
-   * Buffer a message for backward compatibility.
-   */
-  private bufferMessage(channelLabel: string, data: ArrayBuffer): void {
-    this.messageBuffer.push({ channelLabel, message: data });
-    while (this.messageBuffer.length > this.maxBufferSize) {
-      this.messageBuffer.shift();
-    }
-  }
-
-  /**
-   * Get and remove the oldest buffered message.
-   * Maintains backward compatibility with getDataChannelMessage().
-   */
-  getBufferedMessage(): DataChannelMessage {
-    if (this.messageBuffer.length > 0) {
-      return this.messageBuffer.shift()!;
-    }
-    return { channelLabel: "", message: null };
   }
 
   /**
@@ -122,7 +93,6 @@ export class DataChannelMessageDispatcher {
         }
       }
     }
-    this.messageBuffer = [];
   }
 
   /**

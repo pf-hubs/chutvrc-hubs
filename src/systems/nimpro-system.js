@@ -81,8 +81,8 @@ export class NimproSystem {
       if (isAdmin) {
         this.sendNimproMessage({ messageType: "stat", value: "1" });
       } else {
-        this.sendNimproMessage({ messageType: "pID", seatNum: pNum, value: APP.sfu._clientId });
-        APP.sfu._avatarSyncHelper?.switchSelfAnimState(2); // avatar anim state TODO: change number to type AvatarAnimState
+        this.sendNimproMessage({ messageType: "pID", seatNum: pNum, value: APP.sfu.clientId });
+        APP.sfu.avatarSync?.switchSelfAnimState(2); // avatar anim state TODO: change number to type AvatarAnimState
       }
     }
 
@@ -112,7 +112,7 @@ export class NimproSystem {
       case "stat": // value: "0" | "1"
         if (value === "1") {
           if (!this.isAdmin) {
-            this.sendNimproMessage({ messageType: "pID", seatNum: this.seatNum, value: APP.sfu._clientId });
+            this.sendNimproMessage({ messageType: "pID", seatNum: this.seatNum, value: APP.sfu.clientId });
           }
         } else {
           this.switchAnswerEnabledState(false);
@@ -171,7 +171,7 @@ export class NimproSystem {
         // }
         break;
       case "assigned":
-        if (!this.isAdmin && value === APP.sfu._clientId) {
+        if (!this.isAdmin && value === APP.sfu.clientId) {
           this.joinGame(false, seatNum);
         }
         break;
@@ -334,7 +334,6 @@ export class NimproSystem {
     // Determine majority and minority answers
     const majorityAnswer = yesCount > noCount ? true : false;
     const minorityAnswer = !majorityAnswer;
-    const majorityCount = Math.max(yesCount, noCount);
     const minorityCount = Math.min(yesCount, noCount);
 
     // Allocate points to participants based on their answers

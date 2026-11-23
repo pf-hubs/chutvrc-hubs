@@ -1,10 +1,10 @@
 import { addComponent } from "bitecs";
 import { AiChatbot } from "../bit-components";
-import { mapAvatarBone } from "../utils/map-avatar-bones";
-import { BoneType } from "../constants";
 import { getFormattedPrompt, parseAiOutput } from "../utils/ai-chatbot-io-formatter";
 import { Vector3 } from "three";
-import { createAvatarBoneEntities } from "../bit-systems/avatar-bones-system";
+import { createAvatarEntities } from "../avatar/avatar-model-manager";
+import { buildRigDescription } from "../avatar/rig/rig-description";
+import { writeNpcPose } from "../avatar/pose/npc-pose-source";
 import { WhisperSTT } from "whisper-speech-to-text";
 import { TranscriptCanvas } from "../utils/transcript-canvas";
 
@@ -50,15 +50,15 @@ AFRAME.registerComponent("ai-chatbot", {
 
   tick: function (time, timeDelta) {
     if (!this.isBoneMapped && this.el.object3D) {
-      const boneMap = mapAvatarBone(
+      const avatarModel =
         this.el.object3D.getObjectByName("AuxScene")?.getObjectByName("AvatarRoot")?.getObjectByName("AvatarRoot") ||
-          this.el.object3D
-      );
-      if (boneMap.get(BoneType.Head) && boneMap.get(BoneType.LeftHand) && boneMap.get(BoneType.RightHand)) {
-        this.head = boneMap.get(BoneType.Head);
-        this.leftHand = boneMap.get(BoneType.LeftHand);
-        this.rightHand = boneMap.get(BoneType.RightHand);
-        this.root = boneMap.get(BoneType.Root);
+        this.el.object3D;
+      const rig = buildRigDescription(avatarModel);
+      if (rig.bones.head && rig.bones.leftHand && rig.bones.rightHand) {
+        this.head = rig.bones.head;
+        this.leftHand = rig.bones.leftHand;
+        this.rightHand = rig.bones.rightHand;
+        this.root = rig.bones.root;
 
         this.originalPose = {
           head: { localPosition: this.head.position.clone(), localRotation: this.head.rotation.clone() },
@@ -66,10 +66,7 @@ AFRAME.registerComponent("ai-chatbot", {
           rightHand: { localPosition: this.rightHand.position.clone(), localRotation: this.rightHand.rotation.clone() }
         };
 
-        this.eid = createAvatarBoneEntities(
-          this.el.object3D.getObjectByName("AuxScene")?.getObjectByName("AvatarRoot")?.getObjectByName("AvatarRoot") ||
-            this.el.object3D
-        );
+        this.eid = createAvatarEntities(APP.world, APP.avatarPoses, avatarModel, rig);
         this.isBoneMapped = true;
       }
     }
@@ -290,7 +287,7 @@ AFRAME.registerComponent("ai-chatbot", {
   playSpeakingAnimation: function (timeDelta) {
     this.speakingAnimationTimer += timeDelta;
 
-    APP.world.eid2Ik.get(this.eid)?.updateAvatarBoneIk({
+    writeNpcPose(APP.avatarPoses, this.eid, {
       rig: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
       hmd: {
         pos: {
@@ -334,7 +331,7 @@ AFRAME.registerComponent("ai-chatbot", {
   },
 
   restoreOriginalPose: function () {
-    APP.world.eid2Ik.get(this.eid)?.updateAvatarBoneIk({
+    writeNpcPose(APP.avatarPoses, this.eid, {
       rig: { pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 } },
       hmd: {
         pos: {

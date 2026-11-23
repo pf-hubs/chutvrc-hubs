@@ -1,4 +1,4 @@
-import React, { Component, memo } from "react";
+import React, { Component, memo, useEffect, useReducer, useState } from "react";
 import PropTypes from "prop-types";
 import classNames from "classnames";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -27,6 +27,15 @@ import { isLockedDownDemoRoom } from "../utils/hub-utils";
 import dropdownArrowUrl from "../assets/images/dropdown_arrow.png";
 import dropdownArrow2xUrl from "../assets/images/dropdown_arrow@2x.png";
 import { PermissionNotification } from "./room/PermissionNotifications";
+import { getAddonsPreferencesCategories, getAddonsPreferencesLabels } from "../addons";
+import {
+  isCalibratedHeight,
+  MAX_BODY_HEIGHT_CM,
+  MIN_BODY_HEIGHT_CM,
+  UNCALIBRATED_BODY_HEIGHT_CM
+} from "../avatar/calibration/body-calibration";
+import { bodyCalibration } from "../avatar/calibration/apply-calibration";
+import { Button } from "./input/Button";
 
 export const CLIPPING_THRESHOLD_MIN = 0.0;
 export const CLIPPING_THRESHOLD_MAX = 0.1;
@@ -497,6 +506,22 @@ const preferenceLabels = defineMessages({
     id: "preferences-screen.preference.show-rtc-debug-panel",
     defaultMessage: "Show RTC Panel"
   },
+  bodyPosture: {
+    id: "preferences-screen.preference.body-posture",
+    defaultMessage: "How you play"
+  },
+  bodyHeightCm: {
+    id: "preferences-screen.preference.body-height-cm",
+    defaultMessage: "Your height (cm)"
+  },
+  bodyFit: {
+    id: "preferences-screen.preference.body-fit",
+    defaultMessage: "Fit"
+  },
+  bodyCaptureAgain: {
+    id: "preferences-screen.preference.body-capture-again",
+    defaultMessage: "Capture the headset's height again"
+  },
   showAudioDebugPanel: {
     id: "preferences-screen.preference.show-audio-debug-panel",
     defaultMessage: "Show Audio Debug Panel"
@@ -582,12 +607,26 @@ class PreferenceListItem extends Component {
     const isCheckbox = this.props.itemProps.prefType === PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX;
     const isCustomComponent = this.props.itemProps.prefType === PREFERENCE_LIST_ITEM_TYPE.CUSTOM_COMPONENT;
     const isSmallScreen = window.innerWidth < 600;
-    const label = preferenceLabels[this.props.storeKey] && (
+    let labelText;
+    if (preferenceLabels[this.props.storeKey]) {
+      labelText = intl.formatMessage(preferenceLabels[this.props.storeKey]);
+    } else {
+      const addonLabels = getAddonsPreferencesLabels();
+      labelText = addonLabels.get(this.props.storeKey);
+    }
+    let labelTooltip;
+    if (this.props.itemProps.tooltipKey) {
+      labelTooltip = intl.formatMessage(preferenceLabels[this.props.itemProps.tooltipKey]);
+    } else {
+      const addonLabels = getAddonsPreferencesLabels();
+      labelTooltip = addonLabels.get(this.props.storeKey);
+    }
+    const label = (
       <span
         className={classNames(styles.preferenceLabel, { [styles.disabled]: this.props.disabled })}
-        title={this.props.itemProps.tooltipKey && intl.formatMessage(preferenceLabels[this.props.itemProps.tooltipKey])}
+        title={labelTooltip}
       >
-        {intl.formatMessage(preferenceLabels[this.props.storeKey])}
+        {labelText}
       </span>
     );
     const prefSchema = this.props.store.schema.definitions.preferences.properties;
@@ -688,6 +727,115 @@ class PreferenceListItem extends Component {
 
 const IntlPreferenceListItem = injectIntl(PreferenceListItem);
 
+/**
+ * The player's height for the body calibration, typed in centimetres and stored as soon as it is within
+ * range. It has its own field because the number control clamps every keystroke to its range, which
+ * makes a height of 50 cm or more impossible to type. Resetting it clears the calibration, so the next
+ * entry in VR asks for it again.
+ */
+function BodyHeightPreference({ store }) {
+  const intl = useIntl();
+  const [draft, setDraft] = useState(null);
+  // The custom item's wrapper is memoised, so the item follows the store itself
+  const [, storeUpdated] = useReducer(count => count + 1, 0);
+  useEffect(() => {
+    store.addEventListener("statechanged", storeUpdated);
+    return () => store.removeEventListener("statechanged", storeUpdated);
+  }, [store]);
+  const stored = store.state.preferences.bodyHeightCm;
+  const storedText = isCalibratedHeight(stored) ? String(stored) : "";
+  const label = intl.formatMessage(preferenceLabels.bodyHeightCm);
+  return (
+    <ListItem>
+      <div className={styles.row}>
+        <CheckboxPlaceholder />
+        <span className={styles.preferenceLabel}>{label}</span>
+        <div className={styles.rowRight}>
+          <input
+            type="number"
+            name="bodyHeightCm"
+            aria-label={label}
+            min={MIN_BODY_HEIGHT_CM}
+            max={MAX_BODY_HEIGHT_CM}
+            step={1}
+            placeholder={intl.formatMessage({
+              id: "preferences-screen.body-height-cm.not-set",
+              defaultMessage: "Not set"
+            })}
+            value={draft === null ? storedText : draft}
+            onFocus={() => setDraft(storedText)}
+            onChange={e => {
+              setDraft(e.target.value);
+              const value = e.target.value.trim() === "" ? NaN : Number(e.target.value);
+              if (isCalibratedHeight(value)) store.update({ preferences: { bodyHeightCm: value } });
+            }}
+            onBlur={() => setDraft(null)}
+          />
+        </div>
+        <div className={styles.rowRight}>
+          {isCalibratedHeight(stored) ? (
+            <ResetToDefaultButton
+              onClick={() => store.update({ preferences: { bodyHeightCm: UNCALIBRATED_BODY_HEIGHT_CM } })}
+            />
+          ) : (
+            <ResetToDefaultButtonPlaceholder />
+          )}
+        </div>
+      </div>
+    </ListItem>
+  );
+}
+BodyHeightPreference.propTypes = {
+  store: PropTypes.object
+};
+
+/** How often the "capture again" item checks whether a capture can be started */
+const BODY_CAPTURE_POLL_MS = 500;
+
+/**
+ * Starts a new capture of the headset's height (avatar/calibration/vr-capture.ts): the prompt appears in
+ * the headset and the calibration takes the new height once the headset is steady. Only while in VR with
+ * the new solver on and a height saved; a VR entry captures on its own, so this is for a player who stood
+ * or sat badly the first time. This screen cannot be opened in VR, so outside VR the item says where the
+ * same request is in VR: the "Capture height again" button in the in-world menu below the player's view
+ * (components/body-capture-button.js).
+ */
+function BodyCaptureAgainPreference() {
+  const intl = useIntl();
+  const [canCapture, setCanCapture] = useState(bodyCalibration.canCapture);
+  useEffect(() => {
+    const id = setInterval(() => setCanCapture(bodyCalibration.canCapture), BODY_CAPTURE_POLL_MS);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <ListItem>
+      <div className={styles.row}>
+        <CheckboxPlaceholder />
+        <span className={classNames(styles.preferenceLabel, { [styles.disabled]: !canCapture })}>
+          {intl.formatMessage(preferenceLabels.bodyCaptureAgain)}
+          {!canCapture && (
+            <>
+              {" "}
+              <FormattedMessage
+                id="preferences-screen.body-capture-again.in-vr-menu"
+                defaultMessage='(in VR: look down and choose "Capture height again" in the menu)'
+              />
+            </>
+          )}
+        </span>
+        <div className={styles.rowRight}>
+          <Button preset="primary" sm disabled={!canCapture} onClick={() => bodyCalibration.requestCapture()}>
+            <FormattedMessage id="preferences-screen.body-capture-again.button" defaultMessage="Capture" />
+          </Button>
+        </div>
+        <div className={styles.rowRight}>
+          <ResetToDefaultButtonPlaceholder />
+        </div>
+      </div>
+    </ListItem>
+  );
+}
+
 const CATEGORY_AUDIO = 0;
 const CATEGORY_CONTROLS = 1;
 const CATEGORY_MISC = 2;
@@ -695,7 +843,9 @@ const CATEGORY_MOVEMENT = 3;
 const CATEGORY_TOUCHSCREEN = 4;
 const CATEGORY_ACCESSIBILITY = 5;
 const CATEGORY_GRAPHICS = 6;
-const TOP_LEVEL_CATEGORIES = [CATEGORY_AUDIO, CATEGORY_CONTROLS, CATEGORY_MISC];
+const CATEGORY_ADDONS = 7;
+const CATEGORY_BODY_CALIBRATION = 8;
+const TOP_LEVEL_CATEGORIES = [CATEGORY_AUDIO, CATEGORY_CONTROLS, CATEGORY_MISC, CATEGORY_ADDONS];
 const categoryNames = defineMessages({
   [CATEGORY_AUDIO]: { id: "preferences-screen.category.audio", defaultMessage: "Audio" },
   [CATEGORY_CONTROLS]: { id: "preferences-screen.category.controls", defaultMessage: "Controls" },
@@ -703,7 +853,12 @@ const categoryNames = defineMessages({
   [CATEGORY_MOVEMENT]: { id: "preferences-screen.category.movement", defaultMessage: "Movement" },
   [CATEGORY_TOUCHSCREEN]: { id: "preferences-screen.category.touchscreen", defaultMessage: "Touchscreen" },
   [CATEGORY_ACCESSIBILITY]: { id: "preferences-screen.category.accessibility", defaultMessage: "Accessibility" },
-  [CATEGORY_GRAPHICS]: { id: "preferences-screen.category.graphics", defaultMessage: "Graphics" }
+  [CATEGORY_GRAPHICS]: { id: "preferences-screen.category.graphics", defaultMessage: "Graphics" },
+  [CATEGORY_ADDONS]: { id: "preferences-screen.category.add-ons", defaultMessage: "Add-Ons" },
+  [CATEGORY_BODY_CALIBRATION]: {
+    id: "preferences-screen.category.body-calibration",
+    defaultMessage: "Body calibration"
+  }
 });
 
 function NavItem({ ariaLabel, title, onClick, selected }) {
@@ -1306,6 +1461,61 @@ class PreferencesScreen extends Component {
         ]
       ],
       [
+        CATEGORY_BODY_CALIBRATION,
+        [
+          {
+            key: "bodyPosture",
+            prefType: PREFERENCE_LIST_ITEM_TYPE.SELECT,
+            options: [
+              {
+                value: "standing",
+                text: intl.formatMessage({
+                  id: "preferences-screen.body-posture.standing",
+                  defaultMessage: "Standing"
+                })
+              },
+              {
+                value: "sitting",
+                text: intl.formatMessage({
+                  id: "preferences-screen.body-posture.sitting",
+                  defaultMessage: "Sitting"
+                })
+              }
+            ]
+          },
+          {
+            key: "bodyHeightCm",
+            prefType: PREFERENCE_LIST_ITEM_TYPE.CUSTOM_COMPONENT,
+            componentType: BodyHeightPreference
+          },
+          {
+            key: "bodyFit",
+            prefType: PREFERENCE_LIST_ITEM_TYPE.SELECT,
+            options: [
+              {
+                value: "avatarToPlayer",
+                text: intl.formatMessage({
+                  id: "preferences-screen.body-fit.avatar-to-player",
+                  defaultMessage: "Fit the avatar to me"
+                })
+              },
+              {
+                value: "playerToAvatar",
+                text: intl.formatMessage({
+                  id: "preferences-screen.body-fit.player-to-avatar",
+                  defaultMessage: "Fit me to the avatar"
+                })
+              }
+            ]
+          },
+          {
+            key: "bodyCaptureAgain",
+            prefType: PREFERENCE_LIST_ITEM_TYPE.CUSTOM_COMPONENT,
+            componentType: BodyCaptureAgainPreference
+          }
+        ]
+      ],
+      [
         CATEGORY_ACCESSIBILITY,
         [
           {
@@ -1427,6 +1637,11 @@ class PreferencesScreen extends Component {
       );
     }
 
+    const addOnCategories = [];
+    getAddonsPreferencesCategories(APP).forEach((prefItems, prefCatName) => {
+      addOnCategories.push({ name: prefCatName, items: prefItems.map(toItem).filter(item => !!item) });
+    });
+
     return new Map([
       [
         CATEGORY_AUDIO,
@@ -1456,11 +1671,16 @@ class PreferencesScreen extends Component {
         [
           { items: items.get(CATEGORY_MISC) },
           {
+            name: intl.formatMessage(categoryNames[CATEGORY_BODY_CALIBRATION]),
+            items: items.get(CATEGORY_BODY_CALIBRATION)
+          },
+          {
             name: intl.formatMessage(categoryNames[CATEGORY_GRAPHICS]),
             items: items.get(CATEGORY_GRAPHICS)
           }
         ]
-      ]
+      ],
+      [CATEGORY_ADDONS, addOnCategories]
     ]);
   }
 
