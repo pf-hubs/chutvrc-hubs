@@ -18,7 +18,7 @@ export function ChutvrcPopoversContainer({ scene, hubChannel }) {
 
   const buttons = [
     canTogglePublicSpeaking && {
-      id: "public-speaking",
+      id: "publicSpeaking",
       icon: <PublicSpeakingIcon />,
       label: "Broadcast",
       onClick: () => toggleMenu("publicSpeaking"),

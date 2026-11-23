@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback } from "react";
 import PropTypes from "prop-types";
 import { Sidebar } from "../sidebar/Sidebar";
 import { CloseButton } from "../input/CloseButton";
@@ -14,6 +14,7 @@ import { ReactComponent as VolumeMuted } from "../icons/VolumeMuted.svg";
 import useAvatarVolume from "./hooks/useAvatarVolume";
 import { calcLevel, calcGainMultiplier, MAX_VOLUME_LABELS } from "../../utils/avatar-volume-utils";
 import { PublicSpeakingSystem } from "../../systems/public-speaking-system";
+import { useIsListedAsSpeaker } from "./hooks/usePublicSpeakingState";
 import { useRole } from "./hooks/useRole";
 import { NimproSystem } from "../../systems/nimpro-system";
 
@@ -55,16 +56,12 @@ export function UserProfileSidebar({
   );
   const newLevel = calcLevel(multiplier);
   const canTogglePublicSpeaker = useRole("owner");
-  const [publicSpeakerActive, setPublicSpeakerActive] = useState(APP.sfu.publicSpeakerClientIds.includes(userId));
+  // Follows the room's list of speakers, also when another owner changes it
+  const publicSpeakerActive = useIsListedAsSpeaker(userId);
 
   function togglePublicSpeaker() {
-    setPublicSpeakerActive(!APP.sfu.publicSpeakerClientIds.includes(userId));
-    PublicSpeakingSystem.toggleRemotePublicSpeaker(userId, !APP.sfu.publicSpeakerClientIds.includes(userId));
+    PublicSpeakingSystem.toggleRemotePublicSpeaker(userId, !PublicSpeakingSystem.isListedAsSpeaker(userId));
   }
-
-  useEffect(() => {
-    setPublicSpeakerActive(APP.sfu.publicSpeakerClientIds.includes(userId));
-  }, [userId]);
 
   return (
     <Sidebar
