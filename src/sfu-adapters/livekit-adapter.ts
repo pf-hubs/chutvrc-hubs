@@ -304,6 +304,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     this._room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
       debug("Participant disconnected:", participant.identity);
       this._cleanupParticipant(participant.identity);
+      this.emit("peer_left", participant.identity);
     });
 
     // Track subscribed

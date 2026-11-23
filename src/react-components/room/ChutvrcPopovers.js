@@ -9,7 +9,9 @@ export function ChutvrcPopovers({ buttons, activeMenu, renderContent }) {
   return (
     <Popover
       title="Chutvrc"
-      content={() => (
+      // Given as an element, not as a function: a function is a new component at every redraw of the room's
+      // interface, which would throw the open menu away and build it again each time
+      content={
         <div style={{ display: "flex", flexDirection: "column", paddingLeft: 12, paddingRight: 12 }}>
           <div style={{ display: "flex", gap: "24px", marginBottom: "10px" }}>
             {buttons.map(
@@ -28,7 +30,7 @@ export function ChutvrcPopovers({ buttons, activeMenu, renderContent }) {
           </div>
           <div>{renderContent()}</div>
         </div>
-      )}
+      }
       placement="bottom"
     >
       {({ togglePopover, popoverVisible, triggerRef }) => (

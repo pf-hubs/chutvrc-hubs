@@ -494,6 +494,7 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
           // not forget it: a peer closes its producers when it stops a camera or publishes its microphone anew,
           // and forgetting it then removed its model, which the next announcement loaded again
           this._poseSync.handleOnClientLeave(peerId, "peer closed");
+          this.emit("peer_left", peerId);
 
           break;
         }
@@ -511,10 +512,6 @@ export class DialogAdapter extends SfuAdapter<DialogConfig> {
 
           consumer.close();
           this.removeConsumer(consumer.id);
-
-          if (this === APP.publicSpeakersMirrorSfu?.adapter) {
-            this.disconnect();
-          }
 
           break;
         }

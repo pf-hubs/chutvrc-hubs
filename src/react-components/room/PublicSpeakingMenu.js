@@ -1,39 +1,26 @@
-import React, { useState } from "react";
+import React from "react";
 import PropTypes from "prop-types";
 import { ReactComponent as SpotlightIcon } from "../icons/Spotlight.svg";
 import { ReactComponent as AudienceIcon } from "../icons/Audience.svg";
 import { FormattedMessage } from "react-intl";
 import { PublicSpeakingSystem } from "../../systems/public-speaking-system";
 import { useRole } from "./hooks/useRole";
+import { usePublicSpeakingState } from "./hooks/usePublicSpeakingState";
 import { ToolbarButton } from "../input/ToolbarButton";
 
 function PublicSpeakingMenu({ scene, hubChannel }) {
   const canTogglePublicSpeaking = useRole("owner");
-  const [publicSpeakerActive, setPublicSpeakerActive] = useState(false);
-  const [publicSpeakingMirroring, setPublicSpeakingMirroring] = useState(false);
+  // The buttons show what the sessions are doing, not what was last pressed here
+  const { speaking: publicSpeakerActive, listening: publicSpeakingMirroring } = usePublicSpeakingState();
 
   function togglePublicSpeaker() {
-    if (publicSpeakerActive) {
-      console.log("closePublicSpeaker");
-      setPublicSpeakerActive(false);
-      PublicSpeakingSystem.closePublicSpeaker();
-    } else {
-      console.log("initPublicSpeaker");
-      setPublicSpeakerActive(true);
-      PublicSpeakingSystem.initPublicSpeaker();
-    }
+    if (PublicSpeakingSystem.isSpeaking) PublicSpeakingSystem.closePublicSpeaker();
+    else PublicSpeakingSystem.initPublicSpeaker();
   }
 
   function togglePublicSpeakingMirroring() {
-    if (publicSpeakingMirroring) {
-      console.log("closePublicSpeakingMirroring");
-      setPublicSpeakingMirroring(false);
-      PublicSpeakingSystem.closePublicSpeakingMirroring();
-    } else {
-      console.log("initPublicSpeakingMirroring");
-      setPublicSpeakingMirroring(true);
-      PublicSpeakingSystem.initPublicSpeakingMirroring();
-    }
+    if (PublicSpeakingSystem.isListening) PublicSpeakingSystem.closePublicSpeakingMirroring();
+    else PublicSpeakingSystem.initPublicSpeakingMirroring();
   }
 
   return (
