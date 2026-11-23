@@ -32,7 +32,7 @@ import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
  * the drawn eyes and hands land on the real headset and controllers and the soles on the floor.
  */
 
-/** The old solver's gap between the headset and the head bone, used when the model has no head to measure */
+/** The gap between the headset and the head bone that is assumed when the model has no head to measure */
 const HEAD_BELOW_HEADSET = 0.05;
 /** How far below the exact eye height the body stands, so the legs are not straight when the user stands */
 const STANDING_KNEE_SLACK = 0.03;
@@ -41,7 +41,7 @@ const X_AXIS = new Vector3(1, 0, 0);
 const Z_AXIS = new Vector3(0, 0, 1);
 
 /**
- * The turn from the controller's orientation to the hand bone's, as the old solver applied it: a quarter
+ * The turn from the controller's orientation to the hand bone's: a quarter
  * turn about z for a model that faces -z, a third of a turn about x for one that faces +z.
  */
 const HAND_CORRECTION_FLIPPED: Record<Side, Quaternion> = {
@@ -82,7 +82,7 @@ function turnWithController(rig: RigDescription, solved: SolvedFrames, hand: Tra
 /**
  * Where the hips go: below the head target by the solved chain, so the eyes land on the headset, a little
  * lower so the knees keep a bend and the planted feet stay in reach while the hips sway. Without a head to
- * measure, the old solver's offset below the headset is used.
+ * measure, a fixed offset below the headset is used.
  */
 function placeHips(rig: RigDescription, rest: RestFrames, solved: SolvedFrames, isSelf: boolean) {
   const position = solved.position.hips;
