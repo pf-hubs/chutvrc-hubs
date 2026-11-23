@@ -3,7 +3,7 @@ import { createIntl, createIntlCache, IntlShape, MessageDescriptor } from "react
 import { getLocale, getMessages } from "../../utils/i18n";
 
 /**
- * A rounded panel with one line of text, for what the body calibration shows in VR: the capture prompt
+ * A rounded panel with one or two lines of text, for what the body calibration shows in VR: the capture prompt
  * (vr-capture.ts) and the "capture again" button in the in-world menu (components/body-capture-button.js).
  * The text is drawn onto a canvas with the browser's fonts rather than with the scene's text component,
  * whose default font has no Japanese glyphs.
@@ -16,11 +16,16 @@ export type TextPanelSize = {
   /** Its texture's size in pixels, at the same proportions */
   canvasWidth: number;
   canvasHeight: number;
-  /** The text's size in pixels, made smaller when the line would not fit */
+  /** The text's size in pixels, made smaller when a line would not fit */
   fontSize: number;
   /** The room kept free at either end of the line, in pixels */
   textMargin: number;
 };
+
+/** The distance between two lines of text, in text sizes */
+const LINE_HEIGHT = 1.3;
+/** What separates the lines of a text given to a panel */
+export const LINE_BREAK = "\n";
 
 export class TextPanel {
   readonly mesh: Mesh;
@@ -46,7 +51,7 @@ export class TextPanel {
     this.mesh.renderOrder = 10000;
   }
 
-  /** Draws the line of text, white on the given background colour; nothing is redrawn when neither changed */
+  /** Draws the text, its lines separated by line breaks, white on the given background colour; nothing is redrawn when neither changed */
   draw(text: string, background: string) {
     if (text === this.text && background === this.background) return;
     const context = this.canvas.getContext("2d");
@@ -65,10 +70,11 @@ export class TextPanel {
     context.arcTo(0, 0, canvasWidth, 0, radius);
     context.closePath();
     context.fill();
-    // One line, made smaller when it would not fit
-    let fontSize = this.size.fontSize;
+    // The lines in one size, made smaller when the widest would not fit or the lines would be too high
+    const lines = text.split(LINE_BREAK);
+    let fontSize = Math.min(this.size.fontSize, Math.floor((canvasHeight * 0.8) / (lines.length * LINE_HEIGHT)));
     context.font = `bold ${fontSize}px sans-serif`;
-    const width = context.measureText(text).width;
+    const width = Math.max(...lines.map(line => context.measureText(line).width));
     const room = canvasWidth - 2 * textMargin;
     if (width > room) {
       fontSize = Math.floor((fontSize * room) / width);
@@ -77,7 +83,9 @@ export class TextPanel {
     context.fillStyle = "#ffffff";
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.fillText(text, canvasWidth / 2, canvasHeight / 2);
+    const lineHeight = fontSize * LINE_HEIGHT;
+    const first = canvasHeight / 2 - ((lines.length - 1) * lineHeight) / 2;
+    lines.forEach((line, index) => context.fillText(line, canvasWidth / 2, first + index * lineHeight));
     this.texture.needsUpdate = true;
   }
 }
@@ -86,12 +94,12 @@ let intl: IntlShape | null = null;
 let intlLocale = "";
 const intlCache = createIntlCache();
 
-/** A message in the language the page shows, the English one while it shows English */
-export function formatCalibrationMessage(message: MessageDescriptor): string {
+/** A message in the language the page shows, the English one while it shows English, with its values filled in */
+export function formatCalibrationMessage(message: MessageDescriptor, values?: Record<string, string | number>): string {
   const locale = getLocale();
   if (!intl || intlLocale !== locale) {
     intl = createIntl({ locale, messages: getMessages(), onError: () => {} }, intlCache);
     intlLocale = locale;
   }
-  return intl.formatMessage(message);
+  return intl.formatMessage(message, values);
 }

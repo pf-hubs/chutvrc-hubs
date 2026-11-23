@@ -9,10 +9,11 @@ import {
   parseBodyFit,
   parseBodyPosture
 } from "./body-calibration";
-import { HeadsetSample, VrHeightCapture } from "./vr-capture";
+import { HeadsetSample, TriggerState, VrHeightCapture } from "./vr-capture";
 
 /**
- * Applies the body calibration to the own player while they are in VR and have a height saved: it captures the headset's height when the VR session starts (vr-capture.ts), derives
+ * Applies the body calibration to the own player while they are in VR and have a height saved: it captures
+ * the headset's height when the VR session starts, on a press of both triggers (vr-capture.ts), derives
  * the calibration from the preferences, the capture and the own model's eye height (body-calibration.ts),
  * and applies it:
  *
@@ -57,6 +58,12 @@ function ownModelEyeHeight(): number {
   return ik ? ik.modelEyeHeight() : 0;
 }
 
+/** The two cursors, whose click a trigger press would otherwise be */
+const CURSOR_CONTROLLER_IDS = ["right-cursor-controller", "left-cursor-controller"];
+/** The short vibration of both controllers when the height is taken: strength from 0 to 1, and milliseconds */
+const CAPTURED_PULSE_STRENGTH = 0.6;
+const CAPTURED_PULSE_MS = 80;
+
 /** The user input system's reference space, in which it reads the controllers' poses */
 type UserInputReferenceSpace = { xrReferenceSpace?: XRReferenceSpace | null };
 
@@ -89,6 +96,9 @@ export class BodyCalibrationController {
   /** The posture the captures of this session are taken in; a capture in another posture does not count */
   private capturePosture: BodyPosture | null = null;
   private captureRequested = false;
+  private readonly triggers: TriggerState = { left: false, right: false, connected: false };
+  /** Whether the cursors are switched off because a capture waits for the triggers */
+  private blocksControllers = false;
   /** The own model's eye height, kept while a new model loads so the fit does not jump in between */
   private modelEyeHeight = 0;
   private inputs: CalibrationInputs | null = null;
@@ -110,6 +120,14 @@ export class BodyCalibrationController {
   /** Whether the headset can be captured now: in VR, with a height saved */
   get canCapture(): boolean {
     return this.session !== null && this.calibration !== null;
+  }
+
+  /**
+   * Whether a press of the triggers belongs to the capture now and should do nothing else in the room: the
+   * cursors are switched off meanwhile, and the teleporters ask here (components/teleporter.js)
+   */
+  get blocksControllerActions(): boolean {
+    return this.blocksControllers;
   }
 
   /** Whether a capture is under way or starts on the next frame */
@@ -163,14 +181,17 @@ export class BodyCalibrationController {
       this.capture.start(posture);
     }
     if (this.capture.isRunning) {
-      const captured = this.capture.step(now / 1000, this.readHeadset(xr));
+      const captured = this.capture.step(now / 1000, this.readHeadset(xr), this.readTriggers(session));
       if (captured !== undefined && captured !== null) {
         this.capturedHeadHeight = captured;
         console.log(`Body calibration: captured the headset at ${captured.toFixed(3)} m`);
+        this.pulseControllers(session);
       } else if (captured === null) {
-        console.warn("Body calibration: the headset was not steady for a second; the capture is not taken");
+        console.warn("Body calibration: no capture was taken; the entered height is used as it is");
       }
     }
+    this.capture.tick(now / 1000);
+    this.blockControllers(this.capture.waitsForTriggers);
 
     const modelEyeHeight = ownModelEyeHeight();
     if (modelEyeHeight > 0) this.modelEyeHeight = modelEyeHeight;
@@ -210,6 +231,56 @@ export class BodyCalibrationController {
     const pose = frame.getViewerPose(this.baseSpace);
     if (!pose) return null;
     return { height: pose.transform.position.y, quaternion: pose.transform.orientation };
+  }
+
+  /** Whether each controller's trigger is down, and whether any controller is connected */
+  private readTriggers(session: XRSession): TriggerState {
+    const triggers = this.triggers;
+    triggers.left = false;
+    triggers.right = false;
+    triggers.connected = false;
+    const sources = session.inputSources;
+    for (let i = 0; i < sources.length; i++) {
+      const gamepad = sources[i].gamepad;
+      if (!gamepad) continue;
+      triggers.connected = true;
+      const down = !!gamepad.buttons[0]?.pressed;
+      if (sources[i].handedness === "left") triggers.left = down;
+      else if (sources[i].handedness === "right") triggers.right = down;
+    }
+    return triggers;
+  }
+
+  /** A short vibration of every controller that can vibrate */
+  private pulseControllers(session: XRSession) {
+    const sources = session.inputSources;
+    for (let i = 0; i < sources.length; i++) {
+      const actuator = sources[i].gamepad?.hapticActuators?.[0] as
+        | { pulse?: (strength: number, milliseconds: number) => Promise<unknown> }
+        | undefined;
+      try {
+        actuator?.pulse?.(CAPTURED_PULSE_STRENGTH, CAPTURED_PULSE_MS)?.catch(() => {});
+      } catch (error) {
+        // A controller that cannot vibrate: the prompt alone says the height was taken
+      }
+    }
+  }
+
+  /**
+   * Switches the cursors off while a capture waits for the triggers, so that the press does not click or
+   * grab what the cursors point at, and back on afterwards. The entry flow switches them on when the room is
+   * entered, so "off" is set again every frame it is wanted.
+   */
+  private blockControllers(blocked: boolean) {
+    if (!blocked && !this.blocksControllers) return;
+    this.blocksControllers = blocked;
+    const enabled = !blocked && !!APP.scene?.is("entered");
+    for (const id of CURSOR_CONTROLLER_IDS) {
+      const cursor = (document.getElementById(id) as AElement | null)?.components["cursor-controller"] as
+        | { enabled: boolean }
+        | undefined;
+      if (cursor && cursor.enabled !== enabled) cursor.enabled = enabled;
+    }
   }
 
   private rig(): Object3D | null {
@@ -267,6 +338,7 @@ export class BodyCalibrationController {
     // A capture cut short starts again when the calibration applies again
     if (this.capture.isRunning) this.capturePosture = null;
     this.capture.cancel();
+    this.blockControllers(false);
     this.captureRequested = false;
     if (this.scalesRig) {
       this.applyRigScale(this.baseRigScale);

@@ -1,5 +1,5 @@
 /**
- * The body calibration: what a player enters before the first VR entry (how they
+ * The body calibration: what a player enters before a VR entry (how they
  * play, how tall they are, and how a difference in height between them and their avatar is resolved) and
  * what follows from it for the rig, the drawn model and what is announced to the others. Pure: no scene
  * access, no store access.
