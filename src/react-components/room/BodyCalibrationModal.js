@@ -42,7 +42,6 @@ export function BodyCalibrationModal({ className, heightCm, posture, fit, onSave
   const height = heightText.trim() === "" ? NaN : Number(heightText);
   const heightValid = isCalibratedHeight(height);
   const showHeightError = heightTouched && !heightValid;
-  const range = { min: MIN_BODY_HEIGHT_CM, max: MAX_BODY_HEIGHT_CM };
 
   // With the saved values untouched there is nothing to save: the button only continues
   const unchanged =
@@ -114,7 +113,7 @@ export function BodyCalibrationModal({ className, heightCm, posture, fit, onSave
             <FormattedMessage
               id="body-calibration-modal.height-description"
               defaultMessage="From {min} to {max} centimetres"
-              values={range}
+              values={{ min: MIN_BODY_HEIGHT_CM, max: MAX_BODY_HEIGHT_CM }}
             />
           }
           error={
@@ -122,7 +121,7 @@ export function BodyCalibrationModal({ className, heightCm, posture, fit, onSave
               <FormattedMessage
                 id="body-calibration-modal.height-error"
                 defaultMessage="Enter your height in centimetres, from {min} to {max}."
-                values={range}
+                values={{ min: MIN_BODY_HEIGHT_CM, max: MAX_BODY_HEIGHT_CM }}
               />
             ) : undefined
           }

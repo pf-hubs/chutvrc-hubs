@@ -39,7 +39,10 @@ export class CrossRoomStreamerAudioSource {
       const newDisableLeftRightPanning = APP.store.state.preferences.disableLeftRightPanning;
       const newAudioPanningQuality = APP.store.state.preferences.audioPanningQuality;
 
+      // Both are for the condition commented out below
+      // eslint-disable-next-line no-unused-vars
       const shouldRecreateAudio = disableLeftRightPanning !== newDisableLeftRightPanning;
+      // eslint-disable-next-line no-unused-vars
       const shouldUpdateAudioSettings = audioPanningQuality !== newAudioPanningQuality;
 
       disableLeftRightPanning = newDisableLeftRightPanning;
