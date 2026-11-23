@@ -1,6 +1,7 @@
 import { derivePublicSpeakingConfig } from "../sfu-adapters/sfu-config";
 import { SFU_CONNECTION_TYPE } from "../sfu-types";
 import { SfuSession } from "../sfu-adapters/sfu-session";
+import { SFU_CONNECTION_ERROR_FATAL } from "../sfu-adapters/sfu-adapter";
 
 /**
  * Broadcasting across rooms. Three kinds of media session beside the room's own (APP.sfu):
@@ -20,14 +21,28 @@ export const PUBLIC_SPEAKING_STATE_CHANGED = "public-speaking-state-changed";
 
 /** The name every speaker's client id starts with in the shared room and in a listening room */
 const SPEAKER_PREFIX = "PS-";
-/** A media server that needs a token to be joined; a Dialog room is joined with the room's permission token */
-const NEEDS_SFU_TOKEN = { livekit: true, sora: true };
 /** How often a session is asked whether it is connected, and for how long, in milliseconds */
 const CONNECTED_POLL_MS = 200;
 const CONNECTED_TIMEOUT_MS = 15000;
 
 function emitStateChanged() {
   APP.sfu?.emit(PUBLIC_SPEAKING_STATE_CHANGED);
+}
+
+/**
+ * The token a session of the given role ("speak", "listen", "relay") joins with. LiveKit needs one per session.
+ * A Dialog room is joined with the room's permission token. Sora's relay uses the room's token, and its shared
+ * room a token given at build time.
+ */
+async function sessionToken(role, speaker) {
+  switch (APP.sfu.config.kind) {
+    case "livekit":
+      return APP.hubChannel.fetchPublicSpeakingToken(role, speaker);
+    case "sora":
+      return role === "relay" ? APP.hubChannel.getSfuTokenOrFetch() : undefined;
+    default:
+      return undefined;
+  }
 }
 
 /** Resolves true once the session is connected, false when that takes too long or `isCurrent` says it was dropped */
@@ -104,7 +119,14 @@ export class PublicSpeakingSystem {
     emitStateChanged();
   }
 
-  static toggleRemotePublicSpeaker(clientId, isOn) {
+  static async toggleRemotePublicSpeaker(clientId, isOn) {
+    try {
+      // Reticulum has to know before the client asks it for a token
+      await APP.hubChannel.allowPublicSpeaker(clientId, isOn);
+    } catch (error) {
+      console.error("Public speaking: reticulum refused the change of speaker:", error);
+      return;
+    }
     APP.sfu.broadcast("#togglePublicSpeaker", clientId + "|" + (isOn ? "1" : "0"));
     PublicSpeakingSystem.setListedAsSpeaker(clientId, isOn);
   }
@@ -122,9 +144,14 @@ export class PublicSpeakingSystem {
     emitStateChanged();
 
     const isCurrent = () => APP.publicSpeakingSfu === session;
+    session.on(SFU_CONNECTION_ERROR_FATAL, () => {
+      if (isCurrent()) PublicSpeakingSystem.closePublicSpeaker();
+    });
     try {
+      const token = await sessionToken("speak");
+      if (!isCurrent()) return;
       await session.connect(
-        derivePublicSpeakingConfig(APP.sfu.config, "public_speaking", SPEAKER_PREFIX + APP.sfu.clientId)
+        derivePublicSpeakingConfig(APP.sfu.config, "public_speaking", SPEAKER_PREFIX + APP.sfu.clientId, token)
       );
     } catch (error) {
       console.error("Public speaking: the speaking session could not connect:", error);
@@ -171,11 +198,17 @@ export class PublicSpeakingSystem {
     session.on("peer_left", this.closePublicSpeakerAgent, this);
     emitStateChanged();
 
+    const isCurrent = () => APP.publicSpeakersMirrorSfu === session;
+    session.on(SFU_CONNECTION_ERROR_FATAL, () => {
+      if (isCurrent()) PublicSpeakingSystem.closePublicSpeakingMirroring();
+    });
     try {
-      await session.connect(derivePublicSpeakingConfig(APP.sfu.config, "public_speaking", APP.sfu.clientId));
+      const token = await sessionToken("listen");
+      if (!isCurrent()) return;
+      await session.connect(derivePublicSpeakingConfig(APP.sfu.config, "public_speaking", APP.sfu.clientId, token));
     } catch (error) {
       console.error("Public speaking: the listening session could not connect:", error);
-      if (APP.publicSpeakersMirrorSfu === session) PublicSpeakingSystem.closePublicSpeakingMirroring();
+      if (isCurrent()) PublicSpeakingSystem.closePublicSpeakingMirroring();
     }
   }
 
@@ -227,8 +260,8 @@ export class PublicSpeakingSystem {
 
   /**
    * Starts the relay of one speaker into the own room and waits until it is connected, so the speaker's
-   * voice can be given to it. Only a media server that needs a token is asked for one: for a Dialog room
-   * reticulum refuses the request, which used to end this function before the relay was connected.
+   * voice can be given to it. When a second listener in the room relays the same speaker, LiveKit keeps the
+   * newer relay and this one ends.
    */
   static async initPublicSpeakerAgent(clientId) {
     if (!clientId.includes(SPEAKER_PREFIX)) return;
@@ -242,8 +275,11 @@ export class PublicSpeakingSystem {
     APP.publicSpeakerAgentSfus[clientId] = agent;
     this.clientIds.push(clientId);
     const isCurrent = () => APP.publicSpeakerAgentSfus?.[clientId] === agent;
+    agent.on(SFU_CONNECTION_ERROR_FATAL, () => {
+      if (isCurrent()) this.closePublicSpeakerAgent(clientId);
+    });
     try {
-      const sfuToken = NEEDS_SFU_TOKEN[APP.sfu.config.kind] ? await APP.hubChannel.getSfuTokenOrFetch() : undefined;
+      const sfuToken = await sessionToken("relay", clientId);
       if (!isCurrent()) return;
       await agent.connect(derivePublicSpeakingConfig(APP.sfu.config, APP.sfu.roomId, clientId, sfuToken));
       if (!(await whenConnected(agent, isCurrent)) && isCurrent()) throw new Error("the relay did not connect in time");

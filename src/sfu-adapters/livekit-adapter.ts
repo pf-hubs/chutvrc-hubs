@@ -114,8 +114,16 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     return this._room !== null && this._room.state === ConnectionState.Connected;
   }
 
+  /**
+   * Only the connection to the room uses the room's token. A broadcast session is given a token of its own:
+   * under the room token's identity it would throw the connection to the room out.
+   */
+  private get _usesRoomToken(): boolean {
+    return this._connectionType === SFU_CONNECTION_TYPE.SENDRECV;
+  }
+
   protected _handleSfuTokenUpdated(event: CustomEvent): void {
-    if (this._config) this._config = { ...this._config, accessToken: event.detail.token };
+    if (this._config && this._usesRoomToken) this._config = { ...this._config, accessToken: event.detail.token };
   }
 
   async connect(config: SfuConfig): Promise<void> {
@@ -134,7 +142,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     let tokenToUse = accessToken;
     if (!tokenToUse || tokenToUse === "") {
       debug("No access token provided, fetching fresh token...");
-      const freshToken = await this._ensureFreshToken();
+      const freshToken = this._usesRoomToken ? await this._ensureFreshToken() : null;
       if (freshToken) {
         tokenToUse = freshToken;
         this._config = { ...config, accessToken: freshToken };
@@ -223,7 +231,7 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
     this._connectionState = SfuConnectionState.RECONNECTING;
     this._retryCount++;
 
-    const freshToken = await this._ensureFreshToken();
+    const freshToken = this._usesRoomToken ? await this._ensureFreshToken() : null;
     if (freshToken) this._config = { ...this._config, accessToken: freshToken };
 
     const delay = Math.min(RETRY_CONFIG.baseDelay * Math.pow(2, this._retryCount - 1), RETRY_CONFIG.maxDelay);
@@ -256,7 +264,6 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
           break;
         case ConnectionState.Disconnected:
           this._connectionState = SfuConnectionState.DISCONNECTED;
-          this.reconnect();
           break;
       }
     });
@@ -266,10 +273,12 @@ export class LivekitAdapter extends SfuAdapter<LivekitConfig> {
       debug("Disconnected:", reason);
 
       if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
-        // Don't reconnect if kicked due to duplicate identity
+        // Connecting again would throw out the connection that took this identity, which would do the same back
         this._connectionState = SfuConnectionState.FAILED;
         this.emit(SFU_CONNECTION_ERROR_FATAL);
+        return;
       }
+      this.reconnect();
     });
 
     // Handle room reconnection
