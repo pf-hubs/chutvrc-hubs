@@ -1,3 +1,4 @@
+import { Object3D } from "three";
 import { applyToBones, readRestFrames } from "./apply-to-bones";
 import { modelRatioOf } from "../calibration/body-calibration";
 import {
@@ -30,12 +31,18 @@ export class AvatarIkManager {
   private ikState: IkState | undefined;
   private boneWrites: BoneWrites | undefined;
   private solverKind: SolverKind | undefined;
+  /**
+   * What is hidden until the first pose is solved, so the model is not seen in its rest pose: the object
+   * above the root, or the root itself when it is the model's top object; null for a model without a root
+   * and hips, which is never solved
+   */
+  private shownWhenSolved: Object3D | null;
 
   constructor(rig: RigDescription) {
     this.rig = rig;
-    // The model stays hidden until its first pose is solved, so it is not seen in its rest pose
     const root = rig.bones.root;
-    if (root && rig.bones.hips && root.parent) root.parent.visible = false;
+    this.shownWhenSolved = root && rig.bones.hips ? root.parent ?? root : null;
+    if (this.shownWhenSolved) this.shownWhenSolved.visible = false;
   }
 
   /**
@@ -54,7 +61,7 @@ export class AvatarIkManager {
       this.solverKind = kind;
       console.log(`Avatar of ${clientId}: solving with the ${kind} body solver`);
     }
-    if (root.parent && !root.parent.visible) root.parent.visible = true;
+    if (this.shownWhenSolved && !this.shownWhenSolved.visible) this.shownWhenSolved.visible = true;
     if (!this.ikState || !this.boneWrites) {
       this.ikState = createIkState(this.restFramesOf());
       this.boneWrites = createBoneWrites();

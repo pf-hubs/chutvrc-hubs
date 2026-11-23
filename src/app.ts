@@ -25,6 +25,7 @@ import {
 import { AudioSettings, SourceType } from "./components/audio-params";
 import { createEffectsComposer } from "./effects";
 import { mainTick } from "./systems/hubs-systems";
+import { frameErrors } from "./utils/frame-errors";
 import { waitForPreloads } from "./utils/preload";
 import SceneEntryManager from "./scene-entry-manager";
 import { getStore } from "./utils/store-instance";
@@ -112,6 +113,8 @@ export class App {
   audioListener: AudioListener;
 
   sfu = new SfuSession(SFU_CONNECTION_TYPE.SENDRECV);
+  /** The errors caught in the frame loop since the page loaded (utils/frame-errors.ts) */
+  frameErrors = frameErrors;
   publicSpeakingSfu: SfuSession;
   publicSpeakersMirrorSfu: SfuSession;
   publicSpeakerAgentSfus: { [clientId: string]: SfuSession };
