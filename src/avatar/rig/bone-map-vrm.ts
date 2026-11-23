@@ -12,7 +12,15 @@ import { FingerBones, HandSide } from "./hand-frame";
 type VrmHumanBone0 = { bone?: string; node?: number };
 type VrmHumanBone1 = { node?: number };
 
+/** A node constraint as VRMC_node_constraint declares it on a node: exactly one of the three kinds */
+type ConstraintJson = {
+  roll?: { source?: number; rollAxis?: string; weight?: number };
+  aim?: { source?: number; aimAxis?: string; weight?: number };
+  rotation?: { source?: number; weight?: number };
+};
+
 type GltfJson = {
+  nodes?: ({ extensions?: { VRMC_node_constraint?: { constraint?: ConstraintJson } } } | undefined)[];
   extensions?: {
     VRM?: { humanoid?: { humanBones?: VrmHumanBone0[] } };
     VRMC_vrm?: { humanoid?: { humanBones?: Record<string, VrmHumanBone1> } };
@@ -88,7 +96,7 @@ function humanBoneNodes(json: GltfJson): { version: VrmVersion; entries: [string
 }
 
 /** The loaded object of each glTF node index, from the loader's associations of the objects in the scene */
-function objectsByNodeIndex(gltf: LoadedGltf): Map<number, Object3D> {
+export function objectsByNodeIndex(gltf: LoadedGltf): Map<number, Object3D> {
   const byIndex = new Map<number, Object3D>();
   gltf.parser?.associations?.forEach((mapping, object) => {
     if (mapping?.nodes !== undefined && (object as Object3D).isObject3D) byIndex.set(mapping.nodes, object as Object3D);

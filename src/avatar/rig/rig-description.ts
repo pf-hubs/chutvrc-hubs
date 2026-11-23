@@ -2,6 +2,7 @@ import { Matrix4, Object3D, Quaternion, Vector3 } from "three";
 import { BONE_NAMES, BoneName, boneRecord } from "./bone-names";
 import { mapBonesByKeywords } from "./bone-map-keywords";
 import { LoadedGltf, mapBonesFromVrm, mapFingerBonesFromVrm } from "./bone-map-vrm";
+import { readVrmConstraints, VrmConstraint } from "./vrm-constraints";
 import {
   FingerBones,
   HandFrameSource,
@@ -61,6 +62,11 @@ export type RigDescription = {
   isHalfBody: boolean;
   /** Each hand as measured in the rest pose; null for a hand the model lacks or that has nothing to measure it by */
   hands: Record<HandSide, HandDescription | null>;
+  /**
+   * The node constraints of a VRM 1.0 model, in the order they are applied after the humanoid bones are
+   * written (vrm-constraints.ts); empty for any other model
+   */
+  constraints: VrmConstraint[];
 };
 
 const worldPositionA = new Vector3();
@@ -215,6 +221,7 @@ export function buildRigDescription(model: Object3D, gltf?: LoadedGltf): RigDesc
     hands: {
       left: measureHand(bones, "left", vrmFingers?.left ?? null, forward),
       right: measureHand(bones, "right", vrmFingers?.right ?? null, forward)
-    }
+    },
+    constraints: gltf ? readVrmConstraints(gltf) : []
   };
 }

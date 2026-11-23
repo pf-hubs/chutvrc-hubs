@@ -1,5 +1,6 @@
 import { Object3D } from "three";
 import { applyToBones, readRestFrames } from "./apply-to-bones";
+import { applyVrmConstraints } from "./vrm-constraints";
 import { modelRatioOf } from "../calibration/body-calibration";
 import {
   BoneWrites,
@@ -17,7 +18,8 @@ import { RigDescription } from "../rig/rig-description";
 
 /**
  * Solves one avatar's model each frame from the pose of the client it shows: a pure solve over the rig
- * description and the tracked pose (solve-body.ts), then one write to the bones (apply-to-bones.ts). It
+ * description and the tracked pose (solve-body.ts), then one write to the bones (apply-to-bones.ts) and,
+ * for a VRM 1.0 model, to the bones its node constraints move (vrm-constraints.ts). It
  * keeps what belongs to the model between frames: the rest pose, the solver state and the eye height.
  */
 export class AvatarIkManager {
@@ -73,6 +75,11 @@ export class AvatarIkManager {
       modelRatio
     });
     applyToBones(this.rig, this.boneWrites);
+    // The bones a VRM 1.0 model moves by constraints follow the humanoid bones just written
+    if (this.rig.constraints.length > 0) {
+      applyVrmConstraints(this.rig.constraints);
+      root.updateWorldMatrix(false, true);
+    }
   }
 
   private restFramesOf(): RestFrames {
