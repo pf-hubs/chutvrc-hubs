@@ -31,7 +31,9 @@ const LIFT_SHARE = 0.3;
 const MIN_LIFT = 0.03;
 const MAX_LIFT = 0.1;
 /** A foot this far from its place steps even while the other foot is in the air */
-const FORCE_DISTANCE = 0.55;
+const FORCE_DISTANCE = 0.65;
+/** A step is this much quicker when the other foot is waiting to step too, as when a standing body starts to move */
+const HURRIED_STEP = 0.6;
 /** A planted foot is never left further than this from its place: beyond it, it is dragged along */
 const MAX_REACH = 0.7;
 /** A body that moved this far in one frame was moved at once (a teleport, a waypoint): the feet go with it without a step */
@@ -41,7 +43,7 @@ const SPEED_TIME_CONSTANT = 0.1;
 /** Once the body has been slower than this for this long, feet left apart by the last steps are brought to their places */
 const IDLE_SPEED = 0.15;
 const SETTLE_AFTER_SECONDS = 0.3;
-const SETTLE_DISTANCE = 0.05;
+export const SETTLE_DISTANCE = 0.12;
 
 /** A sitting avatar's feet: this far in front of the hips and this high over the floor */
 export const SITTING_FOOT_FORWARD = 0.4;
@@ -288,10 +290,12 @@ export function stepGait(
   // The foot that wants it most starts a step, while the other stands, or at once when it is far behind
   let next: FootSide | null = null;
   let nextUrgency = 1;
+  let waiting = 0;
   for (const side of SIDES) {
     const foot = gait.feet[side];
     if (foot.stepping) continue;
     const urgency = urgencyOf(foot, place[side], bodyYawOnFloor, settling);
+    if (urgency > 1) waiting++;
     if (urgency > nextUrgency) {
       next = side;
       nextUrgency = urgency;
@@ -306,7 +310,8 @@ export function stepGait(
       foot.from.copy(foot.floor);
       foot.fromYaw = foot.floorYaw;
       foot.elapsed = 0;
-      foot.duration = stepSeconds;
+      // With the other foot waiting as well, this one makes room for it sooner
+      foot.duration = waiting > 1 ? stepSeconds * HURRIED_STEP : stepSeconds;
       foot.lift = Math.min(MAX_LIFT, Math.max(MIN_LIFT, LIFT_SHARE * distance));
     }
   }
