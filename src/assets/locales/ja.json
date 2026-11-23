@@ -731,5 +731,7 @@
   "body-calibration-capture.level-head": "頭をまっすぐにして、正面を見てください",
   "body-calibration-capture.press-triggers-again": "そのあと、もう一度両手のトリガーを押してください",
   "body-calibration-capture.hold-still": "そのまま動かないでください：{seconds}",
-  "body-calibration-capture.captured": "高さを設定しました：{height} m"
+  "body-calibration-capture.captured": "高さを設定しました：{height} m",
+  "body-calibration-modal.capture-hint": "VRに入ったら、背筋を伸ばして立つか座り、正面を見て、両手のトリガーを同時に押すと高さが設定されます。",
+  "body-calibration-modal.continue-button": "続ける"
 }

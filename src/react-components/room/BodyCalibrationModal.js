@@ -28,9 +28,9 @@ const messages = defineMessages({
 });
 
 /**
- * The body calibration asked for before the first entry in VR: how the player
- * plays, their height, and whether the avatar is fitted to them or they to the avatar. The height is
- * required; nothing is saved until it is valid.
+ * The body calibration asked for before every entry in VR: how the player plays, their height, and whether
+ * the avatar is fitted to them or they to the avatar. It starts from the saved values, so a player who
+ * changes nothing only presses Continue. The height is required; nothing is saved until it is valid.
  */
 export function BodyCalibrationModal({ className, heightCm, posture, fit, onSave, onBack, ...rest }) {
   const intl = useIntl();
@@ -43,6 +43,13 @@ export function BodyCalibrationModal({ className, heightCm, posture, fit, onSave
   const heightValid = isCalibratedHeight(height);
   const showHeightError = heightTouched && !heightValid;
   const range = { min: MIN_BODY_HEIGHT_CM, max: MAX_BODY_HEIGHT_CM };
+
+  // With the saved values untouched there is nothing to save: the button only continues
+  const unchanged =
+    isCalibratedHeight(heightCm) &&
+    height === heightCm &&
+    postureValue === parseBodyPosture(posture) &&
+    fitValue === parseBodyFit(fit);
 
   const onSubmit = e => {
     e.preventDefault();
@@ -63,6 +70,12 @@ export function BodyCalibrationModal({ className, heightCm, posture, fit, onSave
           <FormattedMessage
             id="body-calibration-modal.intro"
             defaultMessage="Before you enter in VR, tell us how you play and how tall you are, so that your avatar's eyes and hands meet yours."
+          />
+        </p>
+        <p>
+          <FormattedMessage
+            id="body-calibration-modal.capture-hint"
+            defaultMessage="Once you are in VR, stand or sit upright, look straight ahead and press both triggers to set your height."
           />
         </p>
         <RadioInputField
@@ -159,7 +172,11 @@ export function BodyCalibrationModal({ className, heightCm, posture, fit, onSave
           />
         </RadioInputField>
         <Button type="submit" preset="primary" disabled={!heightValid}>
-          <FormattedMessage id="body-calibration-modal.save-button" defaultMessage="Save and Continue" />
+          {unchanged ? (
+            <FormattedMessage id="body-calibration-modal.continue-button" defaultMessage="Continue" />
+          ) : (
+            <FormattedMessage id="body-calibration-modal.save-button" defaultMessage="Save and Continue" />
+          )}
         </Button>
       </Column>
     </Modal>

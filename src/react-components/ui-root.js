@@ -49,7 +49,6 @@ import { RoomEntryModal } from "./room/RoomEntryModal";
 import { EnterOnDeviceModal } from "./room/EnterOnDeviceModal";
 import { MicSetupModalContainer } from "./room/MicSetupModalContainer";
 import { BodyCalibrationModal } from "./room/BodyCalibrationModal";
-import { isCalibratedHeight } from "../avatar/calibration/body-calibration";
 import { InvitePopoverContainer } from "./room/InvitePopoverContainer";
 import { MoreMenuPopoverButton, CompactMoreMenuButton, MoreMenuContextProvider } from "./room/MoreMenuPopover";
 import { ChatSidebarContainer } from "./room/ChatSidebarContainer";
@@ -578,17 +577,11 @@ class UIRoot extends Component {
     });
   };
 
-  /**
-   * Whether entering in VR first needs the body calibration: the player's height has not been entered
-   */
-  needsBodyCalibration = () => {
-    return !isCalibratedHeight(this.props.store.state.preferences.bodyHeightCm);
-  };
-
   performDirectEntryFlow = async enterInVR => {
-    // The body calibration is a required step between choosing VR and the microphone setup. The entry is
-    // not marked as in VR until it is saved, so going back from it and joining in 2D stays in 2D.
-    if (enterInVR && this.needsBodyCalibration()) {
+    // The body calibration is a step of every entry in VR, between choosing VR and the microphone setup,
+    // filled in with the saved values. The entry is not marked as in VR until it is saved, so going back
+    // from it and joining in 2D stays in 2D.
+    if (enterInVR) {
       this.pushHistoryState("entry_step", "body");
       return;
     }
@@ -606,14 +599,10 @@ class UIRoot extends Component {
   };
 
   /**
-   * The in-room "Enter VR" control. A player who entered on the screen and turned the new solver on has not
-   * saved a height yet; the calibration form comes first then, and the headset is entered when it is saved.
+   * The in-room "Enter VR" control: the calibration form comes first, filled in with the saved values, and
+   * the headset is entered when it is saved.
    */
   enterVRFromRoom = () => {
-    if (!this.needsBodyCalibration()) {
-      exit2DInterstitialAndEnterVR(true);
-      return;
-    }
     const { bodyHeightCm, bodyPosture, bodyFit } = this.props.store.state.preferences;
     this.showNonHistoriedDialog(BodyCalibrationModal, {
       heightCm: bodyHeightCm,
@@ -899,11 +888,7 @@ class UIRoot extends Component {
           onJoinRoom={() => {
             if (isLockedDownDemo) {
               if (this.props.forcedVREntryType?.startsWith("vr")) {
-                if (this.needsBodyCalibration()) {
-                  this.pushHistoryState("entry_step", "body");
-                  return;
-                }
-                this.setState({ enterInVR: true }, this.onAudioReadyButton);
+                this.pushHistoryState("entry_step", "body");
                 return;
               }
               return this.onAudioReadyButton();
