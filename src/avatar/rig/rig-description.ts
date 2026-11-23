@@ -1,7 +1,15 @@
 import { Matrix4, Object3D, Quaternion, Vector3 } from "three";
 import { BONE_NAMES, BoneName, boneRecord } from "./bone-names";
 import { mapBonesByKeywords } from "./bone-map-keywords";
-import { LoadedGltf, mapBonesFromVrm } from "./bone-map-vrm";
+import { LoadedGltf, mapBonesFromVrm, mapFingerBonesFromVrm } from "./bone-map-vrm";
+import {
+  FingerBones,
+  HandFrameSource,
+  HandPoints,
+  HandSide,
+  mapFingerBonesByKeywords,
+  measureHandFrame
+} from "./hand-frame";
 
 /** Which mapping found the bones: the VRM humanoid extension, or keywords in the object names */
 export type RigSource = "vrm" | "keywords";
@@ -16,6 +24,14 @@ export type LimbLengths = {
   upperLeg: number | null;
   lowerLeg: number | null;
 };
+
+/**
+ * One hand as it was measured in the rest pose (hand-frame.ts): the turn from the hand's own frame (x
+ * along the fingers, y out of the back of the hand) to the hand bone's rest orientation, both in root
+ * space. A solver that knows where the fingers and the back of the hand should point gets the bone's
+ * orientation by turning that frame by this offset, whatever axes the rig gave the bone.
+ */
+export type HandDescription = { boneOffset: Quaternion; source: HandFrameSource };
 
 /**
  * What a solver needs to know about one loaded model, measured once when the model was loaded and in its
@@ -43,6 +59,8 @@ export type RigDescription = {
   isFlippedY: boolean;
   /** A model whose hands hang from the spine and the spine from the hips: an upper body without arms */
   isHalfBody: boolean;
+  /** Each hand as measured in the rest pose; null for a hand the model lacks or that has nothing to measure it by */
+  hands: Record<HandSide, HandDescription | null>;
 };
 
 const worldPositionA = new Vector3();
@@ -105,6 +123,49 @@ function measureLimbLengths(bones: Record<BoneName, Object3D | null>, side: "lef
   };
 }
 
+const UP = new Vector3(0, 1, 0);
+
+/**
+ * Measures one hand in the rest pose: its finger bones come from the VRM humanoid extension when the glTF
+ * has one and from name keywords below the hand otherwise; a hand without them is measured from the
+ * forearm, with the palm taken to face down.
+ */
+function measureHand(
+  bones: Record<BoneName, Object3D | null>,
+  side: HandSide,
+  vrmFingers: FingerBones | null,
+  forward: Vector3
+): HandDescription | null {
+  const root = bones.root;
+  const hand = bones[`${side}Hand`];
+  if (!root || !hand) return null;
+
+  const keywordFingers = mapFingerBonesByKeywords(hand);
+  root.updateWorldMatrix(true, false);
+  const worldToRoot = new Matrix4().copy(root.matrixWorld).invert();
+  const inRoot = (object: Object3D | null): Vector3 | null =>
+    object ? object.getWorldPosition(new Vector3()).applyMatrix4(worldToRoot) : null;
+  const points: HandPoints = {
+    wrist: inRoot(hand)!,
+    lowerArm: inRoot(bones[`${side}LowerArm`]),
+    index: inRoot(vrmFingers?.index ?? keywordFingers.index),
+    middle: inRoot(vrmFingers?.middle ?? keywordFingers.middle),
+    little: inRoot(vrmFingers?.little ?? keywordFingers.little)
+  };
+  // The model's right is its forward turned a quarter about the vertical; the left hand's outward is the opposite
+  const outward = new Vector3().crossVectors(forward, UP);
+  if (side === "left") outward.negate();
+
+  const frame = new Quaternion();
+  const source = measureHandFrame(side, points, outward, frame);
+  if (!source) return null;
+  const restInRoot = root
+    .getWorldQuaternion(new Quaternion())
+    .invert()
+    .multiply(hand.getWorldQuaternion(new Quaternion()));
+  return { boneOffset: frame.invert().multiply(restInRoot), source };
+}
+
 /**
  * Describes the rig of a loaded model. The bones come from the VRM humanoid extension when the glTF has
  * one and from name keywords otherwise; a bone the extension names but the scene lacks, and the root,
@@ -135,11 +196,14 @@ export function buildRigDescription(model: Object3D, gltf?: LoadedGltf): RigDesc
   const isFlippedY = (right?.position?.x || 0) - (left?.position?.x || 0) > 0;
   const isHalfBody = left?.parent === spine && right?.parent === spine && spine?.parent === hips;
 
+  const forward = measureForward(bones, isFlippedY);
+  const vrmFingers = gltf ? mapFingerBonesFromVrm(gltf) : null;
+
   return {
     source,
     bones,
     rest,
-    forward: measureForward(bones, isFlippedY),
+    forward,
     lengths: {
       hipsToHead: measureHipsToHead(bones.hips, bones.head),
       left: measureLimbLengths(bones, "left"),
@@ -147,6 +211,10 @@ export function buildRigDescription(model: Object3D, gltf?: LoadedGltf): RigDesc
     },
     eyeOffsetFromHead: measureEyeOffsetFromHead(bones),
     isFlippedY,
-    isHalfBody
+    isHalfBody,
+    hands: {
+      left: measureHand(bones, "left", vrmFingers?.left ?? null, forward),
+      right: measureHand(bones, "right", vrmFingers?.right ?? null, forward)
+    }
   };
 }

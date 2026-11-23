@@ -205,9 +205,11 @@ export class AvatarModelManager {
     });
     const rig = buildRigDescription(model, gltf);
     const missingBones = BONE_NAMES.filter(name => !rig.bones[name]);
+    const handSources = (["left", "right"] as const).map(side => rig.hands[side]?.source ?? "not measured");
     console.log(
       `Avatar of ${clientId} mapped from ${rig.source}` +
-        (missingBones.length > 0 ? `, without ${missingBones.join(", ")}` : "")
+        (missingBones.length > 0 ? `, without ${missingBones.join(", ")}` : "") +
+        `; hands measured from: ${handSources[0] === handSources[1] ? handSources[0] : handSources.join(" and ")}`
     );
 
     const avatarEid = createAvatarEntities(this.world, this.poses, model, rig, clientId, this.showsPose());

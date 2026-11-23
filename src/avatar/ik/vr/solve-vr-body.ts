@@ -20,6 +20,7 @@ import { IkState, resetSolverState, Side, SolveFrame } from "../shared/ik-state"
 import { ARM_BONES, reachWithShoulder, restArm, smoothHandTarget, solveArmTo, solvePlantedLeg } from "../shared/limbs";
 import { followAncestor, localPositionOf, RestFrames, SolvedFrames } from "../shared/rig-frames";
 import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
+import { handGrip } from "./hand-grip";
 
 /**
  * The VR solver, for a pose whose sender's headset is presenting: the eyes on the headset, the hands on
@@ -41,14 +42,16 @@ const X_AXIS = new Vector3(1, 0, 0);
 const Z_AXIS = new Vector3(0, 0, 1);
 
 /**
- * The turn from the controller's orientation to the hand bone's: a quarter
- * turn about z for a model that faces -z, a third of a turn about x for one that faces +z.
+ * The turn from the controller's orientation to the hand bone's for a hand that could not be measured
+ * (rig.hands), such as the hands of an upper-body avatar, which have neither a forearm nor finger bones:
+ * a quarter turn about z for a model that faces -z, a sixth of a turn about x for one that faces +z. It
+ * suits the default avatars' hands. Every other hand is turned from its own measured frame.
  */
-const HAND_CORRECTION_FLIPPED: Record<Side, Quaternion> = {
+const UNMEASURED_HAND_TURN_FLIPPED: Record<Side, Quaternion> = {
   left: new Quaternion().setFromAxisAngle(Z_AXIS, Math.PI / 2),
   right: new Quaternion().setFromAxisAngle(Z_AXIS, -Math.PI / 2)
 };
-const HAND_CORRECTION_UNFLIPPED = new Quaternion().setFromAxisAngle(X_AXIS, -Math.PI / 3);
+const UNMEASURED_HAND_TURN_UNFLIPPED = new Quaternion().setFromAxisAngle(X_AXIS, -Math.PI / 3);
 
 const heading: BodyHeading = createBodyHeading();
 const controller = new Quaternion();
@@ -57,8 +60,8 @@ const eyeOffset = new Vector3();
 const target = new Vector3();
 const angles: ChainAngles = { pitch: 0, yaw: 0, roll: 0 };
 
-function handCorrection(rig: RigDescription, side: Side): Quaternion {
-  return rig.isFlippedY ? HAND_CORRECTION_FLIPPED[side] : HAND_CORRECTION_UNFLIPPED;
+function unmeasuredHandTurn(rig: RigDescription, side: Side): Quaternion {
+  return rig.isFlippedY ? UNMEASURED_HAND_TURN_FLIPPED[side] : UNMEASURED_HAND_TURN_UNFLIPPED;
 }
 
 /** A ratio from the frame that can scale the model: a positive finite number, otherwise 1 */
@@ -72,10 +75,18 @@ function controllerTarget(hand: TrackedPart, ratio: number, out: Vector3): Vecto
   return out.set(hand.pos.x, hand.pos.y, hand.pos.z).divideScalar(ratio);
 }
 
-/** Turns the hand bone to the controller's orientation */
+/**
+ * Turns the hand with the controller. The hand's own frame, its fingers and the back of the hand, takes
+ * the grip's orientation in the controller's axes (hand-grip.ts), and the bone follows by the offset
+ * measured for this model (rig.hands), so every model holds the controller the same way whatever axes its
+ * rig gave the hand bone.
+ */
 function turnWithController(rig: RigDescription, solved: SolvedFrames, hand: TrackedPart, side: Side) {
   const name = ARM_BONES[side].hand;
-  solved.quaternion[name].copy(trackedQuaternion(hand.rot, controller)).multiply(handCorrection(rig, side));
+  const turn = solved.quaternion[name].copy(trackedQuaternion(hand.rot, controller));
+  const measured = rig.hands[side];
+  if (measured) turn.multiply(handGrip[side]).multiply(measured.boneOffset);
+  else turn.multiply(unmeasuredHandTurn(rig, side));
   solved.solved[name] = true;
 }
 
