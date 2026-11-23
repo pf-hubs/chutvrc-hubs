@@ -12,6 +12,13 @@ import { RestFrame, RestFrames } from "./shared/rig-frames";
 /** The scale an upper-body model's hands are shrunk to while they have no controller to follow */
 const HIDDEN_HAND_SCALE = 0.1;
 
+/**
+ * The scale a hidden head is shrunk to. Everything that hangs from the head bone, the face, the eyes and
+ * the hair, shrinks into the top of the neck with it, while the neck, the shoulders and the body stay. Not
+ * zero, which would leave the bones below it without an inverse.
+ */
+const HIDDEN_HEAD_SCALE = 0.0001;
+
 const localMatrix = new Matrix4();
 const scale = new Vector3();
 
@@ -20,6 +27,25 @@ const scale = new Vector3();
  * its own. Recorded the first time the root's bones are written; no solver had changed it before then.
  */
 const restRootScales = new WeakMap<Object3D, Vector3>();
+
+/** The scale each head bone had before it was first hidden, to show it again at its own size */
+const restHeadScales = new WeakMap<Object3D, Vector3>();
+
+/** Shrinks the head bone to hide it, or gives it its own scale back; returns whether its scale changed */
+function setHeadHidden(head: Object3D, hidden: boolean): boolean {
+  let rest = restHeadScales.get(head);
+  if (!rest) {
+    // A head that was never hidden has its own scale
+    if (!hidden) return false;
+    rest = head.scale.clone();
+    restHeadScales.set(head, rest);
+  }
+  const factor = hidden ? HIDDEN_HEAD_SCALE : 1;
+  const x = rest.x * factor;
+  if (head.scale.x === x) return false;
+  head.scale.set(x, rest.y * factor, rest.z * factor);
+  return true;
+}
 
 function restRootScaleOf(root: Object3D): Vector3 {
   let rest = restRootScales.get(root);
@@ -122,18 +148,19 @@ function setHandVisibility(hand: Object3D | null, hidden: boolean) {
 }
 
 /**
- * Writes each solved rotation and position to its bone once, and the root's scale, then updates the world
- * matrices below the root once. A root scaled by the VR solver scales the whole model about the rig's
+ * Writes each solved rotation and position to its bone once, the root's scale and the head's (shrunk to
+ * hide it, its own otherwise), then updates the world matrices below the root once. A root scaled by the VR solver scales the whole model about the rig's
  * position, so the bones' world positions, which the name tag and the probes read, are where it is drawn.
  */
 export function applyToBones(rig: RigDescription, writes: BoneWrites) {
   const root = rig.bones.root;
   if (!root) return;
   const rootScaled = setRootScale(root, writes.rootScale);
+  const headScaled = rig.bones.head ? setHeadHidden(rig.bones.head, writes.headHidden) : false;
   for (const name of BODY_BONE_NAMES) {
     const bone = rig.bones[name];
     if (!bone) continue;
-    let changed = name === "root" && rootScaled;
+    let changed = (name === "root" && rootScaled) || (name === "head" && headScaled);
     if (writes.hasRotation[name]) {
       bone.quaternion.copy(writes.rotation[name]);
       changed = true;

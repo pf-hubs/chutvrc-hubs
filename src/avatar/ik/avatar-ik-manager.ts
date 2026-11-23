@@ -15,6 +15,13 @@ import { rigEyeHeight } from "./shared/head";
 import { RestFrames } from "./shared/rig-frames";
 import { TrackedPose } from "../pose/tracked-pose";
 import { RigDescription } from "../rig/rig-description";
+import { CAMERA_MODE_FIRST_PERSON } from "../../systems/camera-system";
+
+/** Whether the player sees the room from their own avatar's eyes: not in the third-person and inspect views */
+function ownViewIsFirstPerson(): boolean {
+  const cameraSystem = APP.scene?.systems["hubs-systems"]?.cameraSystem;
+  return !cameraSystem || cameraSystem.mode === CAMERA_MODE_FIRST_PERSON;
+}
 
 /**
  * Solves one avatar's model each frame from the pose of the client it shows: a pure solve over the rig
@@ -69,11 +76,11 @@ export class AvatarIkManager {
       this.boneWrites = createBoneWrites();
     }
     const modelRatio = modelRatioOf(APP.avatarPoses.announcedEyeHeightOf(clientId) ?? 0, this.modelEyeHeight());
-    solveBody(this.rig, pose, this.ikState, this.boneWrites, {
-      now: performance.now(),
-      isSelf: clientId === APP.sfu.clientId,
-      modelRatio
-    });
+    const isSelf = clientId === APP.sfu.clientId;
+    solveBody(this.rig, pose, this.ikState, this.boneWrites, { now: performance.now(), isSelf, modelRatio });
+    // Seen from its own eyes, the own head would be in front of the camera or around it: looking down
+    // leans it into the view. The others, and the own third-person view, see it as it is.
+    this.boneWrites.headHidden = isSelf && ownViewIsFirstPerson();
     applyToBones(this.rig, this.boneWrites);
     // The bones a VRM 1.0 model moves by constraints follow the humanoid bones just written
     if (this.rig.constraints.length > 0) {
