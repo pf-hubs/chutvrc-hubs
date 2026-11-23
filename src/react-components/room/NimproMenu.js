@@ -1,11 +1,9 @@
 import React, { useState } from "react";
-import PropTypes from "prop-types";
-import { ReactComponent as NimproIcon } from "../icons/VR.svg";
 import { FormattedMessage } from "react-intl";
 import { NimproSystem } from "../../systems/nimpro-system";
 import { ToolbarButton } from "../input/ToolbarButton";
 
-function NimproMenu({ scene, hubChannel }) {
+function NimproMenu() {
   const [nimproActive, setNimproActive] = useState(APP.nimproActive);
 
   function toggleNimpro() {
@@ -56,10 +54,5 @@ function NimproMenu({ scene, hubChannel }) {
     </div>
   );
 }
-
-NimproMenu.propTypes = {
-  hubChannel: PropTypes.object.isRequired,
-  scene: PropTypes.object.isRequired
-};
 
 export default NimproMenu;

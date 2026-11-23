@@ -1,5 +1,4 @@
 import React from "react";
-import PropTypes from "prop-types";
 import { ReactComponent as SpotlightIcon } from "../icons/Spotlight.svg";
 import { ReactComponent as AudienceIcon } from "../icons/Audience.svg";
 import { FormattedMessage } from "react-intl";
@@ -8,7 +7,7 @@ import { useRole } from "./hooks/useRole";
 import { usePublicSpeakingState } from "./hooks/usePublicSpeakingState";
 import { ToolbarButton } from "../input/ToolbarButton";
 
-function PublicSpeakingMenu({ scene, hubChannel }) {
+function PublicSpeakingMenu() {
   const canTogglePublicSpeaking = useRole("owner");
   // The buttons show what the sessions are doing, not what was last pressed here
   const { speaking: publicSpeakerActive, listening: publicSpeakingMirroring } = usePublicSpeakingState();
@@ -58,10 +57,5 @@ function PublicSpeakingMenu({ scene, hubChannel }) {
     </div>
   );
 }
-
-PublicSpeakingMenu.propTypes = {
-  hubChannel: PropTypes.object.isRequired,
-  scene: PropTypes.object.isRequired
-};
 
 export default PublicSpeakingMenu;

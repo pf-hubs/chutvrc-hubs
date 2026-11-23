@@ -558,10 +558,7 @@ export default class HubChannel extends EventTarget {
    */
   sendDeviceOffer = (deviceId, offer) => {
     return new Promise((resolve, reject) => {
-      this.channel
-        .push("device:offer", { device_id: deviceId, offer })
-        .receive("ok", resolve)
-        .receive("error", reject);
+      this.channel.push("device:offer", { device_id: deviceId, offer }).receive("ok", resolve).receive("error", reject);
     });
   };
 

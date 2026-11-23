@@ -26,6 +26,8 @@ AFRAME.registerComponent("hand-pose", {
     this.pose = 0;
     this.animatePose = this.animatePose.bind(this);
     const mixerEl = findAncestorWithComponent(this.el, "animation-mixer");
+    // For the check commented out below
+    // eslint-disable-next-line no-unused-vars
     const suffix = this.id == "left" ? "_L" : "_R";
     this.mixer = mixerEl && mixerEl.components["animation-mixer"].mixer;
     /*

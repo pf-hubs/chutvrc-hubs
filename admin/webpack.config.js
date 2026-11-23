@@ -93,10 +93,6 @@ module.exports = (env, argv) => {
     });
   }
 
-  const defaultHostName = "localhost";
-  const host = process.env.HOST_IP || defaultHostName;
-
-  const internalHostname = process.env.INTERNAL_HOSTNAME || "localhost"; // "hubs.local"
   return {
     cache: {
       type: "filesystem"
