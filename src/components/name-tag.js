@@ -11,6 +11,40 @@ import { textureLoader } from "../utils/media-utils";
 import handRaisedIconSrc from "../assets/hud/hand-raised.png";
 import { AvatarComponent } from "../bit-components";
 
+/**
+ * The bones a name tag can sit above, best first, with how far above the bone the tag floats in metres:
+ * a model may lack the neck, and then the tag takes the next bone the model has
+ */
+const NAME_TAG_ANCHORS = [
+  { bone: "neck", height: 0.7 },
+  { bone: "head", height: 0.6 },
+  { bone: "chest", height: 0.95 },
+  { bone: "hips", height: 1.35 }
+];
+const nameTagAnchor = { bone: null, height: 0 };
+
+/**
+ * The bone the name tag of a client sits above, in the model the client has now, and the tag's height
+ * over it. It is looked up every frame: changing the avatar, falling back to the default avatar after a
+ * failed load and showing a hidden client again all replace the model and its bones, and nothing tells
+ * the name tag. Null while the client has no model, or the media session has no avatar sync yet. The
+ * returned object is reused by the next call.
+ */
+function nameTagAnchorOf(clientId) {
+  const avatarEid = APP.sfu?.avatarSync?.models.avatarEidByClientId.get(clientId);
+  if (!avatarEid) return null;
+  for (let i = 0; i < NAME_TAG_ANCHORS.length; i++) {
+    const boneEid = AvatarComponent[NAME_TAG_ANCHORS[i].bone][avatarEid];
+    const bone = boneEid ? APP.world.eid2obj.get(boneEid) : undefined;
+    if (bone) {
+      nameTagAnchor.bone = bone;
+      nameTagAnchor.height = NAME_TAG_ANCHORS[i].height;
+      return nameTagAnchor;
+    }
+  }
+  return null;
+}
+
 const DEBUG = qsTruthy("debug");
 const NAMETAG_BACKGROUND_PADDING = 0.05;
 const NAMETAG_STATUS_BORDER_PADDING = 0.035;
@@ -179,18 +213,18 @@ AFRAME.registerComponent("name-tag", {
         this.modBadge.visible = this.isOwner && !this.isRecording;
         this.handRaised.visible = this.isHandRaised;
 
-        if (!this.neck && this.ikRoot) {
-          this.neck = APP.world.eid2obj.get(
-            AvatarComponent.neck[APP.sfu.avatarSync._client2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
-          );
-        }
         if (this.ikRoot) {
-          this.neck?.getWorldPosition(worldPos);
-          // worldPos.setY(this.nametagElPosY + this.ikRoot.position.y + 2);
-          worldPos.setY(worldPos.y + 0.7);
-          mat.copy(this.nametag.matrixWorld);
-          mat.setPosition(worldPos);
-          setMatrixWorld(this.nametag, mat);
+          this.clientId = this.clientId || this.ikRoot.el.getAttribute("client-id");
+          const anchor = nameTagAnchorOf(this.clientId);
+          // Kept for inspection: the bone of the current model the tag sits above
+          this.neck = anchor ? anchor.bone : null;
+          if (anchor) {
+            anchor.bone.getWorldPosition(worldPos);
+            worldPos.setY(worldPos.y + anchor.height);
+            mat.copy(this.nametag.matrixWorld);
+            mat.setPosition(worldPos);
+            setMatrixWorld(this.nametag, mat);
+          }
         }
       } else {
         this.nametag.visible = false;
@@ -305,10 +339,7 @@ AFRAME.registerComponent("name-tag", {
     await nextTick();
     this.ikRoot = findAncestorWithComponent(this.el, "ik-root").object3D;
     this.ikRoot.el.object3D.visible = true;
-    this.neck = APP.world.eid2obj.get(
-      AvatarComponent.neck[APP.sfu.avatarSync._client2AvatarEid.get(this.ikRoot.el.getAttribute("client-id"))]
-    );
-    // this.ikRoot.el.querySelector(".Neck").object3D;
+    // The bone the tag sits above is looked up every tick (nameTagAnchorOf)
     this.audioAnalyzer = this.ikRoot.el.querySelector(".model").components["networked-audio-analyser"];
 
     this.updateElements();
