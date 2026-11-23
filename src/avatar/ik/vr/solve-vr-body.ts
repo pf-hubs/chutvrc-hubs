@@ -1,5 +1,5 @@
 import { Quaternion, Vector3 } from "three";
-import { TrackedPart, TrackedPose } from "../../pose/tracked-pose";
+import { TRACKED_LEFT_HAND, TRACKED_RIGHT_HAND, TrackedPart, TrackedPose } from "../../pose/tracked-pose";
 import { RigDescription } from "../../rig/rig-description";
 import { AvatarAnimState } from "../../../types/avatar-types";
 import { wrapAngle, updateBodyYaw } from "../shared/body-yaw";
@@ -17,7 +17,15 @@ import {
 import { BoneWrites } from "../shared/bone-writes";
 import { eyeOffsetInRootSpace, headTarget, SELF_BACK_OFFSET, trackedQuaternion } from "../shared/head";
 import { IkState, resetSolverState, Side, SolveFrame } from "../shared/ik-state";
-import { ARM_BONES, reachWithShoulder, restArm, smoothHandTarget, solveArmTo, solvePlantedLeg } from "../shared/limbs";
+import {
+  ARM_BONES,
+  reachWithShoulder,
+  restArm,
+  smoothHandTarget,
+  solveArmTo,
+  solvePlantedLeg,
+  solveRelaxedArm
+} from "../shared/limbs";
 import { followAncestor, localPositionOf, RestFrames, SolvedFrames } from "../shared/rig-frames";
 import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
 import { handGrip } from "./hand-grip";
@@ -123,8 +131,12 @@ function solveArm(
   const name = ARM_BONES[side].hand;
   if (!rest[name]) return;
   const input = side === "left" ? pose.leftHand : pose.rightHand;
+  // A controller that reports no pose holds its last one, or the rig's origin before its first
+  const tracked = (pose.tracked & (side === "left" ? TRACKED_LEFT_HAND : TRACKED_RIGHT_HAND)) !== 0;
 
   if (rig.isHalfBody) {
+    // Without its controller the hand stays where it was; solveVrBody hides both hands when neither has one
+    if (!tracked) return;
     // The hands hang from the spine without arms: placed and turned from the controllers, without smoothing
     controllerTarget(input, state.modelRatio, solved.position[name]);
     turnWithController(rig, solved, input, side);
@@ -137,7 +149,14 @@ function solveArm(
   if (!arm) {
     // A hand without an arm to carry it follows its parent and only turns with the controller
     followAncestor(rest, solved, name);
-    turnWithController(rig, solved, input, side);
+    if (tracked) turnWithController(rig, solved, input, side);
+    return;
+  }
+
+  if (!tracked) {
+    // The arm hangs at the side, and the hand snaps to the controller when its pose returns
+    state.vr.hands[side].valid = false;
+    solveRelaxedArm(rig, rest, solved, side, arm, heading);
     return;
   }
 
@@ -152,7 +171,8 @@ function solveArm(
  * scale. The body's heading trails the head's yaw; the spine distributes the head's turn, roll included,
  * and the head lands on the headset's orientation; the hips are placed so the eyes land on the headset in
  * the model's proportions; the legs reach the planted feet and the arms the smoothed controllers, a
- * shoulder turning toward a controller beyond its arm's length. When the ratio changes, the planted feet
+ * shoulder turning toward a controller beyond its arm's length; an arm whose controller reports no pose
+ * hangs at the side. When the ratio changes, the planted feet
  * and the smoothed hands start afresh, since they are kept in the model's proportions. Bones the model
  * lacks are skipped. Nothing is allocated per frame.
  */
@@ -198,6 +218,8 @@ export function solveVrBody(
   solvePlantedLeg(rig, rest, solved, state.vr.feet, heading, sitting, "right");
   solveArm(rig, rest, solved, state, pose, out, deltaSeconds, "left");
   solveArm(rig, rest, solved, state, pose, out, deltaSeconds, "right");
+  // An upper body's hands have no arms to hang by: without any controller they are hidden, as on a screen
+  if (rig.isHalfBody && (pose.tracked & (TRACKED_LEFT_HAND | TRACKED_RIGHT_HAND)) === 0) out.handsHidden = true;
 
   writeSolvedRotations(rest, solved, out);
 }

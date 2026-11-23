@@ -1,4 +1,3 @@
-import { Vector3 } from "three";
 import { TrackedPose } from "../../pose/tracked-pose";
 import { RigDescription } from "../../rig/rig-description";
 import { AvatarAnimState } from "../../../types/avatar-types";
@@ -16,7 +15,7 @@ import {
 import { BoneWrites } from "../shared/bone-writes";
 import { SELF_BACK_OFFSET } from "../shared/head";
 import { IkState, Side, SolveFrame } from "../shared/ik-state";
-import { ARM_BONES, restArm, solveArmTo, solvePlantedLeg } from "../shared/limbs";
+import { ARM_BONES, restArm, solvePlantedLeg, solveRelaxedArm } from "../shared/limbs";
 import { followAncestor, RestFrames, SolvedFrames } from "../shared/rig-frames";
 import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
 
@@ -27,15 +26,7 @@ import { ChainAngles, solveSpineChain } from "../shared/spine-chain";
  * its sender announces.
  */
 
-/** A screen user's arms hang at the sides, slightly forward and bent, in fractions of the arm's length */
-const RELAXED_ARM_DOWN = 0.93;
-const RELAXED_ARM_FORWARD = 0.12;
-const RELAXED_ARM_OUT = 0.1;
-
-const UP = new Vector3(0, 1, 0);
-
 const heading: BodyHeading = createBodyHeading();
-const target = new Vector3();
 const angles: ChainAngles = { pitch: 0, yaw: 0, roll: 0 };
 
 function solveArm(rig: RigDescription, rest: RestFrames, solved: SolvedFrames, out: BoneWrites, side: Side) {
@@ -56,18 +47,8 @@ function solveArm(rig: RigDescription, rest: RestFrames, solved: SolvedFrames, o
     return;
   }
 
-  const shoulder = solved.position[ARM_BONES[side].upper];
-  const armLength = arm.upperLength + arm.lowerLength;
-  const outward = side === "left" ? -1 : 1;
-  target
-    .copy(shoulder)
-    .addScaledVector(UP, -RELAXED_ARM_DOWN * armLength)
-    .addScaledVector(heading.forward, RELAXED_ARM_FORWARD * armLength)
-    .addScaledVector(heading.right, outward * RELAXED_ARM_OUT * armLength);
-  const turns = solveArmTo(rig, solved, side, arm, target, heading);
-  // Without a controller the hand keeps its rest pose on the forearm
-  solved.quaternion[name].copy(hand.quaternion).premultiply(turns.lowerDelta);
-  solved.solved[name] = true;
+  // A screen user's arms hang at the sides
+  solveRelaxedArm(rig, rest, solved, side, arm, heading);
 }
 
 /**

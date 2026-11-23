@@ -39,6 +39,10 @@ const HAND_SNAP_DISTANCE = 1;
 const ELBOW_POLE_DOWN = 1;
 const ELBOW_POLE_BACK = 0.7;
 const ELBOW_POLE_OUT = 0.3;
+/** An arm without a controller hangs at the side, slightly forward and bent, in fractions of the arm's length */
+const RELAXED_ARM_DOWN = 0.93;
+const RELAXED_ARM_FORWARD = 0.12;
+const RELAXED_ARM_OUT = 0.1;
 /** How far a shoulder may turn toward a hand target beyond the arm, from where the chest carries it */
 const SHOULDER_REACH_MAX_ANGLE = (50 * Math.PI) / 180;
 
@@ -77,6 +81,8 @@ const clavicle = new Vector3();
 const toTarget = new Vector3();
 const shoulderAxis = new Vector3();
 const shoulderTurn = new Quaternion();
+const relaxedTarget = new Vector3();
+const UP = new Vector3(0, 1, 0);
 
 /** The limb's rest pose, or null when one of its bones is missing or too short to solve; the next call reuses the result */
 function restLimb(rest: RestFrames, upperName: BoneName, lowerName: BoneName, endName: BoneName): RestLimb | null {
@@ -216,6 +222,31 @@ export function solveArmTo(
     .normalize();
   armRestBend.copy(rig.forward).negate();
   return solveLimb(solved, bones.upper, bones.lower, bones.hand, arm, target, armPole, armRestBend);
+}
+
+/**
+ * Solves an arm that has no controller to follow: it hangs at the side, slightly forward and bent, and the
+ * hand keeps its rest pose on the forearm. The shoulder and the upper arm are placed already.
+ */
+export function solveRelaxedArm(
+  rig: RigDescription,
+  rest: RestFrames,
+  solved: SolvedFrames,
+  side: Side,
+  arm: RestLimb,
+  heading: BodyHeading
+) {
+  const bones = ARM_BONES[side];
+  const armLength = arm.upperLength + arm.lowerLength;
+  const outward = side === "left" ? -1 : 1;
+  relaxedTarget
+    .copy(solved.position[bones.upper])
+    .addScaledVector(UP, -RELAXED_ARM_DOWN * armLength)
+    .addScaledVector(heading.forward, RELAXED_ARM_FORWARD * armLength)
+    .addScaledVector(heading.right, outward * RELAXED_ARM_OUT * armLength);
+  const turns = solveArmTo(rig, solved, side, arm, relaxedTarget, heading);
+  solved.quaternion[bones.hand].copy(rest[bones.hand]!.quaternion).premultiply(turns.lowerDelta);
+  solved.solved[bones.hand] = true;
 }
 
 /**
