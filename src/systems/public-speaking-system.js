@@ -67,6 +67,18 @@ export class PublicSpeakingSystem {
     tryTogglePublicSpeaker();
   }
 
+  /**
+   * Ends this client's speaking and listening: the room is being left, or its media server changes. The
+   * sessions were made for the room and the server they started in; left running, a relay would go on
+   * sending into the room that was left, and a listener on the old server would hear nobody on the new one.
+   */
+  static closeAll(reason) {
+    if (!APP.publicSpeakingSfu && !APP.publicSpeakersMirrorSfu) return;
+    console.log(`Public speaking: speaking and listening end: ${reason}`);
+    PublicSpeakingSystem.closePublicSpeaker();
+    PublicSpeakingSystem.closePublicSpeakingMirroring();
+  }
+
   /** Whether this client is speaking to the other rooms */
   static get isSpeaking() {
     return !!APP.publicSpeakingSfu;

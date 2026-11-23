@@ -6,6 +6,7 @@ import { localClientID, pendingMessages, pendingParts } from "./bit-systems/netw
 import { storedUpdates } from "./bit-systems/network-receive-system";
 import { shouldUseNewLoader } from "./utils/bit-utils";
 import { buildSfuConfig } from "./sfu-adapters/sfu-config";
+import { PublicSpeakingSystem } from "./systems/public-speaking-system";
 
 function unloadRoomObjects() {
   document.querySelectorAll("[pinnable]").forEach(el => {
@@ -87,6 +88,7 @@ export async function changeHub(hubId, addToHistory = true, waypoint = "") {
 
   NAF.entities.removeRemoteEntities();
   await NAF.connection.adapter.disconnect();
+  PublicSpeakingSystem.closeAll("the room is left");
   await APP.sfu.disconnect();
   if (!shouldUseNewLoader()) {
     unloadRoomObjects();

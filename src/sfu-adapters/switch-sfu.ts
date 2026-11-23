@@ -1,5 +1,6 @@
 import { SFU } from "../sfu-types";
 import { buildSfuConfig, SfuHubRecord, SfuJoinData } from "./sfu-config";
+import { PublicSpeakingSystem } from "../systems/public-speaking-system";
 
 /** The hub record reticulum sends with `hub_refresh`: the Dialog host fields and the media server kind. */
 export interface RefreshedHubRecord extends Partial<SfuHubRecord> {
@@ -42,5 +43,6 @@ export async function switchSfu(hub: RefreshedHubRecord, scene: Element | null):
   };
 
   console.log(`The room's media server changed to ${SFU[sfu]}, switching...`);
+  PublicSpeakingSystem.closeAll("the room's media server changes");
   await session.connect(buildSfuConfig(joinData, hubRecord, scene, new URLSearchParams(location.search), previous));
 }
